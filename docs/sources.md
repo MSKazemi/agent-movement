@@ -14,7 +14,7 @@ Reviewed on **2026-10-15**; links and corpus counts fact-checked 2026-10-16. Thi
 | OAuth 2.0 Token Exchange | https://www.rfc-editor.org/rfc/rfc8693 | Standard token exchange mechanism, not automatic delegation trust |
 | SPIFFE / SPIRE | https://spiffe.io/docs/latest/spire-about/spire-concepts/ | Workload identity concepts |
 | Open Policy Agent | https://www.openpolicyagent.org/docs | Policy-as-code engine |
-| OpenTelemetry GenAI | https://opentelemetry.io/docs/specs/semconv/gen-ai/ | GenAI trace/metric convention family |
+| OpenTelemetry GenAI | https://github.com/open-telemetry/semantic-conventions-genai | GenAI trace/metric convention family (moved from opentelemetry.io; status Development, checked 2026-10-16) |
 
 ## Evidence and assumptions
 

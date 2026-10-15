@@ -45,7 +45,7 @@ Packaging makes deployment portable, not agent state. Pods may be restarted or r
 OAuth 2.0 token exchange: https://www.rfc-editor.org/rfc/rfc8693
 SPIFFE / SPIRE: https://spiffe.io/docs/latest/spire-about/spire-concepts/
 OPA: https://www.openpolicyagent.org/docs
-OpenTelemetry GenAI conventions: https://opentelemetry.io/docs/specs/semconv/gen-ai/
+OpenTelemetry GenAI conventions: https://github.com/open-telemetry/semantic-conventions-genai
 
 These are building blocks, not proof of end-to-end security. Verify token audiences, resource scopes, recipient identity, tool authorization and trace privacy separately.
 
