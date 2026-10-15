@@ -8,5 +8,9 @@ version = "0.1.0"
 description = "Experimental local task handoff and fencing testbed (not an A2A implementation)"
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+# Ed25519 for signed movement receipts; latest stable on PyPI when added (2026-10-16).
+signing = ["cryptography>=50.0.2"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
