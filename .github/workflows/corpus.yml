@@ -30,6 +30,9 @@ jobs:
       - name: Validate corpora and verify byte-for-byte rebuild
         run: make check verify-determinism verify-analysis
 
+      - name: Check that every cited URL is indexed in docs/sources.md
+        run: make sources
+
       - name: Install pytest
         if: hashFiles('tests/**') != ''
         run: python -m pip install --upgrade pytest

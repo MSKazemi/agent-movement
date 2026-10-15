@@ -21,9 +21,9 @@ PAPER_APPEND = $(PYTHON) tools/paper_corpus.py append $(PAPER_DIR)/raw/round2.js
 PAPER_AUDIT2 = $(PYTHON) tools/paper_corpus.py apply-audit $(PAPER_DIR)/audit-round2.jsonl
 
 .DEFAULT_GOAL := all
-.PHONY: all help check build analysis verify-analysis verify-determinism test bib
+.PHONY: all help check build analysis verify-analysis verify-determinism sources sources-index test bib
 
-all: check verify-determinism verify-analysis test bib ## Run every gate
+all: check verify-determinism verify-analysis sources test bib ## Run every gate
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-20s %s\n", $$1, $$2}'
@@ -72,6 +72,12 @@ verify-analysis: ## Require docs/corpus-analysis/ to match a fresh regeneration
 	done; \
 	if [ $$fail -ne 0 ]; then echo "verify-analysis: docs/corpus-analysis is stale (run 'make analysis')"; exit 1; fi; \
 	echo "verify-analysis: ok (timeline.md, coverage.md current)"
+
+sources: ## Require every external URL in README.md and docs/ to be indexed in docs/sources.md
+	$(PYTHON) tools/sources_index.py check
+
+sources-index: ## Regenerate the URL index section of docs/sources.md (keeps hand-edited dates)
+	$(PYTHON) tools/sources_index.py generate
 
 test: ## Run pytest if tests/ exists
 	@if [ -d tests ]; then $(PYTHON) -m pytest -q; \
