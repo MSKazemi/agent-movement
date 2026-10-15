@@ -18,3 +18,18 @@ jobs:
       - run: python -m pip install -e .
       - run: python -m unittest discover -s tests -v
       - run: python -m agent_movement.demo
+  a2a-adapter:
+    # Optional official-SDK A2A v1 adapter (docs/a2a-adapter.md). Core job above stays dependency-free.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e '.[a2a]'
+      - run: python -m pip show a2a-sdk uvicorn starlette sse-starlette httpx protobuf | grep -E '^(Name|Version):'
+      - run: python -m unittest discover -s tests -v
+      - run: python -m agent_movement.a2a_demo
