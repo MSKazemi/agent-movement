@@ -72,7 +72,7 @@ Design points:
 
 ~~~sh
 python -m pip install -e .                 # or: pip install -e '.[ed25519]'
-python -m unittest discover -s tests -v
+python -m pytest -q
 python -m agent_movement.peer_demo         # add --alg Ed25519 with the extra installed
 ~~~
 

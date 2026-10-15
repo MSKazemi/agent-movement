@@ -227,9 +227,9 @@ The `report` subcommand regenerates these tables, the per-family breakdown, the 
 
 1. `python -m agent_movement.mobilitybench verify --suite v0.1` should report release digest `920e9a2f4a7117729cba9f028c4c1ab394c9edbef4dd8fb10e49dda0ecc9a001`.
 2. `run --suite v0.1 --out results.jsonl` should exit 0. The stderr summary should report `harness_errors: 0` and `reproducibility.mismatched: 0`.
-3. Compare the `outcome_digest` (or the per-attempt `outcome_fingerprint` values, never `elapsed_ms`) with another machine's results. They should be identical on Python ≥ 3.10.
+3. Compare the `outcome_digest` (or the per-attempt `outcome_fingerprint` values, never `elapsed_ms`) with another machine's results. They should be identical on every supported Python (3.11+).
 4. `report --in results.jsonl` should match the tables above, apart from timing.
-5. CI (`.github/workflows/python-smoke.yml`) runs `freeze --check`, `verify` and the smoke subset (6 tasks × 1 seed × 6 modes plus the 12 negatives) on Python 3.11 and 3.13, and uploads the JSONL and the Markdown report as artifacts.
+5. CI (`.github/workflows/python-smoke.yml`) runs `freeze --check`, `verify` and the smoke subset (6 tasks × 1 seed × 6 modes plus the 12 negatives) on Python 3.11, 3.13 and 3.15 in its core (no extras) job, and uploads the JSONL and the Markdown report as artifacts.
 
 ## Next versions
 

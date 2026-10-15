@@ -14,7 +14,7 @@ The core package keeps zero runtime dependencies. The adapter is an opt-in extra
 
 ~~~sh
 python -m pip install -e '.[a2a]'            # or: uv venv .venv && uv pip install -e '.[a2a]'
-python -m unittest discover -s tests -v       # without the extra, 11 adapter tests skip
+python -m pytest -q                           # without the extra, 11 adapter tests skip
 python -m agent_movement.a2a_demo             # exit 0 only if every check below passes
 ~~~
 
@@ -42,7 +42,9 @@ Results recorded on 2026-10-16 (Linux x86_64):
 | CPython 3.13.15 + `[a2a]` | 36 run, OK, 1 skipped | exit 0 | not re-run |
 | CPython 3.13.15, core only (no extra) | 36 run, OK, 11 skipped (adapter tests) | exit 2 with install hint | exit 0 |
 
-CI: `.github/workflows/python-smoke.yml` keeps the core-only job unchanged and adds an `a2a-adapter` job on 3.11 and 3.13. That job installs the extra, prints the resolved versions, runs the full suite and runs the demo.
+The table records the adapter branch before integration, run with `unittest`. On the integrated tree the suite runs with `python -m pytest -q`, because `tests/` also holds the pytest-style corpus tests.
+
+CI: `.github/workflows/python-smoke.yml` has a core-only job (no extras; the adapter tests skip and `a2a_demo` must exit 2) and an `extras` job on 3.11 and 3.13. The extras job installs every optional extra, prints the resolved versions, runs the full suite and runs this demo.
 
 ## Architecture
 

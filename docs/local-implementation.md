@@ -1,6 +1,6 @@
 # Local mobility proof of concept (2026-10-15)
 
-**Status:** Tested experimental software. **Not A2A-compatible; not cross-framework migration; not production-secure.** This first executable slice implements only a small, synthetic, local, out-of-process delegation and a separate simulated fenced-effect experiment.
+**Status:** Tested experimental software. **Not A2A-compatible; not cross-framework migration; not production-secure.** This first executable slice implements only a small, synthetic, local, out-of-process delegation and a separate simulated fenced-effect experiment. Later slices build on it as optional experiments: the [A2A v1 adapter](a2a-adapter.md), [peer authentication](peer-authentication.md), [checkpoint relocation](checkpoint-relocation.md), [signed movement receipts](movement-receipts.md) and [MobilityBench v0.1](mobilitybench-v0.1.md).
 
 ## Why start here?
 
@@ -10,7 +10,7 @@ This is an experimental application profile. It is NOT a substitute for [A2A v1.
 
 ## Run locally
 
-Requires Python 3.10+ and no runtime dependencies. From the repository root:
+Requires Python 3.11+ and no runtime dependencies (the optional extras for the later experiments are listed in the [README](../README.md#run-the-local-experiments)). From the repository root:
 
 ~~~sh
 python -m pip install -e . pytest
@@ -35,18 +35,20 @@ A receipt includes transfer identifiers, a content digest, a deterministic resul
 
 ## What the tests establish
 
-The committed unit/integration tests cover: structural contract validation, duplicate JSON keys, rejected task kinds/classifications, wrong/expired/revoked approvals, serial and concurrent replay safety, receipt persistence after re-opening a DB, conflicting reuse of operation/movement identifiers, local HTTP status codes, epoch fencing after ownership transfer, and concurrent duplicate simulated effects.
+Test totals on 2026-10-16 (`python -m pytest -q`, which also runs the corpus-tooling tests): **351 passed, 1 skipped** with every optional extra installed (CPython 3.11.16 and 3.13.15), and **276 passed, 76 skipped** with the core only (CPython 3.13.15 and 3.15.0rc2). The skipped tests are those that need a missing extra. CI runs both configurations in [`python-smoke.yml`](../.github/workflows/python-smoke.yml).
+
+The committed unit/integration tests for this slice cover: structural contract validation, duplicate JSON keys, rejected task kinds/classifications, wrong/expired/revoked approvals, serial and concurrent replay safety, receipt persistence after re-opening a DB, conflicting reuse of operation/movement identifiers, local HTTP status codes, epoch fencing after ownership transfer, and concurrent duplicate simulated effects.
 
 **Scope limit:** There is no injected coordinator crash matrix, real cross-machine run, A2A interoperability check, model continuation measurement, tool authorization boundary outside the simulated gateway, or verified production-security claim.
 
 ## Next engineering and scientific issues (ordered)
 
-1. **Real A2A v1 integration:** build an opt-in official-SDK adapter and independent sender/receiver, pin supported SDK and spec versions, test against the A2A inspector and a second implementation. Keep the transfer application profile separate from A2A message framing.
+1. **Real A2A v1 integration:** build an opt-in official-SDK adapter and independent sender/receiver, pin supported SDK and spec versions, test against the A2A inspector and a second implementation. Keep the transfer application profile separate from A2A message framing. *A first slice (official `a2a-sdk` 1.2.2 on both ends, two local processes) is in [a2a-adapter.md](a2a-adapter.md); the A2A inspector/TCK and a second implementation have not been run.*
 2. **Pre-disclosure authorization:** authenticate peer identity, verify recipient and authority *before transmitting task content*, negotiate capabilities, issue expiring audience-bound approvals, and enforce revocation at the action boundary. Local untrusted agent_id strings are insufficient. *A first synthetic, local slice (signed cards, scoped grants, metadata-only preflight, commit-time revocation recheck) is in [peer-authentication.md](peer-authentication.md); channel security and A2A integration remain open.*
-3. **True same-runtime checkpoint relocation:** integrate one pinned durable agent runtime (e.g. LangGraph), specify safe checkpoint boundaries, transfer task ownership and continue on a second worker; persist and reconcile out-of-band effects.
-4. **Fault injection:** kill origin, receiver and coordinator at every state transition; add delayed acknowledgements, lost replies, forged recipients, partitions, cancellation and external effect states marked `unknown/reconcile` rather than assuming failure.
-5. **MobilityBench:** publish versioned synthetic datasets, the keep/restart/delegate/relocate baselines, per-run quality/cost/safety measures, reproducible seed manifests and negative findings; align with the companion [research strategy PR](https://github.com/MSKazemi/agent-movement/pull/4).
-6. **Independent forensics and evidence:** signed/verified transfer receipts, an audited event-store design, independent tool-side attestations and redaction/retention tests before claiming provenance assurance.
+3. **True same-runtime checkpoint relocation:** integrate one pinned durable agent runtime (e.g. LangGraph), specify safe checkpoint boundaries, transfer task ownership and continue on a second worker; persist and reconcile out-of-band effects. *A first synthetic slice with pinned LangGraph is in [checkpoint-relocation.md](checkpoint-relocation.md).*
+4. **Fault injection:** kill origin, receiver and coordinator at every state transition; add delayed acknowledgements, lost replies, forged recipients, partitions, cancellation and external effect states marked `unknown/reconcile` rather than assuming failure. *Partly covered by the 30-row crash/duplicate/version fault matrix in [checkpoint-relocation.md](checkpoint-relocation.md).*
+5. **MobilityBench:** publish versioned synthetic datasets, the keep/restart/delegate/relocate baselines, per-run quality/cost/safety measures, reproducible seed manifests and negative findings; align with the companion [scientific agenda](strategic-target-and-scientific-agenda.md). *A first frozen, LLM-free pilot is [MobilityBench v0.1](mobilitybench-v0.1.md); its A2A, relocation and reconstruction baselines are still reported as unavailable.*
+6. **Independent forensics and evidence:** signed/verified transfer receipts, an audited event-store design, independent tool-side attestations and redaction/retention tests before claiming provenance assurance. *A first slice with synthetic fixtures is [signed movement receipts](movement-receipts.md).*
 
 ## Source, licensing and contribution notes
 

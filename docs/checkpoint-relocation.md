@@ -8,10 +8,10 @@
 python -m pip install -e '.[relocation]'          # optional extra; core stays dependency-free
 python -m agent_movement.relocation_demo           # headline + 30-row fault matrix, exit 0 if all rows match
 python -m agent_movement.relocation_demo --json results.json
-python -m unittest tests.test_relocation -v        # skipped cleanly when the extra is absent
+python -m pytest -q tests/test_relocation.py      # skipped cleanly when the extra is absent
 ~~~
 
-The experiment needs `os.fork` (Linux/macOS). It completes in roughly 15–20 s. It makes no model calls, needs no network, and uses no credentials. Each scenario uses a fresh SQLite file in a temporary directory, and the directory is deleted afterwards. CI runs it in [`relocation-smoke.yml`](../.github/workflows/relocation-smoke.yml) on Python 3.11 and 3.13 and uploads the JSON results as an artifact.
+The experiment needs `os.fork` (Linux/macOS). It completes in roughly 15–20 s. It makes no model calls, needs no network, and uses no credentials. Each scenario uses a fresh SQLite file in a temporary directory, and the directory is deleted afterwards. CI runs it in the `extras` job of [`python-smoke.yml`](../.github/workflows/python-smoke.yml) on Python 3.11 and 3.13 and uploads the JSON results as an artifact.
 
 ## Pinned runtime (one durable runtime, exact pins)
 
@@ -186,7 +186,7 @@ Notes on specific rows:
 | Worker B continues from a persisted checkpoint, not a restart or transcript replay | Headline: 3 vs 6 executions, lineage parent, `step_log` per execution |
 | Crash, restart, duplicate and partition outcomes documented as allowed, unknown or denied | Matrix C1–C15, D1–D11 (crash and duplicate for all 7 transitions) |
 | Version mismatch fails closed and reports lost or unavailable state | V1–V4 and the `compatibility()` report |
-| Synthetic-only, reproducible one-command experiment plus a CI subset | `python -m agent_movement.relocation_demo`, `relocation-smoke.yml` |
+| Synthetic-only, reproducible one-command experiment plus a CI subset | `python -m agent_movement.relocation_demo`, the `extras` job in `python-smoke.yml` |
 
 ## References
 

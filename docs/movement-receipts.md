@@ -18,7 +18,7 @@ python -m agent_movement.receipts verify tests/fixtures/movement-receipts       
 python -m agent_movement.receipts verify tests/fixtures/movement-receipts/04-forged-identity --json
 python -m agent_movement.receipts timeline tests/fixtures/movement-receipts/09-clock-skew
 python -m agent_movement.receipts make-fixtures /tmp/regenerated   # byte-identical to the committed set
-python -m unittest discover -s tests -v
+python -m pytest -q
 ```
 
 The core package stays dependency-free. Without the `signing` extra:
