@@ -70,10 +70,11 @@ def main() -> None:
         finally:
             process.terminate()
             try:
-                process.wait(timeout=5)
+                # communicate() drains and closes stdout/stderr (no leaked pipes).
+                process.communicate(timeout=5)
             except subprocess.TimeoutExpired:
                 process.kill()
-                process.wait()
+                process.communicate()
 
 
 if __name__ == "__main__":

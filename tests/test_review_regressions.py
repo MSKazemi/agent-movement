@@ -114,5 +114,17 @@ class StoreInitHonoursBusyTimeout(unittest.TestCase):
                 holder.close()
 
 
+class DemoDoesNotLeakPipes(unittest.TestCase):
+    def test_demo_closes_child_pipes(self):
+        from agent_movement import demo
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", ResourceWarning)
+            with contextlib.redirect_stdout(io.StringIO()):
+                demo.main()
+            gc.collect()
+        leaks = [w for w in caught if issubclass(w.category, ResourceWarning)]
+        self.assertEqual(leaks, [], [str(w.message) for w in leaks])
+
+
 if __name__ == "__main__":
     unittest.main()
