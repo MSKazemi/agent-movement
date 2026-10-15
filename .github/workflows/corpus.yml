@@ -1,0 +1,56 @@
+name: corpus
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    name: check, determinism, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.15"
+
+      - name: Validate corpora and verify byte-for-byte rebuild
+        run: make check verify-determinism
+
+      - name: Install pytest
+        if: hashFiles('tests/**') != ''
+        run: python -m pip install --upgrade pytest
+
+      - name: Run tests
+        if: hashFiles('tests/**') != ''
+        run: make test PYTHON=python
+
+  bibliography:
+    name: biber validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install biber
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends biber
+
+      - name: Validate .bib files
+        run: make bib
