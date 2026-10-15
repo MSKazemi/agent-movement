@@ -9,7 +9,7 @@ This map records which items in the two corpora bear on each open research quest
 
 ## 1. Method
 
-1. **Units.** Questions are the 16 ranked questions AM-01…AM-16 in [open-questions.md](open-questions.md). The unnumbered P2 questions there have no IDs and were not coded. Items are every record in [`papers.jsonl`](paper-corpus/papers.jsonl) (AMP-001…AMP-075) and [`news.jsonl`](news-corpus/news.jsonl) (AMN-001…AMN-100).
+1. **Units.** Questions are the 16 ranked questions AM-01…AM-16 in [open-questions.md](open-questions.md). The unnumbered P2 questions there have no IDs and were not coded. Items are every record in [`papers.jsonl`](paper-corpus/papers.jsonl) (AMP-001…AMP-075) and [`news.jsonl`](news-corpus/news.jsonl) (AMN-001…AMN-100). Round-2 papers AMP-076…AMP-083 (added 2026-10-16) were not yet in the corpus when this map was coded and are not mapped.
 2. **Procedure.** One coder read each item's `summary` and `relevance` fields, plus the metadata flags `peer_reviewed` (papers) and `claim_status` (news). For every question an item bears on, the coder recorded one CSV row with a strength and a one-sentence rationale. Each rationale paraphrases a specific point from the item's summary. Items that bear on no question have no row.
 3. **Strength levels.**
    - **direct**: the summary explicitly addresses the question's core object, through a measurement, a demonstrated attack or failure, a formal analysis, or a concretely specified mechanism, in an agent setting or in a setting the question itself names (e.g. delegated credentials).
