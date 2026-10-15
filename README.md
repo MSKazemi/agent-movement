@@ -59,6 +59,7 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 - [Open technical and product questions](docs/open-questions.md)
 - [Proposed architecture and staged roadmap](docs/roadmap.md)
 - [Security, privacy, and threat model](docs/security-and-trust.md)
+- [Prompt injection across agent boundaries: threat taxonomy, evidence on defenses, and a proposed MobilityBench experiment (no detection efficacy claimed)](docs/cross-agent-prompt-injection.md)
 - [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md)
 - [Primary sources and dated research notes](docs/sources.md)
 - [Standards and protocol version tracker (28 specs, primary sources, checked 2026-10-16)](docs/standards-tracker.md) · [CSV](data/standards-tracker.csv)

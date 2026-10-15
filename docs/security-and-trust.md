@@ -21,6 +21,8 @@ User <-> origin agent <-> destination discovery <-> remote agent <-> tools/artif
 | Trace leakage | Sensitive prompts stored in observability backend | Minimal event fields, redaction and retention policies |
 | Non-reproducible resume | Tool/memory changes corrupt behavior | Version pins, capability checks, fail closed on incompatible state |
 
+**Prompt injection across agent boundaries.** Injection can arrive through artifacts, tool outputs, tool metadata, Agent Cards and delegated results. The published evidence does not show any detector to be reliable against adaptive attacks. See [cross-agent prompt injection](cross-agent-prompt-injection.md) for the taxonomy, the evidence behind each defense, what this repository's controls do and do not cover, and a proposed synthetic experiment.
+
 ## Non-negotiable prototype rules
 
 - Use synthetic/public fixtures only, no production secrets or private chat transcripts.
