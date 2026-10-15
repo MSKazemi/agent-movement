@@ -8,6 +8,14 @@ version = "0.1.0"
 description = "Experimental local task handoff and fencing testbed (not an A2A implementation)"
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+# Optional A2A v1 adapter (src/agent_movement/a2a_*.py). The core stays dependency-free.
+# a2a-sdk is pinned exactly to the release the integration tests were run against.
+a2a = [
+    "a2a-sdk[http-server]==1.2.2",
+    "uvicorn>=0.54",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

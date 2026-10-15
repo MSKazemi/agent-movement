@@ -66,6 +66,7 @@ The demo outputs a completed task, an idempotent replay, a denied unapproved req
 - [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md)
 - [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
 - [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md)
+- [Optional A2A v1 adapter on the official SDK: delegation, not migration; experimental, unauthenticated](docs/a2a-adapter.md)
 - [Research landscape and technology comparison](docs/research-landscape.md)
 - [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
 - [Agent lifecycle, liveness, death and safe retirement (proposed model)](docs/agent-lifecycle-liveness-and-death.md)

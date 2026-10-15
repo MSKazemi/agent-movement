@@ -31,3 +31,19 @@ jobs:
           path: mobilitybench-local.jsonl
           if-no-files-found: ignore
           retention-days: 7
+  a2a-adapter:
+    # Optional official-SDK A2A v1 adapter (docs/a2a-adapter.md). Core job above stays dependency-free.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e '.[a2a]' "pytest>=9.1"
+      - run: python -m pip show a2a-sdk uvicorn starlette sse-starlette httpx protobuf | grep -E '^(Name|Version):'
+      - run: python -m pytest -q
+      - run: python -m agent_movement.a2a_demo
