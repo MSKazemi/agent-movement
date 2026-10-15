@@ -8,5 +8,9 @@ version = "0.1.0"
 description = "Experimental local task handoff and fencing testbed (not an A2A implementation)"
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+# Optional asymmetric (Ed25519) peer keys; the core and default HS256 mode stay stdlib-only.
+ed25519 = ["cryptography>=50.0.2"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
