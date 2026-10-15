@@ -111,7 +111,7 @@ If P_m ≤ P_b and C_m ≥ C_b, then *m* is dominated. The analysis reports **V\
 
 B5 answers research question 4 of issue #1 ("Is agent B actually better than a deterministic workflow or single agent on the same test suite?") and the [open question](open-questions.md) on economic scheduling. Without it, a positive result for movement only shows that movement beats other agent arms.
 
-<!-- depends-on-stack: verify fields after merge -->
+<!-- Field names verified against src/agent_movement on main at b21da27 (2026-10-16). -->
 ## 5. Mapping to MobilityBench record fields
 
 > **Depends on unmerged work.** These fields were read on 2026-10-16 from the local `integration` branch, which is not yet on `main`. Check them again after the merge.
@@ -138,7 +138,6 @@ B5 answers research question 4 of issue #1 ("Is agent B actually better than a d
 | F fixed | infrastructure, authoring, evaluation | none (`run_manifest` has versions, not costs) | **unmeasured** | `fixed_cost_ref` in `run_manifest`, with horizon and amortization rule |
 | all | arm identity and pairing | `mode`, `baseline`, `mode_status`, `seed`, `task_id`, `family`, `repeat` | measured | `fallback_policy` in `run_manifest` |
 | B5 non-agent arm | all terms | none | **unmeasured (arm absent)** | new mode `non_agent_workflow` |
-<!-- /depends-on-stack -->
 
 ## 6. What is missing
 
