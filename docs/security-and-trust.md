@@ -31,7 +31,7 @@ User <-> origin agent <-> destination discovery <-> remote agent <-> tools/artif
 
 **Scope of the mapping.** Each row names a threat to agent movement, the repository code that controls it, and the test that exercises that code. Every code and test reference was checked by `git grep` against the agent-movement code stack (`src/agent_movement/`, `tests/`) before it was merged to `main`. Tests are given as pytest node IDs. The relocation tests need the `[relocation]` extra, the A2A tests need the `[a2a]` extra and the receipt tests need the `[signing]` extra. Without the extra they are skipped. A control here means only what the test proves in a local, synthetic setting. It is not a production guarantee.
 
-<!-- depends-on-stack: verify paths after merge -->
+<!-- Code paths and test IDs verified against main at ba77c1c (2026-10-16). -->
 
 | ASI ID and official name | Agent-movement threat | Repository control | Test that exercises it |
 |---|---|---|---|
