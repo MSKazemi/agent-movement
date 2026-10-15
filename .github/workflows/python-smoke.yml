@@ -18,3 +18,4 @@ jobs:
       - run: python -m pip install -e .
       - run: python -m unittest discover -s tests -v
       - run: python -m agent_movement.demo
+      - run: python -m agent_movement.peer_demo
