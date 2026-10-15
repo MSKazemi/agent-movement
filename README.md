@@ -55,6 +55,7 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 - [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
 - [Research landscape and technology comparison](docs/research-landscape.md)
 - [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
+- [Agent lifecycle, liveness, death and safe retirement (proposed model)](docs/agent-lifecycle-liveness-and-death.md)
 - [Open technical and product questions](docs/open-questions.md)
 - [Proposed architecture and staged roadmap](docs/roadmap.md)
 - [Security, privacy, and threat model](docs/security-and-trust.md)
