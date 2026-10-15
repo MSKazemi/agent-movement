@@ -61,7 +61,7 @@ Suggested reading order:
 6. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
 7. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
 8. [Proposed architecture and staged roadmap](docs/roadmap.md)
-9. [Primary sources and evidence log](docs/sources.md): index of every reference cited in the research docs, with a spot-check log
+9. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
 10. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
 11. [Paper corpus: 75 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
 

@@ -2,7 +2,7 @@
 
 Reviewed on **2026-10-15**; links and corpus counts fact-checked 2026-10-16. This is a selective standards/documentation survey, not a comprehensive systematic review. Verify specific upstream release dates and implementation behavior before claiming conformance. All architecture and envelope design in this repository are **proposals**.
 
-This file is the single index of every external reference cited in the research documents (README and `docs/*.md`). News items in [news-corpus/](news-corpus/README.md) and papers in [paper-corpus/](paper-corpus/README.md) are indexed separately in their own [news.bib](news-corpus/news.bib) and [papers.bib](paper-corpus/papers.bib) and are not repeated here. When a research document adds a new source, add it here too.
+This file indexes every external reference cited in the README and the core research documents listed in the *Document key* below. Documents that keep their own dated source lists are not repeated here: [standards-tracker](standards-tracker.md), [glossary](glossary.md), [device compatibility](device-compatibility-and-capability-matrix.md), [top-20 human-impact questions](top-20-human-impact-questions-for-agentic-ai.md) and [how-to-cite](how-to-cite.md). News items in [news-corpus/](news-corpus/README.md) and papers in [paper-corpus/](paper-corpus/README.md) are indexed separately in their own [news.bib](news-corpus/news.bib) and [papers.bib](paper-corpus/papers.bib) and are not repeated here. When a research document adds a new source, add it here too.
 
 ## Protocols and interoperability
 
