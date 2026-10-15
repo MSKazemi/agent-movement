@@ -24,6 +24,8 @@ relocation = [
     "langgraph-checkpoint==4.3.0",
     "langgraph-checkpoint-sqlite==3.1.2",
 ]
+# Ed25519 for signed movement receipts; latest stable on PyPI when added (2026-10-16).
+signing = ["cryptography>=50.0.2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

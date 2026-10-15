@@ -31,7 +31,7 @@ For manual testing in another terminal, run `python -m agent_movement.http --db 
 - `HTTP` boundary: loopback-only, intentionally simple HTTP+JSON, with input validation and bounded sizes. It does **not** provide TLS, sender authentication, signature verification or user identity proof. Do not expose across trust domains.
 - `demo.py`: end-to-end out-of-process experiment; no model API keys, third-party accounts, browser sessions or physical devices involved.
 
-A receipt includes transfer identifiers, a content digest, a deterministic result artifact/digest, and a caller-supplied trace correlation ID. There is no signed receipt or independent evidence verifier yet, so it must not be described as cryptographic proof of an agent's identity or behavior.
+A receipt includes transfer identifiers, a content digest, a deterministic result artifact/digest, and a caller-supplied trace correlation ID. This receipt itself is unsigned, so it must not be described as cryptographic proof of an agent's identity or behavior. Its digests are unsalted and cover the task text. A separate experiment, [signed movement receipts](movement-receipts.md), adds Ed25519-signed receipts over salted commitments, independent tool-side records and an offline verifier with synthetic fixtures. A signature still does not make a statement true.
 
 ## What the tests establish
 

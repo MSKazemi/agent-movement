@@ -1,7 +1,7 @@
 # Agent fingerprints, movement tracking, and digital forensics
 
 **Research date:** 2026-10-15  
-**Status:** Research and proposed architecture; **not implemented or validated in this repository**.  
+**Status:** Research and proposed architecture; **not implemented or validated in this repository**. Exception (2026-10-16): a synthetic-fixture experiment of the F2 signed-receipt and F3 offline verifier/timeline ideas exists. See [movement-receipts.md](movement-receipts.md) for its trust assumptions and limits.  
 **Scope:** AI-agent tasks and executions moving between runtimes, machines, services, frameworks and administrative domains. This is not physical tracking and not a proposal for covert surveillance.
 
 ## The central idea: a Sherlock Holmes for agent movements
