@@ -66,6 +66,7 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 - [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
 - [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
 - [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
+- [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
 - [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md)
 
 ## Recommended initial experiment

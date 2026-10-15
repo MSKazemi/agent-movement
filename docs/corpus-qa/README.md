@@ -3,7 +3,7 @@
 This directory holds dated link checks for the two source collections:
 
 - [`docs/news-corpus/news.jsonl`](../news-corpus/news.jsonl): 100 news records (`AMN-001` to `AMN-100`)
-- [`docs/paper-corpus/papers.jsonl`](../paper-corpus/papers.jsonl): 75 paper records (`AMP-001` to `AMP-075`), 44 of them with a DOI
+- [`docs/paper-corpus/papers.jsonl`](../paper-corpus/papers.jsonl): 75 paper records (`AMP-001` to `AMP-075`), 44 of them with a DOI. Round-2 papers `AMP-076` to `AMP-083`, added the same day, were not yet in the corpus when this run started; rerun the tool to cover them
 
 ## Purpose
 
