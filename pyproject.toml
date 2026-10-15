@@ -1,5 +1,18 @@
-# Test configuration only. The corpus tools in tools/ are stdlib-only scripts
-# with no runtime dependencies; pytest is needed only to run tests/.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-movement-lab"
+version = "0.1.0"
+description = "Experimental local task handoff and fencing testbed (not an A2A implementation)"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# The corpus tools in tools/ and the agent_movement package in src/ are both
+# stdlib-only; pytest is needed only to run tests/.
 
 [dependency-groups]
 dev = ["pytest>=9.1"]
@@ -7,6 +20,8 @@ dev = ["pytest>=9.1"]
 [tool.pytest.ini_options]
 minversion = "9.1"
 testpaths = ["tests"]
-pythonpath = ["tools"]
+# tools/ for the corpus scripts; src/ so agent_movement imports without an install
+# (the corpus CI job installs only pytest).
+pythonpath = ["tools", "src"]
 addopts = ["-ra", "--strict-markers", "-p", "no:cacheprovider"]
 xfail_strict = true
