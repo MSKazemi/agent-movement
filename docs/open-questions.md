@@ -1,6 +1,6 @@
 # Most important open research questions in Agent Movement
 
-**Research review:** 2026-10-15  
+**Research review:** 2026-10-15 (sources S1–S8 fact-checked 2026-10-16)  
 **Project status:** Research/design only. No movement, cloning, replication, or interoperability demonstration has been implemented in this repository.  
 **Scope:** Movement of AI-agent *work* across executors, frameworks, model providers and trust domains; not movement of a robot in physical space.
 
@@ -117,7 +117,7 @@ There is **no measured performance result from this repository** yet. The pass c
 - **[S2]** [MCP 2026-07-28 specification announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/) and [specification](https://modelcontextprotocol.io/specification/2026-07-28) — stateless protocol core, Tasks extension and authorization.
 - **[S3]** [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence) — native checkpointers/stores and their scopes.
 - **[S4]** [Temporal workflow execution](https://docs.temporal.io/workflow-execution) — event history, replay, state continuity.
-- **[S5]** [Open Agent Specification Technical Report (2025)](https://arxiv.org/abs/2510.04173) — declarative agent-definition interoperability.
+- **[S5]** [Open Agent Specification (Agent Spec): A Unified Representation for AI Agents (2025; v1 titled "Technical Report")](https://arxiv.org/abs/2510.04173) — declarative agent-definition interoperability.
 - **[S6]** [Open Agent Specification: Enabling Cross-Framework Comparison of AI Agents (CAIS 2026)](https://doi.org/10.1145/3786335.3813130) — cross-framework evaluation using a shared representation.
 - **[S7]** [Specification Portability Across LLM Development Agents (2026)](https://arxiv.org/abs/2608.21208) — software-migration study of cross-agent interpretation, not runtime snapshot migration.
 - **[S8]** [AWS Durable Execution SDK: Idempotency and retries](https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/) — replay and external side-effect limitations.

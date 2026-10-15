@@ -10,3 +10,18 @@ requires-python = ">=3.10"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# The corpus tools in tools/ and the agent_movement package in src/ are both
+# stdlib-only; pytest is needed only to run tests/.
+
+[dependency-groups]
+dev = ["pytest>=9.1"]
+
+[tool.pytest.ini_options]
+minversion = "9.1"
+testpaths = ["tests"]
+# tools/ for the corpus scripts; src/ so agent_movement imports without an install
+# (the corpus CI job installs only pytest).
+pythonpath = ["tools", "src"]
+addopts = ["-ra", "--strict-markers", "-p", "no:cacheprovider"]
+xfail_strict = true

@@ -219,10 +219,13 @@ def merge(raw_paths: list[Path], target: int, manual: Path | None = None) -> Non
 
 
 def bib_escape(s: str) -> str:
-    s = s.replace("\\", r"\textbackslash{}")
-    for c in "&%$#_{}":
-        s = s.replace(c, "\\" + c)
-    return s.replace("~", r"\textasciitilde{}").replace("^", r"\textasciicircum{}")
+    # Escape braces before inserting any macro, so the braces of \textbackslash{} survive.
+    parts = s.split("\\")
+    for i, part in enumerate(parts):
+        for c in "&%$#_{}":
+            part = part.replace(c, "\\" + c)
+        parts[i] = part.replace("~", r"\textasciitilde{}").replace("^", r"\textasciicircum{}")
+    return r"\textbackslash{}".join(parts)
 
 
 def to_bib(r: dict) -> str:
@@ -272,7 +275,7 @@ def build() -> None:
         "primary_source": sum(r["primary_source"] for r in rows),
         "verified_fetch": sum(r["verified_fetch"] for r in rows),
         "top_technologies": dict(Counter(t for r in rows for t in r["technologies"]).most_common(20)),
-        "date_range": [min(r["date_published"] for r in rows), max(r["date_published"] for r in rows)],
+        "date_range": [min(r["date_published"] for r in rows), max(r["date_published"] for r in rows)] if rows else [None, None],
     }
     (OUT / "stats.json").write_text(json.dumps(stats, indent=2) + "\n", encoding="utf-8")
     (OUT / "digest.md").write_text(render_digest(rows, stats), encoding="utf-8")
@@ -356,7 +359,7 @@ def check(rows: list[dict] | None = None) -> list[str]:
         dupes = [v for v, n in Counter(r.get(field) for r in rows).items() if n > 1]
         if dupes:
             errors.append(f"duplicate {field}: {dupes}")
-    dupes = [v for v, n in Counter(norm_url(r["url"]) for r in rows).items() if n > 1]
+    dupes = [v for v, n in Counter(norm_url(r["url"]) for r in rows if "url" in r).items() if n > 1]
     if dupes:
         errors.append(f"duplicate url: {dupes}")
     return errors
