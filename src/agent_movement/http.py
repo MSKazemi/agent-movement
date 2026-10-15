@@ -15,8 +15,13 @@ class LocalServer(ThreadingHTTPServer):
     daemon_threads = True
 
 
-def make_server(receiver: HandoffReceiver, port: int = 0) -> LocalServer:
+def make_server(receiver: HandoffReceiver, port: int = 0,
+                read_timeout: float = 10.0) -> LocalServer:
     class Handler(BaseHTTPRequestHandler):
+        # Per-socket timeout: a client that declares a Content-Length and then
+        # stalls must not pin a handler thread forever (TimeoutError closes it).
+        timeout = read_timeout
+
         def log_message(self, format: str, *args: object) -> None:
             return
 
@@ -50,8 +55,9 @@ def make_server(receiver: HandoffReceiver, port: int = 0) -> LocalServer:
             if not 0 < size <= 16384:
                 self.respond(413, {"error": "body_too_large_or_empty"})
                 return
+            body = self.rfile.read(size)  # TimeoutError propagates; the base class closes the socket
             try:
-                message = parse_json(self.rfile.read(size))
+                message = parse_json(body)
                 receipt = receiver.receive(message)
             except ContractError:
                 self.respond(400, {"error": "invalid_contract"})
@@ -59,6 +65,9 @@ def make_server(receiver: HandoffReceiver, port: int = 0) -> LocalServer:
                 self.respond(403, {"error": "approval_denied"})
             except Conflict:
                 self.respond(409, {"error": "idempotency_conflict"})
+            except Exception:
+                # Never drop the connection without an answer (e.g. sqlite "database is locked").
+                self.respond(500, {"error": "internal_error"})
             else:
                 self.respond(200, receipt)
 

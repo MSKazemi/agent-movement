@@ -48,7 +48,11 @@ def parse_json(raw: bytes) -> Any:
     try:
         return json.loads(raw.decode("utf-8"), object_pairs_hook=_object,
                           parse_constant=lambda _: (_ for _ in ()).throw(ContractError("invalid number")))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except ContractError:
+        raise
+    # ValueError covers JSONDecodeError, UnicodeDecodeError and the int-digit limit
+    # (>4300 digits); RecursionError covers deeply nested arrays/objects.
+    except (ValueError, RecursionError) as exc:
         raise ContractError("invalid JSON") from exc
 
 
@@ -87,7 +91,12 @@ def validate_envelope(value: Any) -> dict[str, Any]:
     task = _fields(v["task"], {"kind", "text"}, "task")
     if task["kind"] not in ("word_count", "sha256"):
         raise ContractError("unsupported task kind")
-    if not isinstance(task["text"], str) or len(task["text"].encode("utf-8")) > MAX_TEXT:
+    try:
+        # Lone surrogates (e.g. JSON "\ud800") are valid JSON but not encodable UTF-8.
+        text_bytes = task["text"].encode("utf-8") if isinstance(task["text"], str) else None
+    except UnicodeEncodeError:
+        text_bytes = None
+    if text_bytes is None or len(text_bytes) > MAX_TEXT:
         raise ContractError("task text must be UTF-8 and at most 2048 bytes")
     ctx = _fields(v["context"], {"classification"}, "context")
     if ctx["classification"] not in ("synthetic", "public"):
@@ -304,9 +313,13 @@ class EffectGateway:
         _id(effect_id, "effect_id")
         if type(epoch) is not int or epoch < 1:
             raise ContractError("invalid epoch")
-        if not isinstance(payload, str) or len(payload.encode("utf-8")) > MAX_TEXT:
+        try:
+            payload_bytes = payload.encode("utf-8") if isinstance(payload, str) else None
+        except UnicodeEncodeError:
+            payload_bytes = None
+        if payload_bytes is None or len(payload_bytes) > MAX_TEXT:
             raise ContractError("invalid payload")
-        fingerprint = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        fingerprint = hashlib.sha256(payload_bytes).hexdigest()
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             owner = db.execute("SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)).fetchone()
