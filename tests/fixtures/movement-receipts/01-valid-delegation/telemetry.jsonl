@@ -1,0 +1,3 @@
+{"attributes":{"agent.claimed_id":"agent-a","movement_id":"mov-valid-1"},"name":"movement.dispatched","span_id":"ff16d1a3181ed975","time":"2026-10-15T09:00:00Z","trace_id":"f58d090e74a4f86ad9414a494b9f7bdb"}
+{"attributes":{"agent.claimed_id":"agent-b","movement_id":"mov-valid-1"},"name":"movement.accepted","span_id":"c8de860eac34deee","time":"2026-10-15T09:00:02Z","trace_id":"f58d090e74a4f86ad9414a494b9f7bdb"}
+{"attributes":{"agent.claimed_id":"agent-b","gen_ai.operation.name":"execute_tool"},"name":"tool.call","span_id":"a3558638f3e394fc","time":"2026-10-15T09:00:04Z","trace_id":"f58d090e74a4f86ad9414a494b9f7bdb"}

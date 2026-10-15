@@ -2,7 +2,7 @@
 
 **Research-stage project: portable, interoperable, and governable AI-agent work across runtimes and environments.**
 
-**Status:** Research and design only. **No production software or working integration is implemented in this repository yet.** Last reviewed: 2026-10-15.
+**Status:** Research-stage. Alongside the research documents, the repository has an **experimental Python package of synthetic, local prototypes**: loopback task handoff with simulated-effect fencing, an optional A2A v1 adapter on the official SDK, authenticated peer handoff, same-runtime LangGraph checkpoint relocation, signed movement receipts and the MobilityBench harness. None of it is production software. It does **not** provide production security, independently tested A2A interoperability, cross-framework migration or deployment to other devices. Last reviewed: 2026-10-16.
 
 ## What does "agent movement" mean?
 
@@ -49,37 +49,91 @@ flowchart LR
 
 The origin retains ownership of the user's intent and consent. Delegated privileges are scoped independently at the destination. Retries need explicit idempotency and reconciliation.
 
+## Run the local experiments
+
+The [local proof of concept](docs/local-implementation.md) uses two separate processes, a strict synthetic handoff envelope, a preconfigured receiver-side approval, SQLite-backed audit/receipt deduplication, and a separate simulated stale-worker fencing exercise. The core demo uses a **custom loopback HTTP interface, not A2A**. The optional [A2A v1 adapter](docs/a2a-adapter.md) carries the same envelope over the official A2A SDK.
+
+The core needs Python 3.11+ and only the standard library. Each optional extra adds one experiment:
+
+```sh
+python -m pip install -e . pytest                     # core only
+python -m agent_movement.demo                         # handoff, replay, denial, stale-epoch fencing
+python -m agent_movement.peer_demo                    # authenticated peer handoff (HS256)
+python -m pytest -q                                   # all tests: agent_movement + corpus tooling
+
+python -m pip install -e '.[a2a,ed25519,relocation,signing]'   # every optional extra
+python -m agent_movement.a2a_demo                     # A2A v1 delegation via the official a2a-sdk
+python -m agent_movement.peer_demo --alg Ed25519      # asymmetric peer keys
+python -m agent_movement.relocation_demo              # LangGraph checkpoint relocation fault matrix
+python -m agent_movement.receipts verify tests/fixtures/movement-receipts/01-valid-delegation --now 2026-10-16T00:00:00Z
+```
+
+The core demo outputs a completed task, an idempotent replay, a denied unapproved request, and a rejected stale epoch. On 2026-10-16, `python -m pytest -q` gave **351 passed, 1 skipped** with every extra installed (CPython 3.11 and 3.13) and **276 passed, 76 skipped** with the core only (CPython 3.13 and 3.15); the skipped tests are the ones that need a missing extra. CI runs both configurations ([`python-smoke.yml`](.github/workflows/python-smoke.yml)). No model credentials, live external tool effects, private data or public endpoints are required.
+
 ## Read the research
 
-- [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md)
-- [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
-- [Research landscape and technology comparison](docs/research-landscape.md)
-- [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
-- [Agent lifecycle, liveness, death and safe retirement (proposed model)](docs/agent-lifecycle-liveness-and-death.md)
-- [Open technical and product questions](docs/open-questions.md)
-- [Economic evaluation of agent movement: proposed cost model for review, incident and reconciliation cost (methodology, no results)](docs/economic-evaluation.md)
-- [Proposed architecture and staged roadmap](docs/roadmap.md)
-- [Security, privacy, and threat model](docs/security-and-trust.md)
-- [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md)
-- [Primary sources and dated research notes](docs/sources.md)
-- [Standards and protocol version tracker (28 specs, primary sources, checked 2026-10-16)](docs/standards-tracker.md) · [CSV](data/standards-tracker.csv)
-- [Glossary: 70 terms, each tagged as standard, research or project working definition](docs/glossary.md)
-- [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
-- [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
-- [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
-- [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
-- [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
-- [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md)
+Suggested reading order:
+
+1. [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md): vocabulary, and what is (not) implemented
+2. [Glossary: 70 terms, each tagged as standard, research or project working definition](docs/glossary.md)
+3. [Research landscape and technology comparison](docs/research-landscape.md): what A2A, MCP, LangGraph, Temporal and others do and do not solve
+4. **[How agents move: complete protocol and network guide](docs/protocols-and-networks/README.md)** — [protocol catalog](docs/protocols-and-networks/protocol-catalog.md), [network topologies](docs/protocols-and-networks/network-topologies.md), [handoff/relocation contract](docs/protocols-and-networks/handoff-and-relocation-contract.md), [security and failure recovery](docs/protocols-and-networks/security-reliability-and-observability.md), [decision and benchmark guide](docs/protocols-and-networks/decision-guide-and-benchmarks.md), [primary sources](docs/protocols-and-networks/primary-sources.md), [machine-readable CSV](data/protocol-network-matrix.csv)
+5. [Standards and protocol version tracker (28 specs, primary sources, checked 2026-10-16)](docs/standards-tracker.md) · [CSV](data/standards-tracker.csv)
+6. [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
+7. [Agent lifecycle, liveness, death and safe retirement (proposed model)](docs/agent-lifecycle-liveness-and-death.md)
+8. [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
+9. [Security, privacy, and threat model](docs/security-and-trust.md)
+10. **[Can agents move unnoticed or cause harm? Defensive threat model](docs/unnoticed-and-unauthorized-agent-movement.md)** — permission boundaries, hidden delegation, lateral movement, independent detection, revocation and kill switches; [15 proposed synthetic defense tests](data/unnoticed-agent-movement-defense-tests.csv)
+11. [Agent communication governance and enforceable policy proposal](docs/agent-communication-and-policy.md) · [28 planned conformance cases](data/agent-communication-conformance-cases.csv)
+12. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
+13. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
+14. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
+15. [Proposed architecture and staged roadmap](docs/roadmap.md)
+16. [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md) · [Economic evaluation methodology (proposed cost model, no results)](docs/economic-evaluation.md)
+17. [2031 frontier: 20 visionary research questions and four testable studies](docs/2031-frontier-research-agenda.md)
+18. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
+19. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
+20. [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
+21. [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
+22. [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
+23. [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md)
+
+Further research notes:
+
+- [Twenty high-impact research questions for AI agents and human life (reasoned agenda, not a systematic review)](docs/top-20-human-impact-questions-for-agentic-ai.md)
+
+Experimental code (synthetic, local, not production):
+
+- [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md)
+- [Language and SDK strategy (public proposal; Python-first, with what is implemented so far)](docs/language-and-sdk-strategy.md)
+- [Optional A2A v1 adapter on the official SDK: delegation, not migration; experimental, unauthenticated](docs/a2a-adapter.md)
+- [Peer authentication and pre-disclosure authorization (synthetic, local; `python -m agent_movement.peer_demo`)](docs/peer-authentication.md)
+- [Same-runtime checkpoint relocation (pinned LangGraph) with a 30-row crash/duplicate fault matrix](docs/checkpoint-relocation.md) (optional extra: `pip install -e '.[relocation]'`)
+- [Signed movement receipts and offline forensic verifier (experimental, synthetic fixtures)](docs/movement-receipts.md)
+
+## Executable human-impact research pilot
+
+The [human-impact research lab protocol](docs/human-impact-research-lab.md) maps real-world questions about control, identity, privacy, accountability, replication and task continuity onto falsifiable **synthetic** experiments. Run:
+
+~~~sh
+python -m pip install -e . pytest
+python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
+python -m pytest -q          # all tests: agent_movement + corpus tooling
+~~~
+
+The local smoke suite currently models 20 cases. **Seventeen checks reproduce their expected narrow behavior; three are marked known gaps, not security successes.** This is not A2A, trusted peer identity, portable live state or a production system. See the experiment protocol for limits and next steps.
+
+[MobilityBench v0.1](docs/mobilitybench-v0.1.md) extends this with 18 frozen, digest-verified synthetic tasks across three workload families: document work, constrained coding and simulated tools. It compares keep-on-origin, restart-on-destination and the PR #6 local delegate under seeded faults. The A2A, checkpoint-relocation and cross-framework baselines are reported as **unavailable**. Run it with `python -m agent_movement.mobilitybench run --suite v0.1 --out results.jsonl`, then `report --in results.jsonl`. The suite is deterministic and LLM-free, so it supports no general statistical claims.
 
 ## Recommended initial experiment
 
-Demonstrate a **local-first, non-destructive** A2A handoff between two test agents: discover capabilities, require explicit approval for a simulated action, send a task envelope with no secrets, return an artifact, and show correlated audit events. Then test crash recovery and deduplication before claiming any "agent migration".
+First synthetic, local slices now exist for the non-A2A task handoff and deduplication test, an A2A v1 SDK-based delegation between two processes, peer authentication *before input disclosure*, and same-runtime checkpoint relocation under injected crashes. Both A2A ends use the same Python SDK, so independent interoperability (the A2A inspector or TCK, or a second implementation) is still untested. Cross-framework migration, real devices and production security remain research proposals.
 
-See [roadmap](docs/roadmap.md) for measurable acceptance criteria. This is a **recommendation**, not an implemented or approved product direction.
+See [local implementation](docs/local-implementation.md) for the ordered next steps and [roadmap](docs/roadmap.md) for the staged plan.
 
 ## Contribute
 
-Research corrections, protocol compatibility experiments, concrete failure modes, and reproducible benchmarks are especially welcome. Distinguish **verified protocol behavior** from **proposed project design** and link to primary sources. No credentials, private conversations, or confidential task payloads should ever be committed.
+Research corrections, protocol compatibility experiments, concrete failure modes, and reproducible benchmarks are especially welcome. Distinguish **verified protocol behavior** from **proposed project design** and link to primary sources; add any new citation to [docs/sources.md](docs/sources.md). No credentials, private conversations, or confidential task payloads should ever be committed.
 
 **License:** Not selected. Until a license is added by the repository owner, do not assume this repository grants open-source reuse rights.
 
