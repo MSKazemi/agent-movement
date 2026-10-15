@@ -51,13 +51,16 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 
 ## Read the research
 
-- [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md)
-- [Research landscape and technology comparison](docs/research-landscape.md)
-- [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
-- [Open technical and product questions](docs/open-questions.md)
-- [Proposed architecture and staged roadmap](docs/roadmap.md)
-- [Security, privacy, and threat model](docs/security-and-trust.md)
-- [Primary sources and dated research notes](docs/sources.md)
+Suggested reading order:
+
+1. [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md): vocabulary, and what is (not) implemented
+2. [Research landscape and technology comparison](docs/research-landscape.md): what A2A, MCP, LangGraph, Temporal and others do and do not solve
+3. [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
+4. [Security, privacy, and threat model](docs/security-and-trust.md)
+5. [Agent fingerprints, movement tracking, and forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
+6. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
+7. [Proposed architecture and staged roadmap](docs/roadmap.md)
+8. [Primary sources and evidence log](docs/sources.md): index of every external reference, with a spot-check log
 
 ## Recommended initial experiment
 
@@ -67,7 +70,7 @@ See [roadmap](docs/roadmap.md) for measurable acceptance criteria. This is a **r
 
 ## Contribute
 
-Research corrections, protocol compatibility experiments, concrete failure modes, and reproducible benchmarks are especially welcome. Distinguish **verified protocol behavior** from **proposed project design** and link to primary sources. No credentials, private conversations, or confidential task payloads should ever be committed.
+Research corrections, protocol compatibility experiments, concrete failure modes, and reproducible benchmarks are especially welcome. Distinguish **verified protocol behavior** from **proposed project design** and link to primary sources; add any new citation to [docs/sources.md](docs/sources.md). No credentials, private conversations, or confidential task payloads should ever be committed.
 
 **License:** Not selected. Until a license is added by the repository owner, do not assume this repository grants open-source reuse rights.
 

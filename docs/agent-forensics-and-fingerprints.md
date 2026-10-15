@@ -47,17 +47,17 @@ An E3 event establishes only the claims within its verified trust boundary. Even
 
 Keep separate fields for:
 
-- \`agent_definition_id\` + \`definition_digest\`: declared agent design/build; multiple instances can share it.
-- \`workload_principal\`: authenticated service/workload identity, with issuer/trust-domain and verification result.
-- \`agent_instance_id\`: concrete instance/container/process lifecycle; changes on restart.
-- \`execution_id\`: attempt/run; may change when a logical task resumes.
-- \`logical_task_id\`: application-assigned continuity across agents.
-- \`movement_id\`: new globally unique identifier per proposed source -> destination transition.
-- \`parent_movement_id\`: transfer ancestry if there is a previous hop.
-- \`parent_execution_id\`, \`lineage_relation\`: \`delegate\`, \`relocate\`, \`clone\`, \`fork\`, \`replicate\` or \`fan_out\`; the chosen meaning must be documented.
-- \`origin_a2a_task_id\`, \`destination_a2a_task_id\`, \`a2a_context_id\`: local A2A protocol identifiers where available; do not assume a client can create a server task ID.
-- \`trace_id\`, \`span_id\`: W3C trace context values; useful for correlation, **not credentials or proof of identity**.
-- \`fencing_epoch\`: monotonic coordinator epoch for relocation authority; clone/delegation have different authority rules.
+- `agent_definition_id` + `definition_digest`: declared agent design/build; multiple instances can share it.
+- `workload_principal`: authenticated service/workload identity, with issuer/trust-domain and verification result.
+- `agent_instance_id`: concrete instance/container/process lifecycle; changes on restart.
+- `execution_id`: attempt/run; may change when a logical task resumes.
+- `logical_task_id`: application-assigned continuity across agents.
+- `movement_id`: new globally unique identifier per proposed source -> destination transition.
+- `parent_movement_id`: transfer ancestry if there is a previous hop.
+- `parent_execution_id`, `lineage_relation`: `delegate`, `relocate`, `clone`, `fork`, `replicate` or `fan_out`; the chosen meaning must be documented.
+- `origin_a2a_task_id`, `destination_a2a_task_id`, `a2a_context_id`: local A2A protocol identifiers where available; do not assume a client can create a server task ID.
+- `trace_id`, `span_id`: W3C trace context values; useful for correlation, **not credentials or proof of identity**.
+- `fencing_epoch`: monotonic coordinator epoch for relocation authority; clone/delegation have different authority rules.
 
 A **relocation** preserves logical task identity but starts a different execution under an explicitly transferred/fenced lease. A **clone** or **fan-out** creates separately identifiable descendants with distinct authority and effect budgets. If two executions share a definition digest, that alone does not make them the same agent.
 
@@ -101,7 +101,7 @@ Use stable, versioned field meanings and verify the sender against the receiving
   "movement_id": "mov-example-051",
   "parent_movement_id": null,
   "lineage_relation": "delegate",
-  "source": {
+  "origin": {
     "workload_principal": "spiffe://example.test/agent/a",
     "execution_id": "run-example-a-1"
   },
@@ -135,7 +135,7 @@ This illustrative event **does not itself verify** the principals or prove any c
 - Verify artifact bytes against their recorded digest; avoid hashing low-entropy private information into public artifacts or exposing reusable token references.
 - Record missing evidence as missing. Never fill gaps with guessed agent identities.
 
-Suggested event types: \`task.started\`, \`movement.requested\`, \`movement.dispatched\`, \`movement.accepted\`, \`movement.rejected\`, \`authority.granted\`, \`authority.revoked\`, \`authority.fenced\`, \`execution.started\`, \`tool.intent\`, \`tool.completed\`, \`tool.unknown\`, \`artifact.created\`, \`checkpoint.created\`, \`execution.failed\`, \`task.completed\`, \`evidence.gap_detected\`. Require a clear difference between *requested*, *observed*, and *confirmed by independent target*.
+Suggested event types: `task.started`, `movement.requested`, `movement.dispatched`, `movement.accepted`, `movement.rejected`, `authority.granted`, `authority.revoked`, `authority.fenced`, `execution.started`, `tool.intent`, `tool.completed`, `tool.unknown`, `artifact.created`, `checkpoint.created`, `execution.failed`, `task.completed`, `evidence.gap_detected`. Require a clear difference between *requested*, *observed*, and *confirmed by independent target*.
 
 ## Sherlock-style investigation questions
 
@@ -172,7 +172,7 @@ Use causal edges and receipt sequence to reconstruct order. Clock synchronizatio
 | F3 — forensic replay | Queryable cause/lineage graph, immutable evidence export and tamper check | Append-only evidence service; optional graph UI | Reports evidence gaps instead of inventing events |
 | F4 — cross-runtime & adversarial testing | Crash, replay, clone/fork, false attribution and compromised-log experiments | A2A adapters, target-side effect ledger and fault injection | Deterministic negative tests and published limitations |
 
-**Initial prototype data model:** relational \`events\`, \`executions\`, \`movements\`, \`artifact_digests\`, \`tool_effects\`, \`evidence_sources\`, \`verification_results\` tables and a read-only graph projection. Avoid introducing blockchain as a requirement: secure append-only storage plus signed periodically anchored checkpoints may suffice, depending on threat model.
+**Initial prototype data model:** relational `events`, `executions`, `movements`, `artifact_digests`, `tool_effects`, `evidence_sources`, `verification_results` tables and a read-only graph projection. Avoid introducing blockchain as a requirement: secure append-only storage plus signed periodically anchored checkpoints may suffice, depending on threat model.
 
 **Metrics:** percentage of handoffs with paired verified receipts; percentage of tool actions with target-side confirmations; audited transition coverage; missing-event rate; forged-identity acceptance rate (target zero in fixtures); time to reconstruct a path; false attribution rate; secret leakage and retained-bytes counts; time-to-revoke/fence; proof-verification failures. Distinguish simulation pass rates from production guarantees.
 
@@ -194,7 +194,7 @@ Use causal edges and receipt sequence to reconstruct order. Clock synchronizatio
 
 - Collect only for **authorized systems and purposes**. Avoid covert cross-service fingerprinting, identity stalking and collection of unrelated user/device identifiers.
 - Default to **metadata, bounded retention, least-privilege access, redaction and local/synthetic fixtures**. Raw prompts, memory, private chain-of-thought, cookies, API keys, full tool arguments and personal data must not be included by default.
-- Correlation IDs should be opaque and scoped. Treat multi-domain IDs as sensitive linkable metadata; do not put user identity or secret grants into \`baggage\`, \`traceparent\` or public attestations.
+- Correlation IDs should be opaque and scoped. Treat multi-domain IDs as sensitive linkable metadata; do not put user identity or secret grants into `baggage`, `traceparent` or public attestations.
 - For incidents, record collector identity, export time, source, verification procedures and every evidence-handling step (chain of custody). Keep the original source evidence separate from analytic enrichment.
 - A signature proves that a key signed particular data; not that the event actually occurred as described. A digest proves consistency with a trusted reference; not authorship. A log gap is not evidence of absence.
 - EU and other privacy/legal requirements need review before deployment; this proposal is **not a legal/compliance certification**.
