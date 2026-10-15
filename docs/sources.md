@@ -31,6 +31,10 @@ Reviewed on **2026-10-15**. This is a selective standards/documentation survey, 
 4. Record incompatibilities and security assumptions.
 5. Only upgrade proposals to verified implementation claims after reproducible tests with pinned versions.
 
+## Paper corpus
+
+Scholarly papers (75 items, 1980–2026), including the classic mobile-agent, process-migration and delegation literature, are collected and independently audited in [paper-corpus/](paper-corpus/README.md). Each paper has a DOI and/or arXiv ID, a peer-review flag, a paraphrased summary and a biblatex entry in [papers.bib](paper-corpus/papers.bib).
+
 ## News corpus
 
 Dated industry, standards and security news (100 items, 2024-11 to 2026-10) is collected under a documented protocol in [news-corpus/](news-corpus/README.md). Every item has a paraphrased summary, coded movement operations, a verification flag and a biblatex entry in [news.bib](news-corpus/news.bib). Cite the original sources, not the corpus summaries.

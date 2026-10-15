@@ -1,0 +1,65 @@
+{
+  "n": 75,
+  "by_theme": {
+    "P1": 13,
+    "P2": 11,
+    "P3": 13,
+    "P4": 13,
+    "P5": 13,
+    "P6": 12
+  },
+  "by_decade": {
+    "1980s": 1,
+    "1990s": 11,
+    "2000s": 3,
+    "2010s": 3,
+    "2020s": 57
+  },
+  "by_year_2020s": {
+    "2021": 1,
+    "2023": 7,
+    "2024": 13,
+    "2025": 21,
+    "2026": 15
+  },
+  "by_publication_type": {
+    "conference": 37,
+    "journal": 19,
+    "preprint": 12,
+    "workshop": 3,
+    "whitepaper": 2,
+    "book-chapter": 1,
+    "tech-report": 1
+  },
+  "by_contribution_type": {
+    "system": 37,
+    "position": 12,
+    "survey": 8,
+    "empirical": 7,
+    "formal": 4,
+    "benchmark": 4,
+    "taxonomy": 3
+  },
+  "by_operation": {
+    "delegation": 37,
+    "identity-trust": 28,
+    "governance": 21,
+    "runtime-relocation": 18,
+    "tool-access": 18,
+    "portable-context": 17,
+    "observability": 10,
+    "cross-framework-migration": 6
+  },
+  "peer_reviewed": 58,
+  "with_doi": 44,
+  "with_arxiv": 55,
+  "verification_source": {
+    "crossref": 37,
+    "arxiv": 31,
+    "publisher": 7
+  },
+  "year_range": [
+    1980,
+    2026
+  ]
+}
