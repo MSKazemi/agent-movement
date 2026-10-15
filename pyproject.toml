@@ -17,6 +17,13 @@ a2a = [
 ]
 # Optional asymmetric (Ed25519) peer keys; the core and default HS256 mode stay stdlib-only.
 ed25519 = ["cryptography>=50.0.2"]
+# Exact pins (latest stable on PyPI, 2026-10-12): agent_movement.relocation subclasses
+# SqliteSaver and relies on its internal cursor() write path. Core stays dependency-free.
+relocation = [
+    "langgraph==1.2.15",
+    "langgraph-checkpoint==4.3.0",
+    "langgraph-checkpoint-sqlite==3.1.2",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
