@@ -1,0 +1,69 @@
+{
+  "n": 100,
+  "by_theme": {
+    "T1": 15,
+    "T2": 15,
+    "T3": 15,
+    "T4": 15,
+    "T5": 14,
+    "T6": 12,
+    "T7": 14
+  },
+  "by_year": {
+    "2024": 1,
+    "2025": 59,
+    "2026": 40
+  },
+  "by_source_type": {
+    "official-blog": 45,
+    "press-release": 16,
+    "standards-announcement": 14,
+    "news-article": 13,
+    "research-news": 11,
+    "analysis": 1
+  },
+  "by_claim_status": {
+    "vendor-claim": 52,
+    "fact": 36,
+    "incident": 9,
+    "analysis": 3
+  },
+  "by_operation": {
+    "identity-trust": 57,
+    "delegation": 53,
+    "governance": 41,
+    "tool-access": 40,
+    "runtime-relocation": 25,
+    "cross-framework-migration": 19,
+    "observability": 16,
+    "portable-context": 16
+  },
+  "primary_source": 87,
+  "verified_fetch": 100,
+  "top_technologies": {
+    "MCP": 40,
+    "A2A": 25,
+    "OAuth 2.0": 8,
+    "LangGraph": 7,
+    "CrewAI": 6,
+    "Google ADK": 5,
+    "durable execution": 5,
+    "browser agent": 5,
+    "OpenTelemetry": 4,
+    "LangChain": 4,
+    "AG-UI": 4,
+    "Amazon Bedrock AgentCore": 4,
+    "gRPC": 4,
+    "OpenID Connect": 4,
+    "Perplexity Comet": 4,
+    "Microsoft Agent Framework": 4,
+    "LlamaIndex": 3,
+    "Copilot Studio": 3,
+    "Semantic Kernel": 3,
+    "CopilotKit": 3
+  },
+  "date_range": [
+    "2024-11-25",
+    "2026-10-01"
+  ]
+}

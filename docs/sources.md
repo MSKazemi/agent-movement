@@ -2,7 +2,7 @@
 
 Reviewed on **2026-10-15**. This is a selective standards/documentation survey, not a comprehensive systematic review. Verify specific upstream release dates and implementation behavior before claiming conformance. All architecture and envelope design in this repository are **proposals**.
 
-This file is the single index of every external reference cited anywhere in the repository. When a document adds a new source, add it here too.
+This file is the single index of every external reference cited in the research documents (README and `docs/*.md`). News items in [news-corpus/](news-corpus/README.md) are indexed separately in its own [news.bib](news-corpus/news.bib) and are not repeated here. When a research document adds a new source, add it here too.
 
 ## Protocols and interoperability
 
@@ -97,6 +97,10 @@ The remaining sources are long-standing standards and documentation and were **n
 3. Map each capability to its actual abstraction level: messaging, state, deployment, identity or UI.
 4. Record incompatibilities and security assumptions.
 5. Only upgrade proposals to verified implementation claims after reproducible tests with pinned versions.
-6. When adding a citation to any document, add it to this index and, if checked, to the spot-check log with the date.
+6. When adding a citation to any research document, add it to this index and, if checked, to the spot-check log with the date.
 
-Related documents: [landscape](research-landscape.md), [questions](open-questions.md), [roadmap](roadmap.md), [forensics](agent-forensics-and-fingerprints.md).
+## News corpus
+
+Dated industry, standards and security news (100 items, 2024-11 to 2026-10) is collected under a documented protocol in [news-corpus/](news-corpus/README.md). Every item has a paraphrased summary, coded movement operations, a verification flag and a biblatex entry in [news.bib](news-corpus/news.bib). Cite the original sources, not the corpus summaries.
+
+Related documents: [landscape](research-landscape.md), [questions](open-questions.md), [roadmap](roadmap.md), [forensics](agent-forensics-and-fingerprints.md), [news corpus](news-corpus/README.md).

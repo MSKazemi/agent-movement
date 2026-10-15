@@ -60,7 +60,8 @@ Suggested reading order:
 5. [Agent fingerprints, movement tracking, and forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
 6. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
 7. [Proposed architecture and staged roadmap](docs/roadmap.md)
-8. [Primary sources and evidence log](docs/sources.md): index of every external reference, with a spot-check log
+8. [Primary sources and evidence log](docs/sources.md): index of every reference cited in the research docs, with a spot-check log
+9. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
 
 ## Recommended initial experiment
 

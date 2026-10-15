@@ -1,0 +1,14 @@
+{
+  "excluded_duplicate": 11,
+  "excluded_manual_screening": 2,
+  "excluded_over_target": 13,
+  "identified": 126,
+  "identified:T1": 18,
+  "identified:T2": 18,
+  "identified:T3": 18,
+  "identified:T4": 18,
+  "identified:T5": 18,
+  "identified:T6": 18,
+  "identified:T7": 18,
+  "included": 100
+}
