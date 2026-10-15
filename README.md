@@ -2,7 +2,7 @@
 
 **Research-stage project: portable, interoperable, and governable AI-agent work across runtimes and environments.**
 
-**Status:** Research and design only. **No production software or working integration is implemented in this repository yet.** Last reviewed: 2026-10-15.
+**Status:** Research-led, with an **experimental, localhost-only task-handoff and simulated-effect fencing prototype**. This is **not A2A interoperability, production security, checkpoint migration, or deployment to other devices**. Last reviewed: 2026-10-15.
 
 ## What does "agent movement" mean?
 
@@ -49,10 +49,23 @@ flowchart LR
 
 The origin retains ownership of the user's intent and consent. Delegated privileges are scoped independently at the destination. Retries need explicit idempotency and reconciliation.
 
+## Run the first local experiment
+
+The [local proof of concept](docs/local-implementation.md) uses two separate processes, a strict synthetic handoff envelope, a preconfigured receiver-side approval, SQLite-backed audit/receipt deduplication, and a separate simulated stale-worker fencing exercise. It uses a **custom loopback HTTP interface, not A2A**; the next integration milestone is the official A2A SDK.
+
+```sh
+python -m pip install -e .
+python -m agent_movement.demo
+python -m unittest discover -s tests -v
+```
+
+The demo outputs a completed task, an idempotent replay, a denied unapproved request, and a rejected stale epoch. **17 local unit/integration tests passed on Python 3.13** during development; check CI for repository-hosted results. No model credentials, live external tool effects, private data or public endpoints are required.
+
 ## Read the research
 
 - [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md)
 - [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
+- [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md)
 - [Research landscape and technology comparison](docs/research-landscape.md)
 - [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
 - [Open technical and product questions](docs/open-questions.md)
@@ -65,9 +78,9 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 
 ## Recommended initial experiment
 
-Demonstrate a **local-first, non-destructive** A2A handoff between two test agents: discover capabilities, require explicit approval for a simulated action, send a task envelope with no secrets, return an artifact, and show correlated audit events. Then test crash recovery and deduplication before claiming any "agent migration".
+The local non-destructive **non-A2A** task handoff and deduplication test is now implemented on the feature branch. Next, implement an **actual A2A v1.x SDK-based** interaction between two independent test agents with capability discovery and authorization *before input disclosure*. After that, test crash recovery and same-runtime checkpoint relocation before claiming agent migration.
 
-See [roadmap](docs/roadmap.md) for measurable acceptance criteria. This is a **recommendation**, not an implemented or approved product direction.
+See [local implementation](docs/local-implementation.md) and [roadmap](docs/roadmap.md). These later capabilities remain research proposals, not implemented integrations.
 
 ## Contribute
 
