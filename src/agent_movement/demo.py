@@ -20,7 +20,8 @@ def handoff(url: str, message: dict) -> tuple[int, dict]:
         with urllib.request.urlopen(request, timeout=5) as response:
             return response.status, json.load(response)
     except urllib.error.HTTPError as exc:
-        return exc.code, json.load(exc)
+        with exc:  # HTTPError wraps an open response; close it
+            return exc.code, json.load(exc)
 
 
 def main() -> None:

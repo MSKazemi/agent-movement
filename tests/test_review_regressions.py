@@ -116,8 +116,18 @@ class StoreInitHonoursBusyTimeout(unittest.TestCase):
 
 class DemoDoesNotLeakPipes(unittest.TestCase):
     def test_demo_closes_child_pipes(self):
+        import os
+        from unittest import mock
+
+        import agent_movement
         from agent_movement import demo
-        with warnings.catch_warnings(record=True) as caught:
+        # The demo starts `python -m agent_movement.http` as a child process. When the
+        # package is not installed (main's corpus CI puts src/ on sys.path via pytest's
+        # `pythonpath` only), the child needs PYTHONPATH to find it.
+        src = str(Path(agent_movement.__file__).resolve().parent.parent)
+        pythonpath = os.pathsep.join(p for p in (src, os.environ.get("PYTHONPATH")) if p)
+        with mock.patch.dict(os.environ, {"PYTHONPATH": pythonpath}), \
+                warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always", ResourceWarning)
             with contextlib.redirect_stdout(io.StringIO()):
                 demo.main()
