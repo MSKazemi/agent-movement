@@ -43,4 +43,4 @@ MCP: https://modelcontextprotocol.io/specification/2026-07-28
 OAuth token exchange: https://www.rfc-editor.org/rfc/rfc8693
 SPIFFE: https://spiffe.io/docs/latest/spire-about/spire-concepts/
 OPA: https://www.openpolicyagent.org/docs
-OpenTelemetry: https://opentelemetry.io/docs/specs/semconv/gen-ai/
+OpenTelemetry: https://github.com/open-telemetry/semantic-conventions-genai

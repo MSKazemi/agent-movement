@@ -1,0 +1,12 @@
+# Test configuration only. The corpus tools in tools/ are stdlib-only scripts
+# with no runtime dependencies; pytest is needed only to run tests/.
+
+[dependency-groups]
+dev = ["pytest>=9.1"]
+
+[tool.pytest.ini_options]
+minversion = "9.1"
+testpaths = ["tests"]
+pythonpath = ["tools"]
+addopts = ["-ra", "--strict-markers", "-p", "no:cacheprovider"]
+xfail_strict = true
