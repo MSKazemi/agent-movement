@@ -156,14 +156,14 @@ The exact ordering is contestable; ranks 1-10 in particular are close, interconn
 
 ## What this means for Agent Movement: choose a focused, falsifiable contribution
 
-The repository already studies delegation, task-context portability, checkpoint relocation, replication and cross-framework migration. It does **not** presently contain a working implementation (see the repository README and roadmap).
+The repository already studies delegation, task-context portability, checkpoint relocation, replication and cross-framework reconstruction. It does **not** presently contain a working implementation (see the repository README and roadmap).
 
 **The strongest practical research niche is a "human-authority-preserving handoff" contract**, not a claim of universal agent teleportation:
 
 1. **Intent + consent:** Explicit user-approved intent, task constraints, permissible recipients, retention and expiry.
 2. **Authority + identity:** Separate origin/destination identities, short-lived least-privilege grants and verifiable execution ownership.
 3. **Context minimization:** Only approved inputs and artifact references, not hidden model state, passwords or raw provider credentials.
-4. **Side-effect safety:** Stable operation identifiers, explicit states including "unknown / reconcile", fencing after handoff, and no unsupported claim of exactly-once external actions.
+4. **Side-effect safety:** Stable operation identifiers, explicit states including "unknown/reconcile", fencing after handoff, and no unsupported claim of exactly-once external actions.
 5. **Proof of lineage:** Privacy-preserving audit facts, source/destination runtime versions, policy decisions, checksums and transfer reason.
 6. **Honest compatibility:** Refuse unsafe continuation; report missing/lost state if a different model/framework resumes.
 
@@ -173,9 +173,9 @@ This would generate evidence directly relevant to questions **1, 3, 4, 5, 6, 18 
 
 | Experiment | Question(s) | Simulated setup | Publishable metric and necessary negative case |
 | --- | --- | --- | --- |
-| **H1 Consent-bound transfer** | 1, 3, 5, 19 | Two locally controlled agents; approved synthetic task; policy envelope; bounded credential reference | Unauthorized simulated operations, blocked disallowed data/secret canaries, accurate cancellation; reject a forged destination |
-| **H2 Crash-safe ownership** | 1, 6, 18, 19 | Two executors and a mock irreversible-payment tool supporting idempotency; crash/partition at every handoff state | Duplicate committed mock actions, correctness of ownership fencing, "unknown/reconcile" cases; demonstrate unsafe retry refusal |
-| **H3 Meaningful continuation** | 2, 6, 16, 19, 20 | Source/destination framework or model differences; pinned synthetic multistep tasks and human-checked rubric | Success vs delegation/restart baselines, missing constraints, hallucinated progress, latency/cost and openly published failures |
+| **HX1 Consent-bound transfer** | 1, 3, 5, 19 | Two locally controlled agents; approved synthetic task; policy envelope; bounded credential reference | Unauthorized simulated operations, blocked disallowed data/secret canaries, accurate cancellation; reject a forged destination |
+| **HX2 Crash-safe ownership** | 1, 6, 18, 19 | Two executors and a mock irreversible-payment tool supporting idempotency; crash/partition at every handoff state | Duplicate committed mock actions, correctness of ownership fencing, "unknown/reconcile" cases; demonstrate unsafe retry refusal |
+| **HX3 Meaningful continuation** | 2, 6, 16, 19, 20 | Source/destination framework or model differences; pinned synthetic multistep tasks and human-checked rubric | Success vs delegation/restart baselines, missing constraints, hallucinated progress, latency/cost and openly published failures |
 
 **Suggested acceptance criteria for synthetic fixtures (proposals, not achieved results):** zero unauthorized simulated effects in the scripted negative-test matrix; zero canary secret fields in transmitted envelopes/logs; every high-impact simulated action attributable to an approval and operation ID; every ambiguous commit marked "unknown/reconcile"; all compatibility refusals reported rather than quietly continued. These passing cases do **not** constitute an unrestricted security guarantee.
 

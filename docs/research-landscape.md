@@ -1,13 +1,16 @@
 # Technology landscape (reviewed 2026-10-15)
 
-## Taxonomy: five different notions of movement
+## Taxonomy: six operations in the agent-movement research scope
+
+Of these rows, only checkpoint relocation and strong migration are *moves* in the strict sense (ownership of the same task transfers). Delegation keeps the origin as the owner. Copy, replication and multiplication create additional executions and are never automatically a move ([movement vs copy](agent-movement-vs-copy-replication-multiplication.md)).
 
 | Mode | Example | State transferred? | Key issue |
 |---|---|---|---|
 | Delegation | Planner asks specialist to analyze file | Task input only | Ownership and authority |
-| Copy / replication | Start another instance from same agent package | Config and optionally memory | Divergence, duplicate effects |
+| Copy (clone if from a snapshot) | Start another instance from same agent package | Config; memory only for an approved snapshot clone | Divergence, duplicate effects |
+| Replication | Keep N equivalent instances of one logical service for availability or throughput | Shared durable state, not blind memory copying | Unsafe failover, split brain |
 | Multiplication / scaling | Launch N worker agents | Usually shared queue/context pointers | Coordination and cost |
-| Checkpoint-resume relocation | Persist safe checkpoint and resume on new worker | Portable workflow checkpoint | Compatibility and recovery |
+| Checkpoint relocation | Persist safe checkpoint and resume on new worker | Portable workflow checkpoint | Compatibility and recovery |
 | Strong migration | Move live process incl. stack/in-flight operations | Live execution state | Generally not available across unrelated AI frameworks |
 
 A model's private internal state, chain-of-thought, temporary tool runtime, or browser session cannot be presumed exportable. Agent "memory" can mean stored messages, retrieved documents, summaries or application state; each needs distinct handling.

@@ -8,12 +8,14 @@
 
 *Agent Movement* is the **proposed name and working definition for this project**, not a recognized universal standard. We use it to study how an AI-agent task or execution can move between agents, frameworks, models, machines, and organizations **without losing relevant context, accountability, or safety controls**.
 
+Used this way, *agent movement* is an umbrella research term that covers the four operations below. A **move** in the strict sense means that ownership of the task transfers to a different executor (operations 2–4). Delegation keeps the origin as the owner, so it is in scope for the research but is not a move ([terminology decisions](docs/glossary.md#terminology-decisions-2026-10-16)).
+
 Four distinct operations must not be conflated:
 
-1. **Delegation / handoff:** Agent A asks Agent B to perform a task. Agent A need not expose or migrate its internals. A2A addresses this interface.
-2. **Portable task context:** Transfer an explicit, policy-checked package of goals, inputs, artifact references, and resumable checkpoints.
-3. **Runtime relocation:** Stop at a safe boundary and resume compatible execution elsewhere, with durable workflow state and idempotency controls. This is substantially harder than delegation.
-4. **Cross-framework migration:** Reconstruct a workflow on a different runtime using an adapter and a portable representation, with explicitly documented loss of features.
+1. **Delegation:** Agent A asks Agent B to perform a task. Agent A need not expose or migrate its internals. A2A addresses this interface.
+2. **Portable task context:** Transfer an explicit, policy-checked package of goals, inputs and artifact references. When a resumable checkpoint travels with it, the checkpoint is a separate, versioned contract that the package references (operation 3).
+3. **Checkpoint relocation:** Stop at a safe boundary and resume compatible execution elsewhere, with durable workflow state and idempotency controls. This is substantially harder than delegation.
+4. **Cross-framework reconstruction:** Reconstruct a workflow on a different runtime using an adapter and a portable representation, with explicitly documented loss of features.
 
 **Not claimed:** Live process migration or lossless transfer of arbitrary agent hidden state, model internals, credentials, or in-flight side effects.
 
@@ -23,7 +25,7 @@ A useful agent might start on a laptop, delegate to a cloud agent, use tools in 
 
 | Layer | Relevant technologies | What they solve | What they do **not** solve |
 | --- | --- | --- | --- |
-| Agent-to-agent | [A2A](https://a2a-protocol.org/v1.0.0/specification/) | Discovery, messaging, tasks, artifacts, streaming | Generic checkpoint migration |
+| Agent-to-agent | [A2A](https://a2a-protocol.org/v1.0.0/specification/) | Discovery, messaging, tasks, artifacts, streaming | Generic checkpoint relocation |
 | Agent-to-tools/data | [MCP, spec 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) | Structured access to external capabilities | Agent-to-agent execution transfer |
 | Agent-to-user | [AG-UI](https://github.com/ag-ui-protocol/ag-ui) | Agent/frontend events, state, interaction | Migration between runtimes |
 | Orchestration and recovery | [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence), [Temporal](https://docs.temporal.io/workflow-execution) | Checkpoints, durable execution and recovery | Automatic semantic compatibility across all frameworks |
