@@ -1,0 +1,74 @@
+# Agent Movement
+
+**Research-stage project: portable, interoperable, and governable AI-agent work across runtimes and environments.**
+
+**Status:** Research and design only. **No production software or working integration is implemented in this repository yet.** Last reviewed: 2026-10-15.
+
+## What does "agent movement" mean?
+
+*Agent Movement* is the **proposed name and working definition for this project**, not a recognized universal standard. We use it to study how an AI-agent task or execution can move between agents, frameworks, models, machines, and organizations **without losing relevant context, accountability, or safety controls**.
+
+Four distinct operations must not be conflated:
+
+1. **Delegation / handoff:** Agent A asks Agent B to perform a task. Agent A need not expose or migrate its internals. A2A addresses this interface.
+2. **Portable task context:** Transfer an explicit, policy-checked package of goals, inputs, artifact references, and resumable checkpoints.
+3. **Runtime relocation:** Stop at a safe boundary and resume compatible execution elsewhere, with durable workflow state and idempotency controls. This is substantially harder than delegation.
+4. **Cross-framework migration:** Reconstruct a workflow on a different runtime using an adapter and a portable representation, with explicitly documented loss of features.
+
+**Not claimed:** Live process migration or lossless transfer of arbitrary agent hidden state, model internals, credentials, or in-flight side effects.
+
+## Why this matters
+
+A useful agent might start on a laptop, delegate to a cloud agent, use tools in another organization, pause for approval, and resume after failure. Today the building blocks span multiple layers:
+
+| Layer | Relevant technologies | What they solve | What they do **not** solve |
+| --- | --- | --- | --- |
+| Agent-to-agent | [A2A](https://a2a-protocol.org/v1.0.0/specification/) | Discovery, messaging, tasks, artifacts, streaming | Generic checkpoint migration |
+| Agent-to-tools/data | [MCP, spec 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) | Structured access to external capabilities | Agent-to-agent execution transfer |
+| Agent-to-user | [AG-UI](https://github.com/ag-ui-protocol/ag-ui) | Agent/frontend events, state, interaction | Migration between runtimes |
+| Orchestration and recovery | [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence), [Temporal](https://docs.temporal.io/workflow-execution) | Checkpoints, durable execution and recovery | Automatic semantic compatibility across all frameworks |
+| Deployments | [OCI](https://specs.opencontainers.org/image-spec/), [Kubernetes](https://kubernetes.io/docs/concepts/workloads/controllers/job/) | Portable packaging and workload scheduling | App-level state/identity migration |
+| Trust, policy and audit | [OAuth token exchange](https://www.rfc-editor.org/rfc/rfc8693), [SPIFFE](https://spiffe.io/docs/latest/spire-about/spire-concepts/), [OPA](https://www.openpolicyagent.org/docs), [OpenTelemetry](https://opentelemetry.io/docs/specs/semconv/gen-ai/) | Delegated access patterns, workload identity, policy and telemetry | An end-to-end agent mobility protocol |
+
+The *research hypothesis* is that a small **portable handoff envelope**, compatible adapters, strict authorization, and an auditable lifecycle could make these layers work together.
+
+## Proposed flow (illustrative, not implemented)
+
+```mermaid
+flowchart LR
+    U[User] --> A[Origin agent]
+    A --> P[Policy and approval]
+    P --> H[Portable task envelope]
+    H --> D[Agent discovery via A2A]
+    D --> B[Destination agent]
+    B --> T[Approved MCP tools]
+    B --> C[Checkpoint and artifacts]
+    C --> R[Result, audit and trace]
+    R --> A
+```
+
+The origin retains ownership of the user's intent and consent. Delegated privileges are scoped independently at the destination. Retries need explicit idempotency and reconciliation.
+
+## Read the research
+
+- [Research landscape and technology comparison](docs/research-landscape.md)
+- [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
+- [Open technical and product questions](docs/open-questions.md)
+- [Proposed architecture and staged roadmap](docs/roadmap.md)
+- [Security, privacy, and threat model](docs/security-and-trust.md)
+- [Primary sources and dated research notes](docs/sources.md)
+
+## Recommended initial experiment
+
+Demonstrate a **local-first, non-destructive** A2A handoff between two test agents: discover capabilities, require explicit approval for a simulated action, send a task envelope with no secrets, return an artifact, and show correlated audit events. Then test crash recovery and deduplication before claiming any "agent migration".
+
+See [roadmap](docs/roadmap.md) for measurable acceptance criteria. This is a **recommendation**, not an implemented or approved product direction.
+
+## Contribute
+
+Research corrections, protocol compatibility experiments, concrete failure modes, and reproducible benchmarks are especially welcome. Distinguish **verified protocol behavior** from **proposed project design** and link to primary sources. No credentials, private conversations, or confidential task payloads should ever be committed.
+
+**License:** Not selected. Until a license is added by the repository owner, do not assume this repository grants open-source reuse rights.
+
+---
+Sources were reviewed on **2026-10-15**; upstream protocols and SDKs continue to evolve.
