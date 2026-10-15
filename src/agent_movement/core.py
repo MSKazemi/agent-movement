@@ -11,6 +11,7 @@ from contextlib import contextmanager
 import json
 import re
 import sqlite3
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -140,6 +141,7 @@ class SQLiteStore:
 
     def __init__(self, path: str | Path):
         self.path = str(path)
+        self._enable_wal()
         with self._connection() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS deliveries (
@@ -170,12 +172,34 @@ class SQLiteStore:
                 );
             """)
 
+    def _enable_wal(self, deadline_s: float = 10.0) -> None:
+        """Switch the file to WAL once (the mode is persistent).
+
+        Changing journal_mode needs an exclusive lock and SQLite can return
+        SQLITE_BUSY *without* consulting busy_timeout (deadlock avoidance) while
+        another connection writes to a fresh rollback-journal file, so retry.
+        """
+        deadline = time.monotonic() + deadline_s
+        while True:
+            db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
+            try:
+                db.execute("PRAGMA busy_timeout = 10000")
+                db.execute("PRAGMA journal_mode = WAL")
+                return
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc) and "busy" not in str(exc):
+                    raise
+                if time.monotonic() >= deadline:
+                    raise
+            finally:
+                db.close()
+            time.sleep(0.02)
+
     @contextmanager
     def _connection(self):
         db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
         try:
             db.execute("PRAGMA busy_timeout = 10000")
-            db.execute("PRAGMA journal_mode = WAL")
             yield db
             if db.in_transaction:
                 db.commit()

@@ -95,5 +95,24 @@ class HttpBoundary(unittest.TestCase):
             self.assertLess(time.monotonic() - start, 4)
 
 
+class StoreInitHonoursBusyTimeout(unittest.TestCase):
+    def test_init_waits_for_concurrent_writer_on_fresh_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "fresh.sqlite"
+            holder = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
+            release = threading.Timer(0.3, holder.commit)
+            try:
+                holder.execute("CREATE TABLE x(a)")  # fresh rollback-journal file
+                holder.execute("BEGIN IMMEDIATE")
+                holder.execute("INSERT INTO x VALUES (1)")
+                release.start()
+                SQLiteStore(path)  # previously: immediate "database is locked"
+            finally:
+                release.cancel()
+                if release.ident is not None:
+                    release.join()
+                holder.close()
+
+
 if __name__ == "__main__":
     unittest.main()
