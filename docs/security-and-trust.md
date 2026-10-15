@@ -60,6 +60,8 @@ These gaps are open. None of the controls above closes them.
 - **ASI09:** there is no human approval UI, no confirmation step for sensitive actions and no work on explainability.
 - **ASI10:** there is no behavioural monitoring, drift detection or kill switch outside the local store, and no limit on self-replication or child creation.
 
+**Prompt injection across agent boundaries.** Injection can arrive through artifacts, tool outputs, tool metadata, Agent Cards and delegated results. The published evidence does not show any detector to be reliable against adaptive attacks. See [cross-agent prompt injection](cross-agent-prompt-injection.md) for the taxonomy, the evidence behind each defense, what this repository's controls do and do not cover, and a proposed synthetic experiment.
+
 ## Non-negotiable prototype rules
 
 - Use synthetic/public fixtures only, no production secrets or private chat transcripts.
