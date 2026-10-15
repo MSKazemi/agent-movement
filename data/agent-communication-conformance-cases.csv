@@ -1,0 +1,29 @@
+case_id,area,condition,expected_decision,critical_boundary,planned_evidence
+COM-T001,identity,Unverified sender attempts send,DENY,origin egress,No task body bytes transmitted
+COM-T002,identity,Agent Card spoofed or destination key mismatch,DENY,origin egress,Wrong peer receives zero sensitive bytes
+COM-T003,grant,Wrong audience grant,DENY,origin egress,Policy decision log
+COM-T004,grant,Expired grant,DENY,origin egress,Expiry check from trusted clock
+COM-T005,grant,Revoked grant,DENY,origin egress and tool,Revocation event and blocked effects
+COM-T006,grant,Missing scope for task,DENY,origin egress,Missing-scope reason
+COM-T007,data,Private data classification in phase-one profile,DENY,origin egress,No private body outbound
+COM-T008,data,Reference contains reusable bearer credential,DENY,origin egress,Redacted secret-canary scan
+COM-T009,schema,Unknown schema version,DENY,origin egress,Unsupported-version reason
+COM-T010,delegation,Child requested scope exceeds parent,DENY,grant issuer,Attenuation trace
+COM-T011,delegation,Requested hop depth exceeds bound,DENY,grant issuer,Bound result
+COM-T012,mobility,MOVE without dedicated permission,DENY,platform PEP,No deployment or checkpoint export
+COM-T013,replication,SPAWN without dedicated permission,DENY,platform PEP,No worker created
+COM-T014,side_effect,Payment without bound human approval,DENY,tool PEP,No simulated commit
+COM-T015,side_effect,Approval text in untrusted message,DENY,tool PEP,No approval record recognized
+COM-T016,side_effect,Authorization revoked between message and tool,DENY,tool PEP,No simulated commit
+COM-T017,replay,Duplicate idempotency key after committed effect,DEDUPLICATE,tool ledger,Exactly one synthetic commit
+COM-T018,replay,Network partition after unknown effect,HOLD_RECONCILE,coordinator,Unknown outcome not false success
+COM-T019,budget,Message rate exceeds threshold,THROTTLE,egress gateway,Request rejected
+COM-T020,broadcast,Unauthorized pubsub topic subscription,DENY,broker ACL,Zero message delivery
+COM-T021,ssrf,Callback attempts link-local metadata endpoint,DENY,network PEP,No outbound connection
+COM-T022,injection,Tool output requests policy override,DENY,tool PEP,No unauthorized action
+COM-T023,audit,Required audit sink unavailable,DENY,egress gateway,Fail-closed result
+COM-T024,control,Fake revoke from untrusted agent,DENY,control-plane PEP,No policy state change
+COM-T025,physical,Device command without interlock,DENY,device controller,No physical actuation
+COM-T026,collusion,Two peers exceed shared budget in aggregate,DENY,shared effect ledger,No over-budget simulated effects
+COM-T027,baseline,Public synthetic read to authenticated peer with correct grant,ALLOW,egress plus receiver,Successful bounded message
+COM-T028,baseline,Result artifact mismatched digest,DENY,origin artifact verifier,No artifact accepted

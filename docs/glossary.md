@@ -59,10 +59,20 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **Source:** project working definition, [README](../README.md); narrower variants in [open-questions](open-questions.md) and [how-it-works](how-it-works.md).
 **See:** all documents
 
+### Agent Skill (Agent Skills format)
+**[standard term]** A folder containing a `SKILL.md` file with YAML frontmatter (`name` and `description` required) and Markdown instructions. It may also bundle `scripts/` ("executable code that agents can run"), `references/` and `assets/`. Agents load skills by progressive disclosure: metadata first, then instructions, then resources as needed. The format has no version number. Because a skill can carry code, moving or installing one is a software supply-chain decision. It carries no execution state or authority.
+**Source:** [Agent Skills specification](https://agentskills.io/specification); [Anthropic, Agent Skills security considerations](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview).
+**See:** [research-landscape](research-landscape.md#procedural-packaging-and-browsercomputer-use-interfaces-added-2026-10-16), [standards-tracker](standards-tracker.md), [security-and-trust](security-and-trust.md)
+
 ### Agent Spec (Open Agent Specification)
 **[research term]** A declarative, framework-agnostic language for defining agents and agentic workflows once and running them on several runtimes. It is prior work on *definition portability*, which is a different claim from restoring in-flight execution.
 **Source:** AMP-059 ([arXiv:2510.04173](https://arxiv.org/abs/2510.04173)); AMN-060.
 **See:** [open-questions](open-questions.md)
+
+### AGENTS.md
+**[standard term]** "A simple, open format for guiding coding agents": a Markdown file in a repository, with no required fields. When files are nested, "the closest AGENTS.md to the edited file wins", and explicit user chat prompts override it. It is unversioned and stewarded by the Agentic AI Foundation. It moves guidance, not code, state or authority.
+**Source:** [agents.md](https://agents.md/); [agentsmd/agents.md](https://github.com/agentsmd/agents.md).
+**See:** [research-landscape](research-landscape.md#procedural-packaging-and-browsercomputer-use-interfaces-added-2026-10-16), [standards-tracker](standards-tracker.md)
 
 ### Attestation
 **[standard term]** with several meanings. NIST's glossary lists multiple definitions, from signed hardware measurements to "the issue of a statement … that fulfillment of specified requirements has been demonstrated". In SPIRE, attestation is "asserting the identity of a workload" (node and workload attestation). in-toto attestations are "verifiable claims about any aspect of how a piece of software is produced". The repository uses all three meanings and also an informal one (see the inconsistencies section).
@@ -358,6 +368,16 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **[standard term]** W3C standard HTTP headers that propagate request context for distributed tracing. `traceparent` has the fields version, trace-id, parent-id and trace-flags. The repository is explicit that trace context provides correlation, **not** credentials or proof of identity. Status: W3C Recommendation (23 November 2021).
 **Source:** [W3C Trace Context](https://www.w3.org/TR/trace-context/).
 **See:** [how-it-works](how-it-works.md) (envelope), [forensics](agent-forensics-and-fingerprints.md)
+
+### WebDriver BiDi
+**[standard term]** "The BiDirectional WebDriver Protocol, a mechanism for remote control of user agents". Its modules cover browsing contexts, script, input, network and storage. The storage module can read and set cookies. Status: W3C Working Draft (8 October 2026), not a Recommendation.
+**Source:** [W3C WebDriver BiDi](https://www.w3.org/TR/webdriver-bidi/).
+**See:** [research-landscape](research-landscape.md#procedural-packaging-and-browsercomputer-use-interfaces-added-2026-10-16), [standards-tracker](standards-tracker.md)
+
+### WebMCP
+**[standard term]** A proposed browser API with which "web applications … provide JavaScript-based tools to AI agents", registered through `document.modelContext.registerTool()`. The tools run in the page with the user's session. Status: Draft Community Group Report of the W3C Web Machine Learning Community Group (15 October 2026), "not a W3C Standard nor … on the W3C Standards Track". It is published by a W3C Community Group, not by the MCP project.
+**Source:** [WebMCP Draft CG Report](https://webmachinelearning.github.io/webmcp/).
+**See:** [research-landscape](research-landscape.md#procedural-packaging-and-browsercomputer-use-interfaces-added-2026-10-16), [standards-tracker](standards-tracker.md)
 
 ### Workload identity (workload principal)
 **[standard term]** An identity issued to a running software workload, not to a human. SPIFFE defines a workload as "a single piece of software, deployed with a particular configuration for a single purpose". The repository's `workload_principal` records such an identity together with its issuer or trust domain and the verification result.
