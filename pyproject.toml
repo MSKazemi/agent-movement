@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-movement-lab"
+version = "0.1.0"
+description = "Experimental local task handoff and fencing testbed (not an A2A implementation)"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
