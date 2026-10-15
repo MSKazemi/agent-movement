@@ -23,6 +23,7 @@ jobs:
       # `python -m unittest discover -s tests` cannot import; pytest runs both.
       - run: python -m pytest -q
       - run: python -m agent_movement.demo
+      - run: python -m agent_movement.peer_demo
       - run: python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
       - uses: actions/upload-artifact@v7
         if: always()

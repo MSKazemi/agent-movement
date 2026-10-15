@@ -73,6 +73,7 @@ The demo outputs a completed task, an idempotent replay, a denied unapproved req
 - [Open technical and product questions](docs/open-questions.md)
 - [Proposed architecture and staged roadmap](docs/roadmap.md)
 - [Security, privacy, and threat model](docs/security-and-trust.md)
+- [Peer authentication and pre-disclosure authorization (synthetic, local; `python -m agent_movement.peer_demo`)](docs/peer-authentication.md)
 - [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md)
 - [Primary sources and dated research notes](docs/sources.md)
 - [Standards and protocol version tracker (28 specs, primary sources, checked 2026-10-16)](docs/standards-tracker.md) · [CSV](data/standards-tracker.csv)

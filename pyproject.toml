@@ -15,6 +15,8 @@ a2a = [
     "a2a-sdk[http-server]==1.2.2",
     "uvicorn>=0.54",
 ]
+# Optional asymmetric (Ed25519) peer keys; the core and default HS256 mode stay stdlib-only.
+ed25519 = ["cryptography>=50.0.2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
