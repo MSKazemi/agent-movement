@@ -54,16 +54,21 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 Suggested reading order:
 
 1. [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md): vocabulary, and what is (not) implemented
-2. [Research landscape and technology comparison](docs/research-landscape.md): what A2A, MCP, LangGraph, Temporal and others do and do not solve
-3. [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
-4. [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
-5. [Security, privacy, and threat model](docs/security-and-trust.md)
-6. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
-7. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
-8. [Proposed architecture and staged roadmap](docs/roadmap.md)
-9. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
-10. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
-11. [Paper corpus: 75 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
+2. [Glossary: 70 terms, each tagged as standard, research or project working definition](docs/glossary.md)
+3. [Research landscape and technology comparison](docs/research-landscape.md): what A2A, MCP, LangGraph, Temporal and others do and do not solve
+4. [Standards and protocol version tracker (28 specs, primary sources, checked 2026-10-16)](docs/standards-tracker.md) · [CSV](data/standards-tracker.csv)
+5. [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
+6. [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
+7. [Security, privacy, and threat model](docs/security-and-trust.md)
+8. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
+9. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
+10. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
+11. [Proposed architecture and staged roadmap](docs/roadmap.md)
+12. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
+13. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
+14. [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
+15. [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
+16. [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md)
 
 ## Recommended initial experiment
 

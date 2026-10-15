@@ -28,7 +28,7 @@ jobs:
           python-version: "3.15"
 
       - name: Validate corpora and verify byte-for-byte rebuild
-        run: make check verify-determinism
+        run: make check verify-determinism verify-analysis
 
       - name: Install pytest
         if: hashFiles('tests/**') != ''
@@ -53,4 +53,4 @@ jobs:
           sudo apt-get install -y --no-install-recommends biber
 
       - name: Validate .bib files
-        run: make bib
+        run: make bib BIB_STRICT=1

@@ -13,7 +13,8 @@ This corpus collects scholarly work on *agent movement*: how AI-agent work moves
 | [`stats.json`](stats.json) | Counts by theme, decade, publication type, contribution type and operation (generated) |
 | [`flow.json`](flow.json), [`excluded.jsonl`](excluded.jsonl) | Selection-flow counts and every excluded candidate, with its reason |
 | [`raw/`](raw/) | Raw candidate records exactly as collected: 78 from round 1, one file per theme (`P1.jsonl`–`P6.jsonl`), and 8 from round 2 (`round2.jsonl`) |
-| [`audit.jsonl`](audit.jsonl) | The independent audit verdict for each of the 75 round-1 papers, with corrections applied (round 2: see §7) |
+| [`audit.jsonl`](audit.jsonl) | The independent audit verdict for each of the 75 round-1 papers, with corrections applied, plus curator entries |
+| [`audit-round2.jsonl`](audit-round2.jsonl) | The independent audit verdict for each of the 8 round-2 papers (applied after `append`) |
 | [`../../tools/paper_corpus.py`](../../tools/paper_corpus.py) | Validator and generator (Python standard library only) |
 
 ## 1. Research questions
@@ -58,12 +59,13 @@ Unverifiable metadata, schema violations, and duplicates (the same DOI or arXiv 
 6. **Independent audit.** Separate auditor agents re-checked every record against the authorities (§7). Corrections were logged in `audit.jsonl` and applied by script.
 7. **Round 2 (2026-10-16).** The eight candidates that round-1 collectors had verified or flagged but left out because of the per-theme cap (formerly listed in §10) were collected in `raw/round2.jsonl` and screened with `append` (§6, §7).
 
-To reproduce the published dataset (into a fresh directory, add `--out <dir>` to each command):
+To reproduce the published dataset (into a fresh directory, add `--out <dir>` to each command; `make build` runs the same sequence):
 
 ```sh
 python3 tools/paper_corpus.py merge docs/paper-corpus/raw/P[1-6].jsonl
 python3 tools/paper_corpus.py apply-audit docs/paper-corpus/audit.jsonl
 python3 tools/paper_corpus.py append docs/paper-corpus/raw/round2.jsonl --round round2
+python3 tools/paper_corpus.py apply-audit docs/paper-corpus/audit-round2.jsonl
 ```
 
 ## 5. Data schema
@@ -119,7 +121,9 @@ Round-1 checks were run on 2026-10-15. Every round-1 verdict and correction is i
 
 Six curator entries in `audit.jsonl` (`audit_pass: curator-prepublication`) do two things. They align two `technologies` lists with the published versions. They also re-key four citation keys whose year changed from 2025 to 2026 when the published version replaced the preprint. Re-keying is allowed only before first publication; after that, keys are frozen.
 
-**Round 2 audit note (2026-10-16).** The eight round-2 records (AMP-076 … AMP-083) were collected and verified by the curator in one pass rather than by separate collector and auditor agents, so they have no `audit.jsonl` entries; their `verification_source`, `search_query` and `notes` fields record the evidence.
+**Round 2 audit (2026-10-16).** A separate auditor independently re-checked the eight round-2 records (AMP-076 … AMP-083) against Crossref, arXiv, OpenAlex, PMLR, the ICLR and TMLR sites and the SIGOPS policy page. Metadata: 8/8 correct. Peer-review flag: 8/8 justified (AMP-077 is not refereed: the SIGOPS *Operating Systems Review* policy page states the newsletter's technical material is not refereed, and `notes` now cites it). Summaries: 2/8 corrected: AMP-078 overstated who usually audits deployed systems, and AMP-081 said "36 high-stakes tools" where the published ICLR version reports 36 toolkits with 311 tools. Verdicts and corrections are in [`audit-round2.jsonl`](audit-round2.jsonl). The curator re-checked the ToolEmu figure against the arXiv abstract. OpenReview, DBLP and Semantic Scholar blocked automated access, so the exact TMLR acceptance day of AMP-082 was not re-checked.
+
+**Curator entry (2026-10-16).** AMP-007 lacked the volume editor, so its `@incollection` entry failed biber's datamodel check. The record now carries an optional `editors` field, set to Giovanni Vigna from Crossref's record for the volume (10.1007/3-540-68671-1).
 
 | Check | Method | Result |
 |---|---|---|
@@ -176,7 +180,7 @@ These are observations about **this corpus only**, with IDs referring to [`diges
 ## 9. Limitations
 
 - **Not exhaustive.** Thirteen candidates per theme, plus the eight round-2 additions, is a reading list, not a census.
-- **Round 2 single pass.** Round-2 records were collected and checked by the same agent, without the separate audit pass that round 1 had (§7).
+- **Round 2 audit scope.** Round 2 had one independent auditor, like round 1, but some sources (OpenReview, DBLP, Semantic Scholar) were not reachable by automated access (§7).
 - **Agent-assisted collection and audit.** Collectors and auditors were AI agents working under fixed rules. Metadata comes from authoritative APIs, but summaries can still mis-state a paper. Read the paper before citing a specific result.
 - **Abstract availability.** For several pre-2000 papers, publishers do not expose abstracts to APIs. Those summaries were checked against whatever text was reachable and kept deliberately general (see `notes` and `audit.jsonl`).
 - **Preprint volatility.** 2025–2026 preprints may change between versions. The record cites the version current on 2026-10-15; check arXiv for later versions.

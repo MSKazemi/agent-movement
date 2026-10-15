@@ -15,7 +15,7 @@ abstract: >-
   distinguishes delegation, portable task context, runtime relocation and
   cross-framework migration, and contains research notes on protocols,
   security, forensics and device compatibility. It also contains two curated,
-  independently audited corpora: 100 dated news items (2024-2026) and 75
+  independently audited corpora: 100 dated news items (2024-2026) and 83
   metadata-verified scholarly papers (1980-2026), each with structured records,
   summaries and BibTeX.
 keywords:

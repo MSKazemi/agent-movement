@@ -56,6 +56,8 @@ RAW_KEYS = [
     "verification_source", "search_query", "notes",
 ]
 FINAL_KEYS = ["id", "citekey"] + RAW_KEYS
+# Optional fields: absent on most records, set only through an audit entry.
+OPTIONAL_KEYS = ["editors"]
 DATE_RE = re.compile(r"^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$")
 DOI_RE = re.compile(r"^10\.\d{4,9}/\S+$")
 ARXIV_RE = re.compile(r"^(\d{4}\.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?/\d{7})$")
@@ -65,7 +67,7 @@ def validate(r: dict, keys: list[str]) -> list[str]:
     errs = []
     if missing := [k for k in keys if k not in r]:
         errs.append(f"missing keys {missing}")
-    if extra := [k for k in r if k not in keys]:
+    if extra := [k for k in r if k not in keys and k not in OPTIONAL_KEYS]:
         errs.append(f"unexpected keys {extra}")
     if r.get("theme") not in THEMES:
         errs.append(f"bad theme {r.get('theme')!r}")
@@ -237,6 +239,8 @@ def to_bib(r: dict) -> str:
         f.append(("journaltitle", bib_escape(r["venue"])))
     elif entry in ("inproceedings", "incollection"):
         f.append(("booktitle", bib_escape(r["venue"])))
+        if r.get("editors"):
+            f.append(("editor", " and ".join(bib_escape(e) for e in r["editors"])))
     elif entry == "report":
         f += [("institution", bib_escape(r["venue"])), ("type", "Technical report" if t == "tech-report" else "White paper")]
     elif entry == "online" and r["venue"].lower() not in ("arxiv", "arxiv preprint"):
@@ -269,7 +273,7 @@ def build() -> None:
     if errors := check(rows):
         sys.exit("\n".join(errors))
     with (OUT / "papers.csv").open("w", newline="", encoding="utf-8") as fh:
-        w = csv.DictWriter(fh, fieldnames=FINAL_KEYS)
+        w = csv.DictWriter(fh, fieldnames=FINAL_KEYS, extrasaction="ignore")  # optional keys stay in JSONL/BibTeX
         w.writeheader()
         for r in rows:
             w.writerow({k: "; ".join(v) if isinstance(v, list) else v for k, v in r.items()})
@@ -361,7 +365,7 @@ def apply_audit(audit_path: Path) -> None:
             # Cite keys may be rekeyed only by an explicit pre-publication curator entry;
             # once a corpus is published its keys are frozen.
             rekey = k == "citekey" and a.get("audit_pass") == "curator-prepublication"
-            if k == "id" or (k not in RAW_KEYS and not rekey):
+            if k == "id" or (k not in RAW_KEYS + OPTIONAL_KEYS and not rekey):
                 sys.exit(f"{a['id']}: refusing to change field {k!r}")
             r[k] = v
             changed += 1

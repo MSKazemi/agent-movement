@@ -101,7 +101,7 @@ The remaining sources are long-standing standards and documentation and were **n
 
 ## Paper corpus
 
-Scholarly papers (75 items, 1980–2026), including the classic mobile-agent, process-migration and delegation literature, are collected and independently audited in [paper-corpus/](paper-corpus/README.md). 73 of the 75 papers have a DOI and/or arXiv ID (the other two, a USENIX NSDI 2005 paper and an OpenAI white paper, are identified by their canonical URL); each has a peer-review flag, a paraphrased summary and a biblatex entry in [papers.bib](paper-corpus/papers.bib).
+Scholarly papers (83 items, 1980–2026; 75 from round 1 and 8 added in round 2 on 2026-10-16), including the classic mobile-agent, process-migration and delegation literature, are collected and independently audited in [paper-corpus/](paper-corpus/README.md). 81 of the 83 papers have a DOI and/or arXiv ID (the other two, a USENIX NSDI 2005 paper and an OpenAI white paper, are identified by their canonical URL); each has a peer-review flag, a paraphrased summary and a biblatex entry in [papers.bib](paper-corpus/papers.bib).
 
 ## News corpus
 
