@@ -194,7 +194,7 @@ Use [MobilityBench experimental protocol](mobilitybench-experiment-protocol.md) 
 
 Every result must identify: dataset revision and digest; source/destination agent and runtime versions; model/provider/version and settings; checkpoint format; movement mode; compatibility losses; trust domain; fault schedule; number of repeated trials; grader; complete/failed/canceled/unknown; source and effect receipts; elapsed time; token/compute/net cost; policy and privacy violations.
 
-**Important metrics:** task correctness, preserved constraints, safe continuation rate, duplicate synthetic commits, stale-owner rejections, leaked synthetic secret canaries, movement bytes, p50/p95 latency, cost per correct completion, and independently verifiable evidence completeness.
+**Important metrics:** task correctness, preserved constraints, safe continuation rate, duplicate synthetic commits, stale-owner rejections, leaked synthetic secret canaries, movement bytes, p50/p95 latency, cost per correct completion (see the proposed [economic evaluation methodology](economic-evaluation.md)), and independently verifiable evidence completeness.
 
 **Baselines:** keep running on A; start over on B; ordinary A2A delegation; same-runtime checkpoint/restore; later, cross-framework reconstructed continuation. A successful move is not necessarily useful if it is slower, less accurate or harder to audit than the baseline.
 

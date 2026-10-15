@@ -49,7 +49,7 @@ These questions are related but distinct. A2A and MCP provide interoperability *
 - **Offline and cross-cloud reconciliation:** What happens after prolonged partitions or when origin and destination cannot reach a central authority? Choose an explicit availability/consistency tradeoff.
 - **Active/active replication and memory consistency:** Are agent memories shared, partitioned or merged, and who arbitrates concurrent updates? There may be no universal semantic merge.
 - **Provenance of model-dependent decisions:** Can the system show what evidence, instructions, model version and tool versions informed a decision while respecting privacy and not exporting private model reasoning?
-- **Economic scheduling:** Under which workload and security assumptions is moving preferable to spawning, re-running, or delegating? Optimize for completion, cost, latency, quality and risk—not agent count.
+- **Economic scheduling:** Under which workload and security assumptions is moving preferable to spawning, re-running, or delegating? Optimize for completion, cost, latency, quality and risk—not agent count. A proposed cost model is in [economic-evaluation.md](economic-evaluation.md).
 - **Registry/marketplace governance:** Can discovery be made safe enough for untrusted third-party agents, including supply-chain integrity, reputation gaming and takedown?
 - **Formal guarantees:** Which properties can be proven under a clearly stated fault model, and which require human reconciliation because external systems cannot participate in the protocol?
 

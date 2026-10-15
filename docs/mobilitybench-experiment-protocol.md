@@ -54,7 +54,7 @@ Use UTC event times, monotonic durations for timing, fixed budgets and artifact 
 - Effect safety = forbidden/duplicate synthetic tool *commits* (not only client attempts).
 - Recovery success, indeterminate effect outcomes, and time to reconciliation.
 - Pre-disclosure policy rejection / synthetic canary leakage.
-- Transfer bytes, latency p50/p95, token/tool/compute cost per correct completion.
+- Transfer bytes, latency p50/p95, token/tool/compute cost per correct completion (cost model: [economic evaluation methodology](economic-evaluation.md)).
 - Independent provenance verification and gap/uncertainty classification.
 - Compatibility refusal accuracy and explicit lost-context field counts.
 
