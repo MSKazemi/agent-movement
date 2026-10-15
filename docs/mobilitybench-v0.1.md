@@ -2,6 +2,7 @@
 
 **Status:** Pre-registered pilot protocol plus an executable, deterministic, LLM-free harness (2026-10-16).
 **Tracks:** [issue #10](https://github.com/MSKazemi/agent-movement/issues/10); builds on [PR #6](https://github.com/MSKazemi/agent-movement/pull/6) and the [20-case smoke](human-impact-research-lab.md) (PR #14), which keeps working unchanged.
+**Study plan:** the broader [proposed pre-registration protocol](mobilitybench-experiment-protocol.md) and [scientific agenda](strategic-target-and-scientific-agenda.md) (PR #4); this pilot covers only part of that plan.
 **Question ([AM-14 / AM-15](open-questions.md)):** *When does moving agent work improve outcomes instead of only adding overhead, and how do we measure that without hiding failures?*
 
 > This pilot gives exact, reproducible observations about a scripted interpreter. It does **not** measure LLM agents, real A2A interoperability, checkpoint relocation, cross-framework reconstruction, real external tools, or human outcomes. Nothing here supports a general statistical claim.
