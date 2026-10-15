@@ -116,12 +116,12 @@ The columns separate the demonstrated fact (with its source) from our analysis o
 - evaluation of **provenance labels that survive a handoff** (taint carried from the origin to the destination and back);
 - independent replication of any vendor figure cited above (AMN-027, AMN-043, AMN-079).
 
-<!-- depends-on-stack: verify paths after merge -->
+<!-- Paths and test IDs verified against main at ba77c1c (2026-10-16). -->
 ## 4. What this repo's controls do and do not cover
 
 > **Preview.** The modules and tests below exist on the local `integration` branch and are not yet on `main`. Paths are given as they appear on `integration` and must be re-verified after the merge.
 
-**FACT (from reading the code).** No component calls a language model. The handoff receiver executes only the pure task kinds `word_count` and `sha256` (`src/agent_movement/core.py`). The MobilityBench v0.1 harness runs a scripted interpreter that makes "no model calls" and records `model_calls: 0` (`src/agent_movement/mobilitybench_v01.py`; `docs/mobilitybench-v0.1.md` on `integration`).
+**FACT (from reading the code).** No component calls a language model. The handoff receiver executes only the pure task kinds `word_count` and `sha256` (`src/agent_movement/core.py`). The MobilityBench v0.1 harness runs a scripted interpreter that makes "no model calls" and records `model_calls: 0` (`src/agent_movement/mobilitybench_v01.py`; [docs/mobilitybench-v0.1.md](mobilitybench-v0.1.md)).
 
 **ANALYSIS.** The controls below are structural. They shrink the channels through which free text can travel and check authority where effects commit. None of them detects an injection. None has been tested against an LLM executor.
 
@@ -139,7 +139,6 @@ The columns separate the demonstrated fact (with its source) from our analysis o
 | Instruction-like text in data | `src/agent_movement/fixtures/mobilitybench-v0.1/negative.jsonl` (`neg-instruction-in-data`) | `tests/test_mobilitybench_v01.py::SuiteRunTests::test_no_harness_errors_and_security_verdicts` | Regression check that the deterministic interpreter treats `"SYSTEM OVERRIDE: …"` as data | Its own description says it "says nothing about LLM executors". |
 
 **Not covered at all (ANALYSIS):** an LLM executor; provenance or taint labels on text across hops; injection detection; real network egress control; MCP tool-description pinning (there is no MCP integration); Agent Card JWS verification on the A2A path; multi-hop propagation; any human confirmation interface (approvals are preconfigured records).
-<!-- /depends-on-stack -->
 
 ## 5. Proposed synthetic experiment: injection-carrier negative fixtures for MobilityBench
 
