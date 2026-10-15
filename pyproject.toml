@@ -10,3 +10,6 @@ requires-python = ">=3.10"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+agent_movement = ["fixtures/mobilitybench-v0.1/*"]
