@@ -14,7 +14,7 @@ Do not pitch generic agent passports, portable agent definitions, delegation, si
 | --- | --- | --- |
 | A2A v1 and MCP | Peer task exchange and tool interfaces, respectively | Portable, lossless execution continuation or proof that intent survived |
 | Open Agent Specification / Agent Spec (2026) | Declarative representations and cross-framework comparison | Universal in-flight checkpoint transfer |
-| ACRFence (2026) | Semantic rollback attacks and effect-gateway mitigation | Semantic side-effect correctness across arbitrary tools/models/domains |
+| ACRFence (2026) | Semantic rollback attacks (action replay, authority resurrection) and a mitigation that records irreversible tool effects and enforces replay-or-fork on restore | Semantic side-effect correctness across arbitrary tools/models/domains |
 | Beyond Memory / Continuity Kernel (August 2026 preprint) | Transactional lineage, branch-head authority, writer handoff, and bounded model exploration | That a continued agent still pursues the *human's intended objective* |
 | Authorization Revocation for Long-Running AI Agents (September 2026 preprint) | Root-scoped quiescence with explicit assumptions and manifested sinks | Quiescence across unknowable/uncooperative recipients or all copied data |
 | Attesting Outputs and Delegation Ancestry (August 2026 preprint) | Signed released outputs and co-signed authorized edges | Truth of outputs, completeness of observations, or semantic compliance |
@@ -71,7 +71,7 @@ The rankings are the author's **subjective strategic judgment**, not measured sc
 
 **Research question:** What measurable fraction of *explicit task invariants* survives heterogeneous transfers, and which safeguards improve survival without introducing needless transfers or unacceptable disclosure?
 
-- Pre-register 100-200 synthetic/public task cases in categories: document synthesis with protected facts, constrained coding, multi-step simulated tools, and tasks whose correct response is **abstention**.
+- Pre-register an initial 100-200 synthetic/public task cases (an engineering starting point, not a power calculation; size the final study from pilot variance) in categories: document synthesis with protected facts, constrained coding, multi-step simulated tools, and tasks whose correct response is **abstention**.
 - Annotate explicit invariant IDs: hard constraints, factual evidence references, allowed/forbidden actions, open uncertainties, required approvals, already committed effects and budget.
 - Compare: no move; ordinary A2A handoff; restart with context; same-runtime checkpoint; cross-model application-level reconstruction **only if actually implemented**. Vary 0, 1, 2, 4 and 8 handoffs and include lossy summaries, conflicting evidence and simulated receiver refusal.
 - Evaluate with programmatic invariants where possible; blind human review for ambiguous semantic outcomes. Repeat stochastic cases; record denominators, confidence intervals and unsupported modes as unavailable.
@@ -166,17 +166,17 @@ Links below support **adjacent work**, not originality or future outcomes.
 1. [A2A v1.0 specification](https://a2a-protocol.org/v1.0.0/specification/) — agent task/message/artifact interoperability.
 2. [MCP specification](https://modelcontextprotocol.io/specification/2026-07-28) — tool/context interoperability.
 3. [Open Agent Specification: Enabling Cross-Framework Comparison of AI Agents (CAIS 2026)](https://doi.org/10.1145/3786335.3813130) — definition representation and evaluation.
-4. [ACRFence: Preventing Semantic Rollback Attacks in Agent Checkpoint-Restore (March 2026)](https://arxiv.org/abs/2603.20625) — effect replay and authority resurrection hazards.
+4. [ACRFence: Preventing Semantic Rollback Attacks in Agent Checkpoint-Restore (March 2026)](https://arxiv.org/abs/2603.20625) — action replay and authority resurrection hazards on checkpoint restore.
 5. [Beyond Memory: A Transactional Continuity Kernel for Long-Lived AI Agents (August 2026)](https://arxiv.org/abs/2608.11632) — authority-controlled state activation and writer handoff.
 6. [Authorization Revocation for Long-Running AI Agents (September 2026)](https://arxiv.org/abs/2609.21284) — root-scoped quiescence under declared coverage and fault assumptions.
 7. [Attesting Outputs and Delegation Ancestry in Multi-Agent AI Systems (August 2026)](https://arxiv.org/abs/2608.30387) — signed output and co-signed lineage evidence.
-8. [Agent Passport System (September 2026 Internet-Draft)](https://datatracker.ietf.org/doc/draft-pidlisnyi-aps/) — experimental passport-style authority/evidence architecture; NOT a ratified IETF standard.
+8. [Agent Passport System (individual Internet-Draft, draft-pidlisnyi-aps-04, September 2026)](https://datatracker.ietf.org/doc/draft-pidlisnyi-aps/) — proposed passport-style authority/evidence architecture; intended status Informational, no IETF stream or endorsement; NOT a ratified IETF standard.
 9. [Architectural Requirements for Supporting AI Agents on the Internet (August 2026 Internet-Draft)](https://www.ietf.org/archive/id/draft-daniel-ai-agent-internet-architecture-00.html) — proposed network architectural requirements.
 10. [AgentAsk: Multi-Agent Systems Need to Ask (ACL 2026)](https://aclanthology.org/2026.acl-long.1294/) — errors at agent-to-agent communication edges.
 11. [Stay Focused: Problem Drift in Multi-Agent Debate (EACL Findings 2026)](https://aclanthology.org/2026.findings-eacl.268/) — drift in multi-agent debate; related but not a movement benchmark.
 12. [Self-Propagating Misalignment in LLM Agents, and Why Auditing or Disabling Memory Is Not Enough (October 2026)](https://arxiv.org/abs/2610.04083) — self-authored memory/file propagation risk.
 13. [MemMorph: Tool Hijacking in LLM Agents via Memory Poisoning (May 2026)](https://arxiv.org/abs/2605.26154) — memory integrity under adversarial insertion.
-14. [Emergent Social Intelligence Risks in Generative Multi-Agent Systems (March 2026)](https://arxiv.org/abs/2603.27771) — collective risks in multi-agent settings.
+14. [Emergent Risks in Generative Multi-Agent Systems (March 2026; v1 titled "Emergent Social Intelligence Risks in Generative Multi-Agent Systems", v3 September 2026)](https://arxiv.org/abs/2603.27771) — collective risks in multi-agent settings.
 15. [Agent Contracts: A Formal Framework for Resource-Bounded Autonomous AI Systems (January 2026)](https://arxiv.org/abs/2601.08815) — budget constraints and delegation conservation.
 16. [ITU-T Y.4618 (June 2026): AIoT reference model and requirements](https://www.itu.int/epublications/publication/itu-t-y-4618-2026-06-artificial-intelligence-of-things-reference-model-and-requirements) — device/edge/cloud architecture.
 17. [Authorization Architectures for Tool-Using AI Agents (September 2026)](https://arxiv.org/abs/2609.15906) — principal hierarchy, authorization enforcement and audit gaps.
