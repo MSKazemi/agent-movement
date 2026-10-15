@@ -20,10 +20,11 @@ To use a different interpreter, override `PYTHON`, e.g. `make check PYTHON=pytho
 | Target | What it does |
 |---|---|
 | `make check` | Validates `news.jsonl` and `papers.jsonl` (schema, vocabularies, IDs, cite keys, duplicates). Exits non-zero on any error. |
-| `make verify-determinism` | Rebuilds both corpora from `raw/` + screening + `audit.jsonl` into a temporary directory and requires all 7 generated files per corpus to be byte-identical to the committed ones. |
+| `make verify-determinism` | Rebuilds both corpora from `raw/` + screening + audit files (papers: round 1, then `append` round 2 and its audit) into a temporary directory and requires all 7 generated files per corpus to be byte-identical to the committed ones. |
 | `make test` | Runs `python -m pytest -q` if `tests/` exists; otherwise prints a skip message. |
 | `make bib` | Runs `biber --tool --validate-datamodel` on `news.bib` and `papers.bib`. It fails on biber errors and prints warnings. Use `make bib BIB_STRICT=1` to make warnings fail too. It is skipped with a message if biber is not installed. |
-| `make build` | Rebuilds both corpora **in place**, exactly as documented in each README: `merge` from `raw/`, then `apply-audit`. |
+| `make verify-analysis` | Regenerates `docs/corpus-analysis/timeline.md` and `coverage.md` into a temporary folder and requires them to match the committed files (`make analysis` regenerates them in place). |
+| `make build` | Rebuilds both corpora **in place**, exactly as documented in each README: `merge` from `raw/`, then `apply-audit`; for papers, then `append` each later round and apply its audit file. |
 | `make` / `make all` | Runs `check`, `verify-determinism`, `test` and `bib`. |
 | `make help` | Lists the targets. |
 
@@ -35,8 +36,8 @@ CI does no network link checking, so every gate is deterministic and runs offlin
 
 Never hand-edit the generated files (`*.csv`, `*.bib`, `digest.md`, `stats.json`, `flow.json`, `excluded.jsonl`). They are overwritten by the tools.
 
-- **Correcting an existing record:** add an entry to the corpus's `audit.jsonl` with `corrected_summary` and/or `corrected_fields`, then run `make build` and `make all`. Routing corrections through `audit.jsonl` keeps the published dataset reproducible from `raw/`.
-- **Adding a collection round:** follow the procedure in each README:
+- **Correcting an existing record:** add an entry to the corpus's `audit.jsonl` (round-1 records) or the round's own audit file such as `audit-round2.jsonl` (records added by `append`) with `corrected_summary` and/or `corrected_fields`, then run `make build` and `make all`. Routing corrections through `audit.jsonl` keeps the published dataset reproducible from `raw/`.
+- **Adding a collection round:** follow the procedure in each README, then add the round's `append` and audit commands to `PAPER_APPEND`/`PAPER_AUDIT2` in the `Makefile` (or new variables after them) so `make build` and `verify-determinism` replay it:
   - news: [§11 "How to update the corpus"](news-corpus/README.md#11-how-to-update-the-corpus);
   - papers: [§11 "How to cite and update"](paper-corpus/README.md#11-how-to-cite-and-update).
 
