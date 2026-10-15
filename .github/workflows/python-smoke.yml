@@ -19,10 +19,18 @@ jobs:
       - run: python -m unittest discover -s tests -v
       - run: python -m agent_movement.demo
       - run: python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
+      # MobilityBench v0.1 CI smoke subset: digest-verified fixtures, 6 tasks x 1 seed x 6 modes + negatives.
+      - run: python tools/mobilitybench_freeze.py --check
+      - run: python -m agent_movement.mobilitybench verify --suite v0.1
+      - run: python -m agent_movement.mobilitybench run --suite v0.1 --subset smoke --out mobilitybench-v0.1-smoke.jsonl
+      - run: python -m agent_movement.mobilitybench report --in mobilitybench-v0.1-smoke.jsonl --out mobilitybench-v0.1-smoke.md
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: mobilitybench-local-python-${{ matrix.python-version }}
-          path: mobilitybench-local.jsonl
+          path: |
+            mobilitybench-local.jsonl
+            mobilitybench-v0.1-smoke.jsonl
+            mobilitybench-v0.1-smoke.md
           if-no-files-found: ignore
           retention-days: 7
