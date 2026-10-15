@@ -54,6 +54,7 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 - [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md)
 - [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
 - [Research landscape and technology comparison](docs/research-landscape.md)
+- **[How agents move: complete protocol and network guide](docs/protocols-and-networks/README.md)** — [protocol catalog](docs/protocols-and-networks/protocol-catalog.md), [network topologies](docs/protocols-and-networks/network-topologies.md), [handoff/relocation contract](docs/protocols-and-networks/handoff-and-relocation-contract.md), [security and failure recovery](docs/protocols-and-networks/security-reliability-and-observability.md), [decision and benchmark guide](docs/protocols-and-networks/decision-guide-and-benchmarks.md), [primary sources](docs/protocols-and-networks/primary-sources.md), [machine-readable CSV](data/protocol-network-matrix.csv)
 - [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
 - [Open technical and product questions](docs/open-questions.md)
 - [Proposed architecture and staged roadmap](docs/roadmap.md)
