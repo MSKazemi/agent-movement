@@ -1,8 +1,8 @@
 # Sources and evidence log
 
-Reviewed on **2026-10-15**. This is a selective standards/documentation survey, not a comprehensive systematic review. Verify specific upstream release dates and implementation behavior before claiming conformance. All architecture and envelope design in this repository are **proposals**.
+Reviewed on **2026-10-15**; links and corpus counts fact-checked 2026-10-16. This is a selective standards/documentation survey, not a comprehensive systematic review. Verify specific upstream release dates and implementation behavior before claiming conformance. All architecture and envelope design in this repository are **proposals**.
 
-This file is the single index of every external reference cited in the research documents (README and `docs/*.md`). News items in [news-corpus/](news-corpus/README.md) are indexed separately in its own [news.bib](news-corpus/news.bib) and are not repeated here. When a research document adds a new source, add it here too.
+This file is the single index of every external reference cited in the research documents (README and `docs/*.md`). News items in [news-corpus/](news-corpus/README.md) and papers in [paper-corpus/](paper-corpus/README.md) are indexed separately in their own [news.bib](news-corpus/news.bib) and [papers.bib](paper-corpus/papers.bib) and are not repeated here. When a research document adds a new source, add it here too.
 
 ## Protocols and interoperability
 
@@ -17,7 +17,7 @@ This file is the single index of every external reference cited in the research 
 
 | Topic | Primary source | Evidence scope | Cited in |
 |---|---|---|---|
-| Open Agent Specification technical report (2025) | https://arxiv.org/abs/2510.04173 | Declarative, framework-neutral agent/workflow definitions and an evaluation harness | questions [S5] |
+| Open Agent Specification (Agent Spec): A Unified Representation for AI Agents (2025; v1 titled "Technical Report") | https://arxiv.org/abs/2510.04173 | Declarative, framework-neutral agent/workflow definitions and an evaluation harness | questions [S5] |
 | Open Agent Specification, CAIS 2026 | https://doi.org/10.1145/3786335.3813130 | Cross-framework comparison using a shared representation; same author group as the 2025 report | questions [S6] |
 | Specification Portability Across LLM Development Agents (2026) | https://arxiv.org/abs/2608.21208 | Oracle→PostgreSQL migration study: specifications written for one coding agent often transfer poorly to another | questions [S7] |
 
@@ -54,7 +54,7 @@ This file is the single index of every external reference cited in the research 
 
 | Topic | Primary source | Evidence scope | Cited in |
 |---|---|---|---|
-| OpenTelemetry GenAI semantic conventions | https://opentelemetry.io/docs/specs/semconv/gen-ai/ | GenAI trace/metric convention family | README, landscape, security |
+| OpenTelemetry GenAI semantic conventions | https://github.com/open-telemetry/semantic-conventions-genai | GenAI trace/metric convention family (moved from opentelemetry.io; status Development, checked 2026-10-16) | README, landscape, security |
 | OpenTelemetry GenAI agent spans | https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md | Span conventions for agent creation/invocation, workflows and tool execution | forensics |
 | OpenTelemetry tracing SDK (sampling) | https://opentelemetry.io/docs/specs/otel/trace/sdk/ | Sampling can omit spans, so traces are not complete evidence | forensics |
 | W3C Trace Context | https://www.w3.org/TR/trace-context/ | `traceparent` correlation; not identity | forensics |
@@ -99,8 +99,12 @@ The remaining sources are long-standing standards and documentation and were **n
 5. Only upgrade proposals to verified implementation claims after reproducible tests with pinned versions.
 6. When adding a citation to any research document, add it to this index and, if checked, to the spot-check log with the date.
 
+## Paper corpus
+
+Scholarly papers (75 items, 1980–2026), including the classic mobile-agent, process-migration and delegation literature, are collected and independently audited in [paper-corpus/](paper-corpus/README.md). 73 of the 75 papers have a DOI and/or arXiv ID (the other two, a USENIX NSDI 2005 paper and an OpenAI white paper, are identified by their canonical URL); each has a peer-review flag, a paraphrased summary and a biblatex entry in [papers.bib](paper-corpus/papers.bib).
+
 ## News corpus
 
 Dated industry, standards and security news (100 items, 2024-11 to 2026-10) is collected under a documented protocol in [news-corpus/](news-corpus/README.md). Every item has a paraphrased summary, coded movement operations, a verification flag and a biblatex entry in [news.bib](news-corpus/news.bib). Cite the original sources, not the corpus summaries.
 
-Related documents: [landscape](research-landscape.md), [questions](open-questions.md), [roadmap](roadmap.md), [forensics](agent-forensics-and-fingerprints.md), [news corpus](news-corpus/README.md).
+Related documents: [landscape](research-landscape.md), [questions](open-questions.md), [roadmap](roadmap.md), [forensics](agent-forensics-and-fingerprints.md), [news corpus](news-corpus/README.md), [paper corpus](paper-corpus/README.md).

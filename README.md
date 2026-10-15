@@ -28,7 +28,7 @@ A useful agent might start on a laptop, delegate to a cloud agent, use tools in 
 | Agent-to-user | [AG-UI](https://github.com/ag-ui-protocol/ag-ui) | Agent/frontend events, state, interaction | Migration between runtimes |
 | Orchestration and recovery | [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence), [Temporal](https://docs.temporal.io/workflow-execution) | Checkpoints, durable execution and recovery | Automatic semantic compatibility across all frameworks |
 | Deployments | [OCI](https://specs.opencontainers.org/image-spec/), [Kubernetes](https://kubernetes.io/docs/concepts/workloads/controllers/job/) | Portable packaging and workload scheduling | App-level state/identity migration |
-| Trust, policy and audit | [OAuth token exchange](https://www.rfc-editor.org/rfc/rfc8693), [SPIFFE](https://spiffe.io/docs/latest/spire-about/spire-concepts/), [OPA](https://www.openpolicyagent.org/docs), [OpenTelemetry](https://opentelemetry.io/docs/specs/semconv/gen-ai/) | Delegated access patterns, workload identity, policy and telemetry | An end-to-end agent mobility protocol |
+| Trust, policy and audit | [OAuth token exchange](https://www.rfc-editor.org/rfc/rfc8693), [SPIFFE](https://spiffe.io/docs/latest/spire-about/spire-concepts/), [OPA](https://www.openpolicyagent.org/docs), [OpenTelemetry](https://github.com/open-telemetry/semantic-conventions-genai) | Delegated access patterns, workload identity, policy and telemetry | An end-to-end agent mobility protocol |
 
 The *research hypothesis* is that a small **portable handoff envelope**, compatible adapters, strict authorization, and an auditable lifecycle could make these layers work together.
 
@@ -56,12 +56,14 @@ Suggested reading order:
 1. [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md): vocabulary, and what is (not) implemented
 2. [Research landscape and technology comparison](docs/research-landscape.md): what A2A, MCP, LangGraph, Temporal and others do and do not solve
 3. [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
-4. [Security, privacy, and threat model](docs/security-and-trust.md)
-5. [Agent fingerprints, movement tracking, and forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
-6. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
-7. [Proposed architecture and staged roadmap](docs/roadmap.md)
-8. [Primary sources and evidence log](docs/sources.md): index of every reference cited in the research docs, with a spot-check log
-9. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
+4. [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
+5. [Security, privacy, and threat model](docs/security-and-trust.md)
+6. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
+7. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
+8. [Proposed architecture and staged roadmap](docs/roadmap.md)
+9. [Primary sources and evidence log](docs/sources.md): index of every reference cited in the research docs, with a spot-check log
+10. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
+11. [Paper corpus: 75 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
 
 ## Recommended initial experiment
 

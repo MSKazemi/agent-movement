@@ -1,0 +1,258 @@
+question_id,item_id,strength,rationale
+AM-01,AMP-059,direct,"Defines a declarative, framework-neutral contract for agent definitions with shared schemas and runs it on four runtimes; covers only the definition contract, not in-flight checkpoints."
+AM-01,AMN-004,partial,"Letta claims Agent File serializes tool definitions, execution environment, model configuration and in-context and external memories for recreation on another server; vendor claim with no reported loss evaluation."
+AM-01,AMN-031,partial,"cagent declares models, instructions, toolsets and sub-agents in one YAML file distributed via OCI registries, a vendor example of a portable definition contract."
+AM-01,AMN-068,partial,"Memory moves from ChatGPT/Gemini/Copilot to Claude as a user-copied text prompt, so the cross-provider memory unit is a natural-language prompt; the summary reports no measure of what is lost."
+AM-01,AMN-075,partial,"Gemini imports memory as a pasted summary and chat history as a ZIP export, two distinct portable units for memory versus conversation."
+AM-01,AMN-080,partial,Cloudflare's ctx.stash() checkpoint and forkable session trees define what an evicted agent resumes from within one platform.
+AM-01,AMN-086,partial,"AWS claims agents are defined by configuration, state persists across turns and the harness exports to Strands code; vendor claim without a description of lost fields."
+AM-01,AMN-097,partial,"Mecatl is described as resuming a replacement worker from the last persisted turn boundary while in-flight operations are not resumed, an explicit statement of what does and does not move; early, vendor-authored."
+AM-01,AMP-008,partial,"Classifies code mobility by what moves (code, execution state, data) and by design paradigm; a pre-LLM vocabulary for separating portable units rather than a contract for LLM agents."
+AM-01,AMP-022,partial,"Externalizes agent memory into explicit tiers that can be paged to storage, a prerequisite for a memory-snapshot contract but not itself a transfer format."
+AM-01,AMP-032,partial,"Reports that structured intermediate artifacts verified by other agents yield more coherent multi-agent results than free chat, supporting artifacts rather than transcripts as the transferred unit."
+AM-01,AMP-053,partial,"Records agent traces and summarizes them into structured multi-level experiences for replay on similar tasks, one candidate portable unit (experience, not live state)."
+AM-01,AMP-056,partial,Migrates LLM agents between edge servers by moving only essential state; the summary does not enumerate which fields count as essential.
+AM-01,AMP-058,partial,AIOS kernel provides context management that saves and restores agent context for agents from several frameworks; no field-level portability report in the summary.
+AM-01,AMP-071,partial,"Maintains context as a structured, incrementally updated playbook to avoid context collapse, a candidate form for a carried task context."
+AM-01,AMP-074,partial,"Compresses observations and interaction history while improving task success, evidence that a compact task context can stand in for full history in at least three benchmarks."
+AM-01,AMN-087,background,"IETF agentproto BoF participants proposed reframing the charter around context propagation across trust boundaries, signalling that the portable unit is still undefined in standards work."
+AM-01,AMP-004,background,"KQML separates a typed message envelope from its content language, the conceptual precedent for an envelope-plus-payload contract."
+AM-01,AMP-012,background,"Defines a mobile agent as suspending, transferring itself and resuming on another host, the classic all-state answer the project explicitly does not assume."
+AM-01,AMP-013,background,Catalogs state-transfer and residual-dependency problems of process migration that any definition of the moved unit must confront.
+AM-01,AMP-057,background,"Surveys forms and operations of agent memory, a taxonomy from which a memory-snapshot field list could be drawn."
+AM-02,AMN-093,direct,"ODIS draft links the principal an agent represents, the authority delegated to it and the specific agent instance acting, i.e. separate identifiers for principal, authority and instance; draft, two early demos."
+AM-02,AMP-034,direct,"Proposes IDs for individual AI-system instances (e.g. a session) so parties can attribute incidents and find who can shut it down, directly addressing instance-level identity distinct from the system; position paper."
+AM-02,AMN-013,partial,Microsoft Entra Agent ID (preview) applies audit trails and lifecycle policies per agent; vendor claim reported second-hand.
+AM-02,AMN-081,partial,Google claims each agent receives a cryptographic Agent Identity with auditable authorization policies; vendor keynote claim.
+AM-02,AMN-097,partial,"Proposed (not shipped) design encodes the delegation chain in a JWT inside a SPIFFE trust domain, carrying lineage with the executing worker."
+AM-02,AMN-098,partial,"An Origin ID field links registered agents to cloud-native identifiers such as AWS ARNs, a vendor mechanism for binding logical agent to physical workload."
+AM-02,AMP-002,partial,"Speaks-for calculus with compound principals expresses delegated authority and roles, a formal basis for distinguishing who acts for whom after a handoff."
+AM-02,AMP-006,partial,"Grounds agent-communication semantics in publicly observable commitments, giving a verifiable record of who owes what after work changes hands."
+AM-02,AMP-033,partial,"Assesses agent identifiers and activity logging as visibility measures, mechanisms for keeping lineage attached to work across operators."
+AM-02,AMP-054,partial,"Verifiable agent identities via DIDs/VCs encode provenance and behavioural scope, a mechanism for attesting which agent instance holds a task."
+AM-02,AMP-070,partial,Replay-or-fork semantics on restore implicitly require distinguishing a resumed run from a new fork of the same task.
+AM-02,AMN-002,background,"OpenTelemetry GenAI SIG draft agent semantic conventions aim at framework-neutral telemetry, a substrate for cross-executor trace lineage."
+AM-03,AMP-070,direct,"Shows that after checkpoint-restore an LLM agent re-generates slightly different tool requests that servers treat as new (Action Replay), and proposes recording irreversible effects with replay-or-fork semantics; preprint, proof of concept."
+AM-03,AMN-022,partial,"Temporal runs the OpenAI Agents SDK loop in Workflows and each model call as an Activity, so retries and crash recovery come from Temporal; vendor integration claim."
+AM-03,AMN-077,partial,"DBOS claims to checkpoint every LLM and tool call to Postgres so an agent resumes from its last completed step; vendor claim, no reported duplicate-effect test."
+AM-03,AMN-080,partial,"runFiber() registers a durable invocation in SQLite before it runs, an intent-before-execution record within one platform."
+AM-03,AMN-097,partial,"States that a replacement worker resumes from the last persisted turn boundary and in-flight operations are not resumed, a conservative design choice rather than a fencing proof."
+AM-03,AMP-019,partial,"Implements scheduling and IPC as transactional database operations, the durable-execution foundation that allows resumption on another machine; no agent-specific fencing result."
+AM-03,AMP-023,partial,"Proves log-optimal protocols for exactly-once handling of shared-state updates when serverless functions are retried; systems analogue, not LLM agents, and relies on a shared log."
+AM-03,AMN-045,background,LangGraph 1.0 persists execution state so interrupted runs resume where they stopped; single-framework durability without a stated duplicate-execution guarantee.
+AM-03,AMN-046,background,Vercel Workflow Development Kit marks retryable steps for suspend/resume; durability primitive without ownership semantics in the summary.
+AM-03,AMN-055,background,Lambda durable functions checkpoint progress with steps and waits; no statement on concurrent executors or fencing.
+AM-03,AMN-073,background,"Kubernetes Agent Sandbox targets singleton stateful agent workloads with resumption after scale-to-zero, the deployment-level notion of a single active instance."
+AM-03,AMP-013,background,Process-migration survey covers state transfer and transparency issues that underlie the old-versus-new executor problem.
+AM-04,AMP-070,direct,Names Action Replay as a semantic rollback attack on restored agents and mitigates it by recording irreversible tool effects; directly about re-executed external actions; preprint.
+AM-04,AMN-022,partial,"Model and agent invocations run as Temporal Activities with retries; retry semantics are inherited, but the summary gives no idempotency guarantee for external targets."
+AM-04,AMN-036,partial,"Shared Payment Token is scoped to one merchant and one cart, which bounds what a replayed payment could charge; the summary says nothing about retries or idempotency."
+AM-04,AMN-069,partial,"MCP 2026 roadmap lists retry and expiry semantics for experimental Tasks as a priority, indicating these semantics are not yet defined in the tool protocol."
+AM-04,AMN-077,partial,Claims each tool call is checkpointed and workflows can be forked from a chosen step to avoid repeating costly earlier ones; does not address ambiguous outcomes after timeouts.
+AM-04,AMN-097,partial,"In-flight operations are explicitly not resumed after worker replacement, avoiding blind retry but leaving reconciliation unspecified."
+AM-04,AMP-023,partial,"Exactly-once semantics for retried functions with external shared state, but within a system that controls the log; does not cover third-party targets that do not cooperate."
+AM-04,AMN-030,background,"AP2 signed Intent and Cart Mandates give an audit trail of user authorization for payments, useful for reconciliation but not a replay-safety mechanism."
+AM-04,AMN-032,background,"x402 'deferred' scheme separates the cryptographic handshake from settlement, a payment-protocol design relevant to when a charge becomes irreversible."
+AM-05,AMN-040,direct,Concludes current identity standards were not designed for recursive delegation chains or cross-domain trust propagation; same whitepaper as AMP-061.
+AM-05,AMN-052,direct,"Demonstrates that a second-order prompt injection makes an agent recruit a more capable agent that runs with the initiating user's privileges, letting a low-privileged user read restricted data; vendor research PoC."
+AM-05,AMP-002,direct,"Formal speaks-for theory and a built system handling delegation, access control and revocation across RPCs; peer-reviewed foundation."
+AM-05,AMP-016,direct,"Macaroons let holders attenuate and delegate credentials by adding contextual caveats, confining how, by whom and in what context authority is exercised; peer-reviewed, pre-LLM but setting-independent."
+AM-05,AMP-044,direct,Extends OAuth 2.0/OIDC with agent-specific credentials so users scope and restrict agent permissions with an accountability chain; preprint (peer-reviewed position successor noted in corpus).
+AM-05,AMP-054,direct,Proposes fine-grained dynamic access control and a session/policy layer for consistent revocation across agent protocols; peer-reviewed design.
+AM-05,AMP-061,direct,OpenID Foundation whitepaper sets out delegated authority and scalable access control for agents as open problems; same document as AMN-040.
+AM-05,AMP-066,direct,SAGA derives fine-grained access-control tokens with formal guarantees for inter-agent communication and reports minimal overhead in evaluation; peer-reviewed system.
+AM-05,AMN-007,partial,Mastercard Agentic Tokens require registered agents and consumer control of what an agent may buy; vendor claim.
+AM-05,AMN-012,partial,Windows MCP proxy requires user approval of each client-tool pair and centralizes consent and authentication; preview with some controls not yet enforced.
+AM-05,AMN-015,partial,Okta Cross App Access has the enterprise IdP check policy and issue a token the target app validates; vendor claim.
+AM-05,AMN-025,partial,AgentCore Identity binds credentials to agent-user pairs and supports acting as the agent or on behalf of a user; vendor claim.
+AM-05,AMN-030,partial,AP2 mandates are signed proofs of user authorization scoped to intent and cart.
+AM-05,AMN-036,partial,"Shared Payment Token lets an agent start a payment without seeing buyer credentials, scoped to one merchant and one cart, a concrete narrow expiring-grant pattern."
+AM-05,AMN-051,partial,Auth0 Token Vault and CIBA asynchronous human-in-the-loop authorization for agents; vendor claim of re-issuance and approval flows.
+AM-05,AMN-070,partial,"District court found access likely unauthorized because it had the user's permission but not Amazon's, showing user-delegated authority may not bind third parties."
+AM-05,AMN-088,partial,"MCP 2026-07-28 binds client credentials to the issuing server and adds RFC 9207 issuer validation, guarding the 'wrong audience' case."
+AM-05,AMN-089,partial,"Appeals panel vacated that injunction, finding on the current record the assistant acted as a tool on the user's instructions; legal status of delegated agent authority remains unsettled."
+AM-05,AMN-092,partial,"MCP roadmap targets an agent identity and delegation path via Workload Identity Federation, ID-JAG and token exchange; planned, not shipped."
+AM-05,AMN-093,partial,"ODIS draft extends OAuth 2.0, OIDC, SPIFFE and SCIM to link principal, delegated authority and agent instance across trust domains."
+AM-05,AMN-097,partial,Proposed design encodes the delegation chain in a JWT; not yet shipped.
+AM-05,AMN-098,partial,SPIFFE identities and short-lived tokens issued to agents to replace static credentials; vendor claim.
+AM-05,AMP-017,partial,"Formal analysis of OAuth 2.0 found four practical attacks and proved the fixed protocol secure in its model, bounding what OAuth-based agent delegation can claim."
+AM-05,AMP-067,partial,"Frames delegation as transfer of authority, responsibility and accountability with explicit role boundaries; conceptual framework without evaluation."
+AM-05,AMP-068,partial,"CaMeL attaches capabilities to values and enforces policy at tool-call time, a mechanism for narrowing what a receiving executor may do with data."
+AM-05,AMN-065,background,"NIST NCCoE concept paper solicits input on identifying, authorizing and auditing software agents."
+AM-05,AMN-066,background,NIST AI Agent Standards Initiative names agent identity and security research as a pillar.
+AM-05,AMP-043,background,"Applies principal-agent theory and agency law to AI agents, framing discretionary authority and liability."
+AM-05,AMP-045,background,Argues for shared agent infrastructure that attributes actions to agents and users.
+AM-06,AMN-047,direct,"Agent session smuggling over A2A extracted the client agent's system instructions, tool schemas and chat history in a PoC; no in-the-wild attacks reported."
+AM-06,AMN-072,direct,Agent card poisoning made a host send full booking payload including payment card details to an attacker endpoint before delegation (simulated scenario).
+AM-06,AMP-025,direct,"Demonstrates that retrieved content acts as instructions (data theft, worm-like spreading) on deployed LLM applications; any context crossing a boundary is such content; peer-reviewed."
+AM-06,AMP-031,direct,InjecAgent quantifies indirect prompt injection including private-data exfiltration across 30 agents; ReAct GPT-4 compromised in about a quarter of cases.
+AM-06,AMP-039,direct,"AgentDojo provides an extensible harness for injections carried in tool outputs, with attacks and defences; the reference environment for canary-style leakage tests."
+AM-06,AMP-040,direct,"ASB shows memory poisoning and attacks at every stage including memory retrieval succeed often with limited defences, so carried memory needs integrity checks."
+AM-06,AMP-049,direct,"Adversarial content hijacks inter-agent control flow, leading to code execution or exfiltration from containers in 58-90% of GPT-4o trials."
+AM-06,AMP-062,direct,"Adversarial self-replicating prompts contaminate other applications' retrieval stores and extract confidential data, each client compromising about 20 others within 1-3 days."
+AM-06,AMP-068,direct,"CaMeL blocks exfiltration over unauthorised data flows by design, solving 77% of AgentDojo tasks with provable security vs 84% undefended."
+AM-06,AMP-072,direct,Prompt injection propagates agent-to-agent in multi-agent systems enabling data theft; adapted defences reduce spread.
+AM-06,AMN-003,partial,Tool poisoning made an agent read SSH keys and config and send them to an attacker server; leakage through tool metadata.
+AM-06,AMN-026,partial,"Comet browser agent passed webpage content to the LLM unseparated; a hidden comment exfiltrated email and OTP; single-agent, not cross-agent."
+AM-06,AMN-033,partial,ForcedLeak: instructions hidden in a CRM form field caused Agentforce to exfiltrate CRM data via an expired allowlisted domain; single-agent incident.
+AM-06,AMN-043,partial,Argues filesystem plus network isolation is needed to contain a prompt-injected agent; vendor claim of 84% fewer permission prompts.
+AM-06,AMN-068,partial,"Imported memories can be reviewed and edited by the user, a consent control on cross-provider memory transfer."
+AM-06,AMN-074,partial,"Public red-teaming found at least one successful hijack against every one of 13 frontier models, with some attacks transferring across models."
+AM-06,AMN-075,partial,"Gemini memory import excludes Business, Enterprise and under-18 accounts and the EEA, UK and Switzerland; the summary gives no reason, but it signals jurisdictional/consent limits on moving memory."
+AM-06,AMN-044,background,"Atlas memories are described as optional and manageable with opt-out, a consent posture for agent memory."
+AM-06,AMN-057,background,OWASP Agentic Top 10 lists Memory and Context Poisoning and Insecure Inter-Agent Communication as risk categories.
+AM-06,AMN-087,background,IETF participants proposed a signaling protocol for managing context across trust boundaries.
+AM-07,AMN-004,partial,Agent File moves serialized agent state between Letta servers (cloud and local); same framework on both ends.
+AM-07,AMN-022,partial,"Temporal supplies its own implementation of the OpenAI Agents SDK Runner, showing one framework's loop hosted on another durability substrate."
+AM-07,AMN-060,partial,"Agent Spec definitions run on LangGraph, WayFlow and CrewAI and stream to any AG-UI frontend; vendor claim, definitions only."
+AM-07,AMN-076,partial,"Microsoft Agent Framework 1.0 offers checkpointing/hydration plus migration assistants that analyse Semantic Kernel and AutoGen code; code migration, not checkpoint migration."
+AM-07,AMN-077,partial,"DBOS makes an OpenAI Agents SDK agent durable through a native integration, another cross-substrate composition."
+AM-07,AMN-086,partial,AWS claims one CLI command exports the harness to Strands-based code (Claude Agent SDK export 'coming soon'); unclear whether runtime state is included.
+AM-07,AMP-003,partial,"Ontolingua translates one ontology into several representation systems, the classic precedent for adapter-based translation with representation-specific loss."
+AM-07,AMP-018,partial,"Measures cold, pre-copy, post-copy and hybrid container migration on a fog testbed; runtime-level, framework-agnostic but same software on both ends."
+AM-07,AMP-048,partial,"Transparent CPU+GPU snapshots via CRIU with much shorter recovery than prior work; process-level checkpoint, not cross-framework."
+AM-07,AMP-058,partial,AIOS serves agents from several frameworks with kernel-level context save/restore; no cross-framework loss report in the summary.
+AM-07,AMP-059,partial,"Runs one declarative agent definition on LangGraph, CrewAI, AutoGen and WayFlow with a cross-runtime evaluation harness; definition portability, not in-flight checkpoint migration."
+AM-07,AMP-070,partial,"Proposes a framework-agnostic mitigation for checkpoint-restore hazards; about safe restore, not cross-framework state translation."
+AM-07,AMN-018,background,"Memory Bank is a managed memory service callable from ADK, LangGraph and CrewAI, so memory can be shared across frameworks without migrating execution state."
+AM-07,AMN-028,background,"ACP-to-A2A migration via adapters and a migration guide is a protocol migration, not state migration."
+AM-07,AMN-045,background,LangGraph persistence resumes interrupted runs within LangGraph only.
+AM-07,AMN-069,background,"MCP roadmap lists configuration portability under enterprise readiness, with no working group yet."
+AM-07,AMP-013,background,"Process-migration survey explains low adoption due to residual dependencies, a cautionary precedent."
+AM-08,AMN-068,partial,Cross-provider memory import to Claude via a text prompt takes about 24 hours to absorb; no measurement of preserved intent.
+AM-08,AMN-075,partial,Gemini lets users continue imported conversations from other providers; no reported continuity quality.
+AM-08,AMN-086,partial,AWS claims providers can be switched mid-session without losing context; no quality or drift data given.
+AM-08,AMP-030,partial,"DSPy separates a declarative pipeline from model-specific prompts and recompiles per model, including smaller open models, implying prompts do not transfer unchanged across models."
+AM-08,AMP-042,partial,MAST annotates traces from seven frameworks across models and finds inter-agent misalignment failures such as lost context and ignored inputs.
+AM-08,AMP-053,partial,"AgentRR proposes replaying recorded experiences across large-small model collaboration with check functions as safety anchors; position paper, no cross-model drift numbers."
+AM-08,AMP-059,partial,Cross-runtime evaluation harness compares behaviour of the same definition across runtimes; varies runtime rather than model.
+AM-08,AMN-031,background,cagent declares models as swappable across providers; no evaluation.
+AM-08,AMN-037,background,Microsoft Agent Framework accepts any IChatClient so model providers can be swapped without code changes; says nothing about behavioural equivalence.
+AM-08,AMN-074,background,"Attacks found on more robust models transferred to less robust ones but not the reverse, another model-dependence result."
+AM-08,AMP-020,background,"CAMEL inception prompting keeps an executing agent aligned with instructor intent, framing intent preservation between agents."
+AM-08,AMP-060,background,"Mem0 stores memory as a service decoupled from any single model, enabling but not evaluating model change."
+AM-08,AMP-069,background,"Finds more capable models often more susceptible to tool poisoning, evidence that safety behaviour differs by model."
+AM-09,AMN-003,direct,"Documents tool poisoning, 'rug pulls' (server changes tool descriptions after approval) and tool shadowing; recommends tool pinning."
+AM-09,AMN-017,direct,A malicious or hijacked MCP server returned a crafted OAuth endpoint that gave command execution on the connecting client (CVE-2025-6514).
+AM-09,AMN-034,direct,postmark-mcp impersonated a legitimate MCP server and after 15 clean versions began BCC-ing all email to an attacker.
+AM-09,AMN-047,direct,Malicious remote A2A agent exploited implicit inter-agent trust; recommended mitigations include signed agent cards and out-of-band approval.
+AM-09,AMN-072,direct,Agent card poisoning: adversarial instructions hidden in a remote agent's A2A Agent Card led the host to disclose payment data to an attacker; directly a fake/hostile capability advertisement.
+AM-09,AMN-079,direct,OX Security claims 9 of 11 MCP registries accepted poisoned entries in testing; vendor research claim.
+AM-09,AMP-052,direct,"ANS registry gives PKI-verified agent identity, capability-aware resolution and a threat analysis; peer-reviewed design."
+AM-09,AMP-054,direct,"VCs encode capabilities, provenance, behavioural scope and security posture, i.e. attested rather than self-advertised capabilities."
+AM-09,AMP-055,direct,"Static analysis of 1,899 MCP servers finds 5.5% with tool poisoning and 7.2% with general vulnerabilities."
+AM-09,AMP-064,direct,"Peer-reviewed MAESTRO threat model of A2A emphasizing Agent Card management, task-execution integrity and authentication."
+AM-09,AMP-065,direct,Prototype uses DIDs and third-party VCs to establish cross-domain trust; reports feasibility and limitations when the LLM alone controls security procedures.
+AM-09,AMP-069,direct,MCPTox benchmarks poisoned tool metadata on live MCP servers across 20 agent settings; agents almost never refuse.
+AM-09,AMN-012,partial,"Windows MCP registry requires code signing, immutable tool definitions and security testing; preview."
+AM-09,AMN-021,partial,AGNTCY provides agent discovery (OASF) and cryptographic agent identity.
+AM-09,AMN-023,partial,A2A v0.3 added the ability to sign agent cards and a Technology Compatibility Kit.
+AM-09,AMN-029,partial,MCP Registry maintainers can denylist servers reported for malicious code or impersonation; preview without durability guarantees.
+AM-09,AMN-038,partial,"GoDaddy ANS trust chain combines domain validation, DNSSEC, DANE pinning and transparency logs; developer preview announced."
+AM-09,AMN-052,partial,"Default-on agent discovery let an injected prompt recruit a more capable agent, showing discovery itself is an attack surface."
+AM-09,AMN-071,partial,"A2A v1.0 adds Signed Agent Cards for cryptographic identity; signatures attest origin, not honesty of advertised capabilities."
+AM-09,AMP-007,partial,Frames the untrusted-host problem for mobile agents and proposes computing with encrypted functions; classic and narrow.
+AM-09,AMP-012,partial,NIST threat model includes threats from platforms to agents with countermeasures; pre-LLM.
+AM-09,AMP-073,partial,MCPSafetyScanner audits an MCP server's tools before deployment.
+AM-09,AMP-075,partial,Lifecycle threat taxonomy of MCP servers across four attacker types and 16 scenarios.
+AM-09,AMN-009,background,"W3C community group scope includes discovery, capability exchange and verifiable credentials."
+AM-09,AMN-024,background,"Cloudflare verifies agent traffic via Web Bot Auth signatures and de-listed undeclared crawlers, the reverse direction (destination verifying the agent)."
+AM-09,AMN-042,background,Visa Trusted Agent Protocol lets merchants verify agent signatures; reverse direction.
+AM-09,AMN-094,background,IETF DAWN BoF on decentralized agent discovery; no outcomes reported.
+AM-09,AMP-047,background,"Survey organizes agent threats around interaction with untrusted external entities, framing destination-trust risks without a specific mechanism."
+AM-10,AMN-027,partial,"Users grant or revoke per-site access and Claude confirms high-risk actions; vendor claim, no race analysis."
+AM-10,AMN-053,partial,"MCP 2025-11-25 experimental Tasks define working, input-required, completed, failed and cancelled states; states, not guarantees about side effects."
+AM-10,AMN-069,partial,"MCP roadmap prioritizes retry and expiry semantics for Tasks, confirming they were undefined."
+AM-10,AMP-026,partial,"Lists interruptibility and approval requirements as baseline practices, with open questions on operationalizing them."
+AM-10,AMP-034,partial,"Instance IDs help identify who can shut a system down, a precondition for targeted cancellation."
+AM-10,AMP-054,partial,"Proposes consistent revocation across agent protocols via a unified session/policy layer; credential revocation, not in-flight action cancellation."
+AM-10,AMP-070,partial,Recording irreversible tool effects supplies the information needed for non-rollback warnings after cancellation.
+AM-10,AMN-063,background,Singapore framework requires human approval at checkpoints.
+AM-10,AMN-088,background,MCP 2026-07-28 moves Tasks into an extension (SEP-2663).
+AM-10,AMN-097,background,In-flight operations are not resumed after worker replacement; silent on cancellation.
+AM-10,AMP-002,background,Formal treatment includes revocation of delegated authority.
+AM-11,AMN-061,partial,"UCP manifests at /.well-known/ucp declare services, capabilities and payment handlers; domain-specific capability declaration."
+AM-11,AMN-071,partial,"A2A v1.0 adds version negotiation and lets an agent card advertise v0.3 and v1.0; syntactic, not semantic, compatibility."
+AM-11,AMN-088,partial,"MCP requests now carry protocol version, client identity and capabilities in _meta with optional server/discover; capability declaration without semantic checks."
+AM-11,AMP-003,partial,"Shared ontologies translated across representation systems address meaning preservation, the classic semantic-compatibility approach."
+AM-11,AMP-006,partial,"Argues semantics based on private mental states are unverifiable in open systems and should rest on observable commitments, relevant to what can be negotiated and checked."
+AM-11,AMP-021,partial,"HuggingGPT routes subtasks by models' textual function descriptions, showing capability claims drive delegation without verification."
+AM-11,AMP-038,partial,"Agora lets agents negotiate standardized routines, natural language or LLM-written routines and copes with changing interfaces; protocol-level, not policy or memory-semantics negotiation."
+AM-11,AMP-041,partial,Agent integration protocol and dynamic teaming for heterogeneous third-party agents.
+AM-11,AMP-052,partial,Capability-aware name resolution in ANS.
+AM-11,AMN-009,background,W3C CG scope covers capability exchange and web-native agent metadata.
+AM-11,AMN-069,background,MCP roadmap plans .well-known metadata so capabilities are discoverable without a live connection.
+AM-11,AMN-082,background,"Moving from A2A v0.3 to v1 requires code changes, an example of breaking protocol evolution."
+AM-11,AMN-087,background,"IETF agentproto BoF rejected the initial scope 38-124, showing no consensus on what to standardize."
+AM-11,AMP-010,background,Compares KQML and FIPA ACL formal semantics and notes open conversation-policy issues.
+AM-12,AMN-077,partial,DBOS can fork a workflow from a chosen step to rerun later steps; vendor feature for divergent copies.
+AM-12,AMN-080,partial,Session API stores conversations as forkable trees and runs sub-agents as child Durable Objects with isolated databases; vendor preview.
+AM-12,AMP-062,partial,"Self-replicating prompts spread super-linearly across connected applications, the uncontrolled-replication failure case (of content, not agents)."
+AM-12,AMP-070,partial,"Enforces replay-or-fork semantics on restore, distinguishing a fork from a continuation, but only at checkpoint-restore time."
+AM-12,AMP-072,partial,Injected prompts copy themselves agent to agent; defences reduce spread.
+AM-12,AMN-057,background,OWASP lists Cascading Failures and Rogue Agents as agentic risks.
+AM-12,AMP-001,background,Contract Net announce-bid-award protocol for distributing tasks among nodes.
+AM-12,AMP-021,background,Planner fans out subtasks to selected specialist models.
+AM-12,AMP-027,background,Dynamically adjusts agent-group composition during a task.
+AM-12,AMP-063,background,"Self-organizing memory notes that update each other, relevant to divergent memory but not to merging copies."
+AM-13,AMN-012,partial,Windows MCP proxy centralizes consent and auditing for client-tool pairs.
+AM-13,AMN-030,partial,AP2 signed mandates form an audit trail of user authorization.
+AM-13,AMN-044,partial,Atlas memories are optional and manageable with opt-out and incognito browsing.
+AM-13,AMN-063,partial,Singapore framework sets human approval at checkpoints and end-user transparency.
+AM-13,AMN-068,partial,Users can review and edit imported memories.
+AM-13,AMN-070,partial,"Court ordered Perplexity to destroy customer data collected by its agent, a legal deletion remedy after cross-domain agent access."
+AM-13,AMN-075,partial,"Memory import is unavailable in the EEA, UK and Switzerland and for some account types; reasons not stated in the summary."
+AM-13,AMN-089,partial,"Appellate panel treated the assistant as a tool acting on the user's instructions, bearing on who answers for agent conduct; limited to the record."
+AM-13,AMP-026,partial,"Proposes attributability, approval and legibility of activity as baseline governance practices."
+AM-13,AMP-033,partial,"Assesses agent identifiers, real-time monitoring and activity logging across centralized and decentralized supply chains, including privacy implications."
+AM-13,AMP-034,partial,Instance IDs let investigators attribute incidents to a specific session.
+AM-13,AMP-045,partial,Agent infrastructure for attributing actions and detecting and remedying harm.
+AM-13,AMP-068,partial,Capability tags on values carry provenance and authorization along data flows.
+AM-13,AMN-002,background,Standard agent telemetry conventions are a substrate for cross-domain audit logs.
+AM-13,AMN-065,background,NIST NCCoE asks how to audit and ensure non-repudiation of agent actions.
+AM-13,AMN-083,background,Five Eyes guidance stresses explicit accountability and monitoring for agentic AI.
+AM-13,AMN-084,background,AWS MCP Server relies on CloudTrail logging for oversight within one provider.
+AM-13,AMP-043,background,Agency-law framing of liability for AI agents.
+AM-14,AMN-035,partial,Anthropic reports memory plus context editing improved an internal agentic-search eval by 39% and cut tokens 84% in a 100-turn test; internal vendor evaluation.
+AM-14,AMN-077,partial,"Claims forking from a chosen step avoids repeating costly earlier steps; vendor claim, no numbers."
+AM-14,AMP-013,partial,Explains why process migration saw little adoption despite clear benefits.
+AM-14,AMP-014,partial,Measures when a mobile agent with execution state outperforms client/server calls in an IR application; pre-LLM cost model.
+AM-14,AMP-018,partial,Identifies which container migration technique suits which network and service conditions.
+AM-14,AMP-027,partial,Reports dynamically composed agent groups outperform a single agent.
+AM-14,AMP-035,partial,"Live migration of LLM requests with KV-cache state gives an order-of-magnitude tail-latency improvement and up to 36% cost savings; serving layer, not agent tasks."
+AM-14,AMP-042,partial,"Multi-agent systems often deliver minimal benchmark gains, a caution for the delegation baseline."
+AM-14,AMP-048,partial,"Transparent GPU checkpointing yields much shorter recovery than prior approaches, a checkpoint-versus-restart cost datum for GPU workloads."
+AM-14,AMP-056,partial,"Reports substantially lower deployment latency and migration cost for LLM agents on edge servers; compared with other placement strategies, not with restart or delegation."
+AM-14,AMP-060,partial,"Mem0 cuts p95 latency ~91% and tokens >90% versus full-context prompting while full context stays slightly more accurate, a measured compact-memory versus transcript-replay trade-off."
+AM-14,AMP-074,partial,"Compressed history reduces peak tokens 26-54% while improving task success, relevant to the cost of carried context."
+AM-14,AMP-011,background,"Lists seven motivations for mobile agents (latency, network load, robustness, etc.)."
+AM-14,AMP-015,background,VM live migration downtimes as low as 60 ms show relocation overhead can be small at the VM layer.
+AM-14,AMP-046,background,"Program-level scheduling of agent calls raises throughput 4-15x, an infrastructure baseline."
+AM-15,AMN-023,partial,A2A evaluation in Vertex GenAI Evaluation Service and a Technology Compatibility Kit for conformance; vendor tooling.
+AM-15,AMN-074,partial,"Over 250,000 attack attempts by 400+ participants against 13 models, a large-scale design that surfaces cross-model transfer."
+AM-15,AMP-039,partial,"AgentDojo is an extensible, adaptive evaluation environment with paired utility and security cases; models fail many tasks even without attack, so baselines must be reported."
+AM-15,AMP-040,partial,ASB proposes a metric balancing utility and security across backbones.
+AM-15,AMP-042,partial,MAST provides a failure taxonomy and an LLM-as-judge annotator validated against human labels.
+AM-15,AMP-059,partial,Agent Spec includes a standardized evaluation harness for comparing behaviour across runtimes on three benchmarks.
+AM-15,AMN-002,background,Standard telemetry conventions would allow publishing comparable raw traces.
+AM-15,AMN-039,background,OpenAI Evals for Agents offers trace grading and datasets.
+AM-15,AMP-031,background,"InjecAgent separates attacker goals into direct harm and exfiltration across 30 agents, a model of a pre-specified test matrix."
+AM-15,AMP-068,background,"Reports utility cost of a defence (77% vs 84%), an example of publishing the negative side."
+AM-16,AMN-028,direct,"IBM's ACP merged into A2A and stopped active development, with adapters and a migration guide; direct evidence of consolidating rather than duplicating agent protocols."
+AM-16,AMN-087,direct,"IETF agentproto BoF supported the need for interoperability (155-30) but rejected the initial scope (38-124), and participants proposed narrowing to context propagation across trust boundaries."
+AM-16,AMN-005,partial,Google positions A2A as complementary to MCP: tools/context vs agent-to-agent communication.
+AM-16,AMN-053,partial,MCP 2025-11-25 introduced an extensions framework.
+AM-16,AMN-060,partial,Agent Spec composed with AG-UI via an adapter instead of a new UI protocol.
+AM-16,AMN-064,partial,MCP Apps shipped as the first official MCP extension rather than a new protocol.
+AM-16,AMN-088,partial,"MCP moved Tasks into an extension, showing the extension route the project proposes for a task/checkpoint profile."
+AM-16,AMN-091,partial,"A2A joined AAIF, placing agent-to-agent and agent-to-tool protocols under one foundation."
+AM-16,AMP-010,partial,"Discusses practical adoption problems of the 1990s ACL standards, a historical lesson on duplicated standards."
+AM-16,AMP-050,partial,"Classifies protocols as context-oriented vs inter-agent and general vs domain-specific, mapping where layers already exist."
+AM-16,AMP-051,partial,"Compares MCP, ACP, A2A and ANP on interaction modes, discovery and security and suggests a phased adoption path."
+AM-16,AMP-059,partial,Agent Spec is existing prior art for definition portability that the project should reuse.
+AM-16,AMN-009,background,W3C AI Agent Protocol Community Group launched for web agent protocols.
+AM-16,AMN-014,background,Linux Foundation hosts A2A for neutral governance.
+AM-16,AMN-056,background,"AAIF formed as a neutral home for MCP, goose and AGENTS.md."
+AM-16,AMN-066,background,NIST initiative supports industry-led agent standards and open protocol development.
+AM-16,AMN-094,background,Three of five IETF 126 BoFs concerned agent communication and coordination.
+AM-16,AMP-005,background,Early proposal of a common agent communication language and federation architecture for heterogeneous programs.
