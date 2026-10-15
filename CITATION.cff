@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use these corpora, please cite them as below."
+type: dataset
+title: "Agent Movement: research notes and curated news and paper corpora on portable, interoperable AI-agent work"
+authors:
+  - family-names: "Seyedkazemi Ardebili"
+    given-names: "Mohsen"
+    website: "https://mskazemi.github.io"
+repository-code: "https://github.com/MSKazemi/agent-movement"
+url: "https://github.com/MSKazemi/agent-movement"
+abstract: >-
+  Agent Movement is a research-stage repository that studies how AI-agent work
+  can move between agents, frameworks, models, machines and organizations
+  without losing relevant context, accountability or safety controls. It
+  distinguishes delegation, portable task context, runtime relocation and
+  cross-framework migration, and contains research notes on protocols,
+  security, forensics and device compatibility. It also contains two curated,
+  independently audited corpora: 100 dated news items (2024-2026) and 75
+  metadata-verified scholarly papers (1980-2026), each with structured records,
+  summaries and BibTeX.
+keywords:
+  - AI agents
+  - agent movement
+  - agent interoperability
+  - agent migration
+  - mobile agents
+  - delegation
+  - Model Context Protocol
+  - MCP
+  - Agent2Agent
+  - A2A
+  - durable execution
+  - agent security
+  - research corpus
+  - literature corpus
