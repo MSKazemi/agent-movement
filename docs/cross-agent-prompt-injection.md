@@ -119,13 +119,13 @@ The columns separate the demonstrated fact (with its source) from our analysis o
 <!-- Paths and test IDs verified against main at ba77c1c (2026-10-16). -->
 ## 4. What this repo's controls do and do not cover
 
-> **Preview.** The modules and tests below exist on the local `integration` branch and are not yet on `main`. Paths are given as they appear on `integration` and must be re-verified after the merge.
+> **Scope.** The modules and tests below were verified on `main` at commit ba77c1c (2026-10-16). The code is changing (issues #18–#42); re-check paths against the current tree.
 
 **FACT (from reading the code).** No component calls a language model. The handoff receiver executes only the pure task kinds `word_count` and `sha256` (`src/agent_movement/core.py`). The MobilityBench v0.1 harness runs a scripted interpreter that makes "no model calls" and records `model_calls: 0` (`src/agent_movement/mobilitybench_v01.py`; [docs/mobilitybench-v0.1.md](mobilitybench-v0.1.md)).
 
 **ANALYSIS.** The controls below are structural. They shrink the channels through which free text can travel and check authority where effects commit. None of them detects an injection. None has been tested against an LLM executor.
 
-| Control | Path on `integration` | Tests on `integration` | Narrows | Does **not** cover |
+| Control | Path | Tests | Narrows | Does **not** cover |
 | --- | --- | --- | --- | --- |
 | Closed envelope schema: exact field set, task-kind allowlist, 2,048-byte text, `synthetic`/`public` classification only | `src/agent_movement/core.py` (`validate_envelope`) | `tests/test_core.py::ContractTests::test_bad_contracts` | Only one free-text field (`task.text`) crosses, and it is input to a pure function, never an instruction | The text itself is still untrusted. A future LLM executor reading `task.text` would face C1 unchanged. |
 | A2A admission accepts exactly one structured data part plus profile metadata; plain-text parts and smuggled keys are rejected | `src/agent_movement/a2a_server.py` (`decode_message`), `src/agent_movement/a2a_profile.py` (`a2a_to_envelope`) | `tests/test_a2a_adapter.py::A2AAdapterTests::test_foreign_message_shapes_cannot_trigger_execution`, `tests/test_a2a_profile.py::ProfileMappingTests::test_provider_private_state_is_never_mapped` | A message like `"run tool: shell"` cannot start execution. Undeclared provider state is never mapped. | Content *inside* the allowed field. Multi-turn follow-ups (C5) are refused only because continuation is unsupported, not because they are detected. |
