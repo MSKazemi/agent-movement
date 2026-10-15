@@ -1,14 +1,23 @@
-# ADR-0001: Programming language and SDK strategy
+# Language and SDK strategy (public implementation-strategy proposal)
 
 **Date:** 2026-10-15  
-**Status:** Proposed; recommendation only, not an approved implementation commitment  
+**Status:** Proposal; recommendation only, not an approved implementation commitment. The Python-first part has since been prototyped (see [Implementation status](#implementation-status-2026-10-16)).  
 **Scope:** Agent Movement's research-to-prototype transition, including cross-runtime and cross-device targets.
 
 ## Recommendation
 
 **Choose Python for the first executable reference implementation, while designing a language-neutral protocol contract from day one.** Then add **TypeScript** as the first independent consumer or adapter. Introduce **Rust** only if a real deployment requirement justifies a small, resource-efficient or sandbox-oriented native component; use **Go** when a Kubernetes/cloud controller is needed. The best *single starting language* is Python; there is no single best language for all proposed targets.
 
-This choice reflects the repository's present state: [README](../README.md) describes a research-stage effort without production movement code, [roadmap](roadmap.md) prioritizes an A2A delegation demo, and the only existing executable tooling is [Python corpus tooling](../tools/news_corpus.py). It does **not** mean Python is a universal runtime for phones, embedded firmware, or browsers.
+When this proposal was written (2026-10-15), the [README](../README.md) described a research-stage effort without production movement code, the [roadmap](roadmap.md) prioritized an A2A delegation demo, and the only executable tooling was [Python corpus tooling](../tools/news_corpus.py). The recommendation does **not** mean Python is a universal runtime for phones, embedded firmware, or browsers.
+
+## Implementation status (2026-10-16)
+
+The Python-first recommendation now exists as an **experimental, research-stage** package, [`src/agent_movement`](../src/agent_movement/). It runs synthetic local experiments only and is not production software:
+
+- **Core (Python 3.11+, standard library only):** strict synthetic handoff envelope, SQLite audit and receipt deduplication, epoch-fenced effect gateway and a loopback-only HTTP receiver ([local implementation](local-implementation.md)); the MobilityBench smoke suite and v0.1 harness ([MobilityBench v0.1](mobilitybench-v0.1.md)); HS256 peer authentication ([peer authentication](peer-authentication.md)).
+- **Optional extras**, each installed with `pip install -e '.[<extra>]'`: `a2a` (official `a2a-sdk` adapter, [A2A adapter](a2a-adapter.md)), `ed25519` (asymmetric peer keys), `relocation` (pinned LangGraph checkpoint relocation, [checkpoint relocation](checkpoint-relocation.md)) and `signing` (Ed25519 [movement receipts](movement-receipts.md)).
+
+Still not implemented from this proposal: the language-neutral `spec/` JSON Schema, a TypeScript second implementation, and any Rust or Go component. The A2A adapter lives in `src/agent_movement/a2a_*.py`, not in a separate `adapters/a2a/` tree.
 
 ## Rationale and trade-offs
 
@@ -52,7 +61,7 @@ These are **architecture recommendations**, not claims that every capability is 
 ### Phase 1 — Python, no remote production execution
 
 - Create `spec/movement-envelope.schema.json` and positive/negative synthetic fixtures from the existing draft [envelope](how-it-works.md).
-- Create a typed `agent_movement` Python package (recommended Python 3.11+ if compatible with the chosen pinned SDK) with validation, immutable movement IDs, policy gating and a local A2A adapter.
+- Create a typed `agent_movement` Python package (recommended Python 3.11+ if compatible with the chosen pinned SDK) with validation, immutable movement IDs, policy gating and a local A2A adapter. *(Prototyped; see Implementation status.)*
 - Demonstrate a **synthetic, non-destructive** task handoff between two isolated test agents with an artifact return and correlated audit trace.
 - Pass tests for malformed versions, denied destinations, missing approval, duplicate messages, revoked grants, crashes and unknown external status.
 
@@ -67,7 +76,9 @@ These are **architecture recommendations**, not claims that every capability is 
 - Compare Python and a Rust or Go prototype for actual target requirements: memory, cold start, dispatch latency, packaging, sandbox policy, supported architectures and developer effort.
 - Adopt Rust for a verified constrained/native-worker need, or Go for a verified cloud/controller need. Do not rewrite the research/agent logic without evidence.
 
-## Proposed repository layout (future, not yet implemented)
+## Proposed repository layout (partly implemented)
+
+Only `src/agent_movement/`, `tests/` and `docs/` exist today; the other directories are still proposals.
 
 ```text
 spec/                         # Language-independent JSON Schema and examples
@@ -77,7 +88,7 @@ adapters/a2a/                 # Explicit A2A transport integration
 sdk/typescript/               # Later second-language implementation
 runtimes/rust/                # Optional, only if justified
 deploy/                       # Optional cloud-native tooling
-docs/                         # Architecture decisions and research
+docs/                         # Public documentation and research
 ```
 
 Do not create the placeholder directories until they contain actual maintained source or tests.
@@ -95,4 +106,4 @@ Revisit the language choice when (a) Python cannot meet a measured latency/resou
 - [A2A official samples](https://github.com/a2aproject/a2a-samples) for multi-language agent handoff examples.
 - Existing repository docs: [roadmap](roadmap.md), [security](security-and-trust.md), [device inventory](device-compatibility-and-capability-matrix.md).
 
-**Outcome recommended for owner review:** Python-first executable reference, language-neutral envelope, TypeScript second, Rust/Go only after target-specific measurements. This ADR does not assert that an agent can copy or migrate onto every device in the catalog.
+**Outcome recommended for owner review:** Python-first executable reference, language-neutral envelope, TypeScript second, Rust/Go only after target-specific measurements. This proposal does not assert that an agent can copy or migrate onto every device in the catalog.
