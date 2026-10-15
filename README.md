@@ -52,6 +52,7 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 ## Read the research
 
 - [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md)
+- [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
 - [Research landscape and technology comparison](docs/research-landscape.md)
 - [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
 - [Open technical and product questions](docs/open-questions.md)
