@@ -78,12 +78,13 @@ Suggested reading order:
 11. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
 12. [Proposed architecture and staged roadmap](docs/roadmap.md)
 13. [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md)
-14. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
-15. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
-16. [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
-17. [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
-18. [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
-19. [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md)
+14. [2031 frontier: 20 visionary research questions and four testable studies](docs/2031-frontier-research-agenda.md)
+15. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
+16. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
+17. [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
+18. [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
+19. [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
+20. [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md)
 
 Experimental code (synthetic, local, not production):
 
