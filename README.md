@@ -58,6 +58,7 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 - [Proposed architecture and staged roadmap](docs/roadmap.md)
 - [Security, privacy, and threat model](docs/security-and-trust.md)
 - [Primary sources and dated research notes](docs/sources.md)
+- [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
 
 ## Recommended initial experiment
 
