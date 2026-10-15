@@ -1,0 +1,114 @@
+name: Python mobility smoke
+
+# One workflow for the agent_movement package (src/). The corpus gates live in corpus.yml.
+#  - core:   no optional extras; proves the stdlib-only core works and the optional tests skip cleanly.
+#  - extras: every optional extra (a2a, ed25519, relocation, signing); runs every demo.
+on:
+  push:
+    paths: ["src/**", "tests/**", "tools/**", "pyproject.toml", ".github/workflows/python-smoke.yml"]
+  pull_request:
+    paths: ["src/**", "tests/**", "tools/**", "pyproject.toml", ".github/workflows/python-smoke.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: core, no extras (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # The core is stdlib-only, so it also runs on the newest CPython (as corpus.yml does).
+        python-version: ["3.11", "3.13", "3.15"]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e . "pytest>=9.1"
+      # All of tests/: agent_movement + corpus tooling. Tests that need an extra must skip, not fail.
+      - run: python -m pytest -q
+      - run: python -m agent_movement.demo
+      - run: python -m agent_movement.peer_demo
+      - name: MobilityBench 20-case smoke
+        run: python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
+      - name: MobilityBench v0.1 (digest-verified fixtures, CI smoke subset)
+        run: |
+          python tools/mobilitybench_freeze.py --check
+          python -m agent_movement.mobilitybench verify --suite v0.1
+          python -m agent_movement.mobilitybench run --suite v0.1 --subset smoke --out mobilitybench-v0.1-smoke.jsonl
+          python -m agent_movement.mobilitybench report --in mobilitybench-v0.1-smoke.jsonl --out mobilitybench-v0.1-smoke.md
+      - name: Optional features fail closed without their extra
+        shell: bash
+        run: |
+          fail=0
+          check() { want=$1; shift; rc=0; "$@" >/dev/null 2>&1 || rc=$?; echo "exit $rc (want $want): $*"; [ "$rc" = "$want" ] || fail=1; }
+          check 2 python -m agent_movement.a2a_demo
+          check 1 python -m agent_movement.peer_demo --alg Ed25519
+          check 3 python -m agent_movement.receipts verify tests/fixtures/movement-receipts/01-valid-delegation --now 2026-10-16T00:00:00Z
+          exit $fail
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mobilitybench-python-${{ matrix.python-version }}
+          path: |
+            mobilitybench-local.jsonl
+            mobilitybench-v0.1-smoke.jsonl
+            mobilitybench-v0.1-smoke.md
+          if-no-files-found: ignore
+          retention-days: 7
+
+  extras:
+    name: all extras (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e '.[a2a,ed25519,relocation,signing]' "pytest>=9.1"
+      - name: Resolved optional dependency versions
+        run: python -m pip show a2a-sdk uvicorn starlette sse-starlette httpx protobuf cryptography langgraph langgraph-checkpoint langgraph-checkpoint-sqlite | grep -E '^(Name|Version):'
+      - run: python -m pytest -q
+      - run: python -m agent_movement.demo
+      - run: python -m agent_movement.peer_demo
+      - run: python -m agent_movement.peer_demo --alg Ed25519
+      - name: A2A v1 adapter demo (official a2a-sdk)
+        run: python -m agent_movement.a2a_demo
+      - name: Checkpoint relocation demo (pinned LangGraph, 30-row fault matrix)
+        run: python -m agent_movement.relocation_demo --json relocation-results.json
+      - name: Movement-receipt fixtures give their expected verifier exit codes
+        shell: bash
+        run: |
+          fail=0
+          for pair in 01-valid-delegation:0 02-tampered-receipts:1 03-replayed-receipts:1 \
+                      04-forged-identity:1 05-missing-claims:0 06-conflicting-accounts:1 \
+                      07-fork-lineage:0 08-privacy-canaries:1 09-clock-skew:0; do
+            name=${pair%%:*}; want=${pair##*:}; rc=0
+            python -m agent_movement.receipts verify "tests/fixtures/movement-receipts/$name" --now 2026-10-16T00:00:00Z >/dev/null || rc=$?
+            echo "$name: exit $rc (want $want)"
+            [ "$rc" = "$want" ] || fail=1
+          done
+          exit $fail
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: relocation-results-python-${{ matrix.python-version }}
+          path: relocation-results.json
+          if-no-files-found: ignore
+          retention-days: 7

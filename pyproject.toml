@@ -1,5 +1,41 @@
-# Test configuration only. The corpus tools in tools/ are stdlib-only scripts
-# with no runtime dependencies; pytest is needed only to run tests/.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-movement-lab"
+version = "0.1.0"
+description = "Experimental, synthetic agent-movement testbed: local task handoff, fencing, and optional A2A, peer-auth, checkpoint-relocation and signed-receipt prototypes (research-stage, not production)"
+# CPython 3.10 reached end of life on 2026-10-01.
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+# Optional A2A v1 adapter (src/agent_movement/a2a_*.py). The core stays dependency-free.
+# a2a-sdk is pinned exactly to the release the integration tests were run against.
+a2a = [
+    "a2a-sdk[http-server]==1.2.2",
+    "uvicorn>=0.54",
+]
+# Optional asymmetric (Ed25519) peer keys; the core and default HS256 mode stay stdlib-only.
+ed25519 = ["cryptography>=50.0.2"]
+# Exact pins (latest stable on PyPI, 2026-10-12): agent_movement.relocation subclasses
+# SqliteSaver and relies on its internal cursor() write path. Core stays dependency-free.
+relocation = [
+    "langgraph==1.2.15",
+    "langgraph-checkpoint==4.3.0",
+    "langgraph-checkpoint-sqlite==3.1.2",
+]
+# Ed25519 for signed movement receipts; latest stable on PyPI when added (2026-10-16).
+signing = ["cryptography>=50.0.2"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+agent_movement = ["fixtures/mobilitybench-v0.1/*"]
+
+# The corpus tools in tools/ and the agent_movement core in src/ are stdlib-only;
+# the optional extras above add third-party packages. pytest is needed only to run tests/.
 
 [dependency-groups]
 dev = ["pytest>=9.1"]
@@ -7,6 +43,8 @@ dev = ["pytest>=9.1"]
 [tool.pytest.ini_options]
 minversion = "9.1"
 testpaths = ["tests"]
-pythonpath = ["tools"]
+# tools/ for the corpus scripts; src/ so agent_movement imports without an install
+# (the corpus CI job installs only pytest).
+pythonpath = ["tools", "src"]
 addopts = ["-ra", "--strict-markers", "-p", "no:cacheprovider"]
 xfail_strict = true

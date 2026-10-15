@@ -59,7 +59,7 @@ Optional only after threat review: SPIFFE/OAuth-style bounded identities, encryp
 - Transfer payload size (bytes)
 - Unauthorized operations and leaked fields (target: zero in security fixtures)
 - Policy decision correctness (%)
-- Cost per completed task (tokens, compute, network)
+- Cost per completed task (tokens, compute, network). The proposed [economic evaluation methodology](economic-evaluation.md) extends this to cost per *correct* completion, including human review, incident, rework and reconciliation cost
 
 ## First tasks for contributors
 
