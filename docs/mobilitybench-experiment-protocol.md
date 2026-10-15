@@ -1,6 +1,6 @@
-# MobilityBench v0.1: preregistered experimental protocol
+# MobilityBench v0.1: proposed pre-registration protocol
 
-**Date:** 2026-10-15. **Status:** Proposed study plan; no benchmark scores have been measured.  
+**Date:** 2026-10-15. **Status:** Proposed study plan, not yet registered or frozen; no benchmark scores have been measured.  
 **Purpose:** Test, rather than assume, the benefit, safety and semantic fidelity of moving an AI agent's work. Companion to [strategy](strategic-target-and-scientific-agenda.md) and [open questions](open-questions.md).
 
 ## Research questions

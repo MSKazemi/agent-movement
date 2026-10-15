@@ -56,6 +56,7 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 - [Research landscape and technology comparison](docs/research-landscape.md)
 - [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
 - [Open technical and product questions](docs/open-questions.md)
+- [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench v0.1 experiment protocol](docs/mobilitybench-experiment-protocol.md)
 - [Proposed architecture and staged roadmap](docs/roadmap.md)
 - [Security, privacy, and threat model](docs/security-and-trust.md)
 - [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md)

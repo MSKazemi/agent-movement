@@ -223,7 +223,7 @@ Every result must identify: dataset revision and digest; source/destination agen
 - **[R6] NIST AI Agent Standards Initiative (February 2026):** https://www.nist.gov/news-events/news/2026/02/announcing-ai-agent-standards-initiative-interoperable-and-secure — interoperability, identity and security priorities.
 - **[R7] OAuth 2.0 Token Exchange (RFC 8693):** https://www.rfc-editor.org/rfc/rfc8693 — a delegation/token exchange mechanism; scope and audience enforcement are implementation-specific.
 - **[R8] SPIFFE/SPIRE concepts:** https://spiffe.io/docs/latest/spire-about/spire-concepts/ — attested workload identity building blocks.
-- **[R9] OpenTelemetry GenAI conventions:** https://opentelemetry.io/docs/specs/semconv/gen-ai/ — evolving/moved semantic convention family; pin the actual maintained version before implementing.
+- **[R9] OpenTelemetry GenAI conventions:** https://github.com/open-telemetry/semantic-conventions-genai — moved from opentelemetry.io (the old page is now only a "moved" notice); Development status with no tagged release, so pin a commit before implementing.
 - **[R10] OWASP Top 10 for Agentic Applications 2026:** https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/ — agent security threat taxonomy.
 - **[R11] Specification portability research (Aug 2026, preprint):** https://arxiv.org/abs/2608.21208 — controlled specification reuse across coding assistants; relevant motivation, **not** evidence of actual runtime checkpoint migration.
 
