@@ -35,9 +35,9 @@ This lab cannot resolve human-outcome questions such as healthcare efficacy, emp
 This pilot extends [PR #6](https://github.com/MSKazemi/agent-movement/pull/6) and is intentionally proposed as a **stacked PR** targeting that branch. It is **not** runnable on research-only main by itself.
 
 ~~~bash
-python -m pip install -e .
+python -m pip install -e . pytest
 python -m agent_movement.mobilitybench --output local-observations.jsonl
-python -m unittest discover -s tests -v
+python -m pytest -q          # all tests: agent_movement + corpus tooling
 ~~~
 
 The runner directly invokes local Python receiver/gateway classes, not a native A2A client. It emits one **sanitized JSONL** record per scenario: scenario ID, human-impact question IDs, mode, expected/observed behavior, verdict, monotonic local duration and allowlisted evidence. There are no model calls, network requests, production tokens, private user records, physical devices or external effects. Each run owns and deletes an ephemeral SQLite database. CLI exits nonzero if an observed behavior differs from the predefined expectation.

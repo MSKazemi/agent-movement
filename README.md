@@ -54,12 +54,12 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 The [local proof of concept](docs/local-implementation.md) uses two separate processes, a strict synthetic handoff envelope, a preconfigured receiver-side approval, SQLite-backed audit/receipt deduplication, and a separate simulated stale-worker fencing exercise. It uses a **custom loopback HTTP interface, not A2A**; the next integration milestone is the official A2A SDK.
 
 ```sh
-python -m pip install -e .
+python -m pip install -e . pytest
 python -m agent_movement.demo
-python -m unittest discover -s tests -v
+python -m pytest -q          # all tests: agent_movement + corpus tooling
 ```
 
-The demo outputs a completed task, an idempotent replay, a denied unapproved request, and a rejected stale epoch. **17 local unit/integration tests passed on Python 3.13** during development; check CI for repository-hosted results. No model credentials, live external tool effects, private data or public endpoints are required.
+The demo outputs a completed task, an idempotent replay, a denied unapproved request, and a rejected stale epoch. The unit/integration tests run in CI on Python 3.11 and 3.13; check CI for repository-hosted results. No model credentials, live external tool effects, private data or public endpoints are required.
 
 ## Read the research
 
@@ -86,9 +86,9 @@ The demo outputs a completed task, an idempotent replay, a denied unapproved req
 The [human-impact research lab protocol](docs/human-impact-research-lab.md) maps real-world questions about control, identity, privacy, accountability, replication and task continuity onto falsifiable **synthetic** experiments. When the prototype is available, run:
 
 ~~~sh
-python -m pip install -e .
+python -m pip install -e . pytest
 python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
-python -m unittest discover -s tests -v
+python -m pytest -q          # all tests: agent_movement + corpus tooling
 ~~~
 
 The local smoke suite currently models 20 cases. **Seventeen checks reproduce their expected narrow behavior; three are marked known gaps, not security successes.** This is not A2A, trusted peer identity, portable live state or a production system. See the experiment protocol for limits and next steps.

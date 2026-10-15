@@ -13,9 +13,9 @@ This is an experimental application profile. It is NOT a substitute for [A2A v1.
 Requires Python 3.10+ and no runtime dependencies. From the repository root:
 
 ~~~sh
-python -m pip install -e .
+python -m pip install -e . pytest
 python -m agent_movement.demo
-python -m unittest discover -s tests -v
+python -m pytest -q          # all tests: agent_movement + corpus tooling
 ~~~
 
 The demo starts an ephemeral localhost-only HTTP receiver as a **separate operating-system process** (`agent-b`), sends from `agent-a`, repeats the same request, tries a denied approval, and tests a stale-worker fenced commit. All task data are synthetic; SQLite is stored in a temporary directory and removed afterward. Output includes a completed word count, replay detection, HTTP 403 denial, and a successful new-epoch simulated commit. The process exiting cleans up only the demo's own child process and temp data.
