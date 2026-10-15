@@ -1,6 +1,6 @@
 # Agent Movement paper corpus: protocol and dataset
 
-**Snapshot:** 2026-10-15 · **Papers:** 75 (1980–2026) · **Status:** curated, metadata-verified and independently audited reading list for the research documents in this repository. It is not an exhaustive systematic review.
+**Snapshot:** 2026-10-16 · **Papers:** 83 (1980–2026; 75 from round 1, 8 from round 2) · **Status:** curated, metadata-verified and independently audited reading list for the research documents in this repository. It is not an exhaustive systematic review.
 
 This corpus collects scholarly work on *agent movement*: how AI-agent work moves between agents, frameworks, models, machines and organizations without losing context, accountability or safety controls (see the [project README](../../README.md)). It complements the [news corpus](../news-corpus/README.md). The news corpus records what industry and standards bodies *announced*; this corpus records what research has *proposed, built, measured or formalized*, including the mobile-agent and process-migration literature of the 1990s and 2000s that the current wave of agent protocols tends to overlook.
 
@@ -12,8 +12,8 @@ This corpus collects scholarly work on *agent movement*: how AI-agent work moves
 | [`papers.bib`](papers.bib) | biblatex entries (`@article`, `@inproceedings`, `@online` with `eprint`, `@report`) with `doi`, `url`, `urldate` (generated) |
 | [`stats.json`](stats.json) | Counts by theme, decade, publication type, contribution type and operation (generated) |
 | [`flow.json`](flow.json), [`excluded.jsonl`](excluded.jsonl) | Selection-flow counts and every excluded candidate, with its reason |
-| [`raw/`](raw/) | The 78 raw candidate records exactly as collected, one file per theme |
-| [`audit.jsonl`](audit.jsonl) | The independent audit verdict for each of the 75 papers, with corrections applied |
+| [`raw/`](raw/) | Raw candidate records exactly as collected: 78 from round 1, one file per theme (`P1.jsonl`–`P6.jsonl`), and 8 from round 2 (`round2.jsonl`) |
+| [`audit.jsonl`](audit.jsonl) | The independent audit verdict for each of the 75 round-1 papers, with corrections applied (round 2: see §7) |
 | [`../../tools/paper_corpus.py`](../../tools/paper_corpus.py) | Validator and generator (Python standard library only) |
 
 ## 1. Research questions
@@ -54,10 +54,17 @@ Unverifiable metadata, schema violations, and duplicates (the same DOI or arXiv 
 2. **Metadata verification.** Collectors had to take every bibliographic field from Crossref, the arXiv API, OpenReview or the publisher, and to drop any paper they could not confirm. Where a field could not be obtained (e.g. an abstract), they had to say so in `notes`. `verification_source` records which authority was used.
 3. **Summaries.** Each summary is 2–4 sentences in the collector's own words, based on the abstract or paper.
 4. **Screening and deduplication** (`tools/paper_corpus.py merge`). This ran schema validation, the unverified-metadata filter and deduplication by DOI, arXiv ID or title similarity (difflib ratio ≥ 0.9). On a duplicate, the peer-reviewed version was kept. There was no numeric target and no quota, so every eligible unique paper was included.
-5. **Identifiers.** Papers are sorted by year and assigned `AMP-001` … `AMP-075`. Each also gets a biblatex citation key (`<first-author surname><year><first title word>`).
+5. **Identifiers.** Round-1 papers were sorted by year and assigned `AMP-001` … `AMP-075`. Each also gets a biblatex citation key (`<first-author surname><year><first title word>`). Published IDs and cite keys are frozen: later rounds are added with `paper_corpus.py append`, which deduplicates against the existing corpus and numbers only the new papers, from the next free ID, in year order (round 2: `AMP-076` … `AMP-083`).
 6. **Independent audit.** Separate auditor agents re-checked every record against the authorities (§7). Corrections were logged in `audit.jsonl` and applied by script.
+7. **Round 2 (2026-10-16).** The eight candidates that round-1 collectors had verified or flagged but left out because of the per-theme cap (formerly listed in §10) were collected in `raw/round2.jsonl` and screened with `append` (§6, §7).
 
-To reproduce the published dataset: `python3 tools/paper_corpus.py merge docs/paper-corpus/raw/P[1-6].jsonl`, then `python3 tools/paper_corpus.py apply-audit docs/paper-corpus/audit.jsonl`.
+To reproduce the published dataset (into a fresh directory, add `--out <dir>` to each command):
+
+```sh
+python3 tools/paper_corpus.py merge docs/paper-corpus/raw/P[1-6].jsonl
+python3 tools/paper_corpus.py apply-audit docs/paper-corpus/audit.jsonl
+python3 tools/paper_corpus.py append docs/paper-corpus/raw/round2.jsonl --round round2
+```
 
 ## 5. Data schema
 
@@ -84,13 +91,21 @@ Identified (6 themes × 13)                       n = 78
   ├─ excluded: metadata not verified             n = 0
   └─ excluded: duplicate (DOI / arXiv / title)   n = 3   (preprint and published version found in two themes)
 Included                                         n = 75
+
+Round 2 (2026-10-16): §10 candidates               n = 8   (P1 2, P3 2, P4 2, P5 1, P6 1)
+  ├─ excluded: schema-invalid                    n = 0
+  ├─ excluded: metadata not verified             n = 0
+  └─ excluded: duplicate of corpus or round      n = 0
+Included                                         n = 8   (AMP-076 … AMP-083)
+
+Corpus total                                     n = 83
 ```
 
-The 3 duplicates were Internet of Agents (P2/P6), MCP: Landscape, Security Threats… (P2/P3) and Building a Secure Agentic AI Application Leveraging A2A (P2/P3). See [`excluded.jsonl`](excluded.jsonl).
+The 3 round-1 duplicates were Internet of Agents (P2/P6), MCP: Landscape, Security Threats… (P2/P3) and Building a Secure Agentic AI Application Leveraging A2A (P2/P3). See [`excluded.jsonl`](excluded.jsonl). In [`flow.json`](flow.json), the unprefixed keys are round-1 counts, `round2:*` keys are round-2 counts, and `included` is the corpus total.
 
 ## 7. Quality assurance
 
-All checks were run on 2026-10-15. Every verdict and correction is in [`audit.jsonl`](audit.jsonl).
+Round-1 checks were run on 2026-10-15. Every round-1 verdict and correction is in [`audit.jsonl`](audit.jsonl).
 
 | Check | Method | Result |
 |---|---|---|
@@ -103,6 +118,18 @@ All checks were run on 2026-10-15. Every verdict and correction is in [`audit.js
 | Reproducibility | `merge` raw → `apply-audit` into a fresh directory, then compare byte for byte | All 7 output files identical |
 
 Six curator entries in `audit.jsonl` (`audit_pass: curator-prepublication`) do two things. They align two `technologies` lists with the published versions. They also re-key four citation keys whose year changed from 2025 to 2026 when the published version replaced the preprint. Re-keying is allowed only before first publication; after that, keys are frozen.
+
+**Round 2 audit note (2026-10-16).** The eight round-2 records (AMP-076 … AMP-083) were collected and verified by the curator in one pass rather than by separate collector and auditor agents, so they have no `audit.jsonl` entries; their `verification_source`, `search_query` and `notes` fields record the evidence.
+
+| Check | Method | Result |
+|---|---|---|
+| Metadata | Every field taken from the primary authority: Crossref API for the four DOIs (10.1109/4434.708256, 10.1145/311124.311130, 10.1145/3351095.3372873, 10.1145/3593013.3594033); the arXiv API for all six arXiv IDs; OpenReview API for the ICLR 2024 and TMLR versions; PMLR v235 page citation tags for the ICML 2024 paper. Full author names missing from Crossref were taken from OpenAlex and the author's or a bibliography index page (cited in `notes`) | 8/8 confirmed. The published version was preferred in every case where one exists (7/8). TaskWeaver has no peer-reviewed version in Crossref, OpenAlex or OpenReview and is kept as a preprint. DBLP and Semantic Scholar refused automated requests (bot check, HTTP 429) and were not used |
+| Peer-review status | Venue check for each record | 6 peer reviewed; 2 not: TaskWeaver (preprint) and Kotz & Gray (ACM SIGOPS *Operating Systems Review*, peer review not established, so flagged `false` conservatively) |
+| Summary fidelity | Summaries written only from the abstract (arXiv API, OpenAlex, publisher or author page). Numbers (68.8%, 36 tools, 144 cases, 23.9%; one million agents) copied from the abstracts. No full text read | Karnik & Tripathi rests on the abstract exposed by OpenAlex; the IEEE full text was not read (noted in the record) |
+| Identifiers | `append` assigns `AMP-076`+ without renumbering. The `id → title` map of AMP-001 … AMP-075 was diffed before and after, and the first 75 records of `papers.jsonl` compared byte for byte | No change |
+| Schema, bibliography, reproducibility | `check`; `biber --tool --validate-datamodel`; `pdflatex` + `biber` with `\nocite{*}`; the three-step pipeline (§4) run twice into fresh directories and compared with the committed files | `ok: 83 records valid`, exit 0. biber tool mode: exit 0 with 1 warning (`sander1998protecting` has no `editor`), which is pre-existing in round 1. LaTeX: 83 entries, biber 0 warnings, exit 0. All 7 output files byte-identical |
+
+**Tool fix found in round 2.** `merge`'s URL identity dropped the query string, so any two `openreview.net/forum?id=…` landing pages counted as the same paper. A first round-2 run wrongly excluded ToolEmu and CoALA as duplicates of Internet of Agents. The URL identity now keeps the query. Round 1 was re-run with the fix and still reproduces the committed files byte for byte.
 
 **Interpretation.** Agent-collected bibliographic metadata was reliable: no paper was invented, and no DOI or arXiv ID pointed to the wrong work. The main metadata risk is *staleness*: 2025 preprints that have since been published. Summaries failed less often than in the news corpus (7/75 here, against 27/100 there), because abstracts are a tighter source than news pages. **Open decision:** AMP-044 (South et al., *Authenticated Delegation and Authorized AI Agents*, arXiv) has a peer-reviewed successor with a different title and author list, *Position: AI Agents Need Authenticated Delegation* (ICML 2025 position track). The preprint is kept, and the successor is recorded in `notes`.
 
@@ -127,6 +154,7 @@ These are observations about **this corpus only**, with IDs referring to [`diges
      - Adversarial content can hijack the control flow of multi-agent frameworks into executing arbitrary code, in 58–90% of trials with GPT-4o (AMP-049).
      - Injected prompts self-replicate from agent to agent (AMP-072).
      - Injected prompts spread across RAG-connected applications like a worm (AMP-062).
+     - In simulations of up to one million multimodal agents chatting in random pairs, one adversarial image placed in a single agent's memory was enough to jailbreak (almost) all of them, exponentially fast (AMP-083).
 
    A task envelope therefore needs integrity, provenance and untrusted-input handling at *every* hop, not just at the origin.
 4. **Delegation has formal and practical foundations that agent protocols can reuse.**
@@ -147,7 +175,8 @@ These are observations about **this corpus only**, with IDs referring to [`diges
 
 ## 9. Limitations
 
-- **Not exhaustive.** Thirteen candidates per theme is a reading list, not a census. Collectors named further eligible papers they left out (listed in §10).
+- **Not exhaustive.** Thirteen candidates per theme, plus the eight round-2 additions, is a reading list, not a census.
+- **Round 2 single pass.** Round-2 records were collected and checked by the same agent, without the separate audit pass that round 1 had (§7).
 - **Agent-assisted collection and audit.** Collectors and auditors were AI agents working under fixed rules. Metadata comes from authoritative APIs, but summaries can still mis-state a paper. Read the paper before citing a specific result.
 - **Abstract availability.** For several pre-2000 papers, publishers do not expose abstracts to APIs. Those summaries were checked against whatever text was reachable and kept deliberately general (see `notes` and `audit.jsonl`).
 - **Preprint volatility.** 2025–2026 preprints may change between versions. The record cites the version current on 2026-10-15; check arXiv for later versions.
@@ -155,17 +184,11 @@ These are observations about **this corpus only**, with IDs referring to [`diges
 
 ## 10. Candidates noted but not included
 
-Collectors verified or flagged these but left them out because of the per-theme cap. They are the first candidates for the next round:
-- Kotz & Gray (1999), *Mobile agents and the future of the Internet*, doi:10.1145/311124.311130
-- Karnik & Tripathi (1998), *Design issues in mobile agent programming systems*, doi:10.1109/4434.708256
-- Gu et al., *Agent Smith* (ICML 2024)
-- Ruan et al., *ToolEmu* (ICLR 2024)
-- Sumers et al., *CoALA* (TMLR)
-- Chan et al., *Harms from Increasingly Agentic Algorithmic Systems* (FAccT 2023)
-- Raji et al., *Closing the AI accountability gap* (FAT* 2020)
-- TaskWeaver (arXiv 2311.17541)
+All eight candidates listed here after round 1 were added in round 2 (AMP-076 … AMP-083). Open items for a next round:
+- South et al., *Position: AI Agents Need Authenticated Delegation* (ICML 2025 position track): the peer-reviewed successor of AMP-044 (open decision, §7).
+- Round 2 found no further eligible candidates. It saw only earlier versions of papers it added, which are not separate candidates: Kotz & Gray's *Mobile Code: The Future of the Internet* (the version AMP-077 revises, per the author's page) and the NeurIPS 2023 FMDM workshop version of ToolEmu (AMP-081).
 
 ## 11. How to cite and update
 
 - Cite the **paper** via its entry in [`papers.bib`](papers.bib) (biblatex + biber). Entries carry the DOI and/or arXiv `eprint`, and a `note` marks papers that are not peer reviewed.
-- To add papers, append records to `papers.jsonl` with the next free `AMP-NNN`, then run `python3 tools/paper_corpus.py check` and `build`. For a new collection round, run `merge … --out <new-dir>` and append the screened results.
+- To add papers, put the new raw records in a new file under `raw/` and run `python3 tools/paper_corpus.py append raw/<file>.jsonl --round <name>`. It screens and deduplicates them against the corpus, numbers them from the next free `AMP-NNN`, records the round in `flow.json`, and rebuilds. Existing IDs and cite keys never change. Then run `check`. Never re-run `merge` on the published directory: it renumbers from `AMP-001`.

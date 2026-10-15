@@ -1,6 +1,6 @@
 # Sources and evidence log
 
-Reviewed on **2026-10-15**. This is a selective standards/documentation survey, not a comprehensive systematic review. Verify specific upstream release dates and implementation behavior before claiming conformance. All architecture and envelope design in this repository are **proposals**.
+Reviewed on **2026-10-15**; links and corpus counts fact-checked 2026-10-16. This is a selective standards/documentation survey, not a comprehensive systematic review. Verify specific upstream release dates and implementation behavior before claiming conformance. All architecture and envelope design in this repository are **proposals**.
 
 | Topic | Primary source | Evidence scope |
 |---|---|---|
@@ -14,7 +14,7 @@ Reviewed on **2026-10-15**. This is a selective standards/documentation survey, 
 | OAuth 2.0 Token Exchange | https://www.rfc-editor.org/rfc/rfc8693 | Standard token exchange mechanism, not automatic delegation trust |
 | SPIFFE / SPIRE | https://spiffe.io/docs/latest/spire-about/spire-concepts/ | Workload identity concepts |
 | Open Policy Agent | https://www.openpolicyagent.org/docs | Policy-as-code engine |
-| OpenTelemetry GenAI | https://opentelemetry.io/docs/specs/semconv/gen-ai/ | GenAI trace/metric convention family |
+| OpenTelemetry GenAI | https://github.com/open-telemetry/semantic-conventions-genai | GenAI trace/metric convention family (moved from opentelemetry.io; status Development, checked 2026-10-16) |
 
 ## Evidence and assumptions
 
@@ -33,7 +33,7 @@ Reviewed on **2026-10-15**. This is a selective standards/documentation survey, 
 
 ## Paper corpus
 
-Scholarly papers (75 items, 1980–2026), including the classic mobile-agent, process-migration and delegation literature, are collected and independently audited in [paper-corpus/](paper-corpus/README.md). Each paper has a DOI and/or arXiv ID, a peer-review flag, a paraphrased summary and a biblatex entry in [papers.bib](paper-corpus/papers.bib).
+Scholarly papers (75 items, 1980–2026), including the classic mobile-agent, process-migration and delegation literature, are collected and independently audited in [paper-corpus/](paper-corpus/README.md). 73 of the 75 papers have a DOI and/or arXiv ID (the other two, a USENIX NSDI 2005 paper and an OpenAI white paper, are identified by their canonical URL); each has a peer-review flag, a paraphrased summary and a biblatex entry in [papers.bib](paper-corpus/papers.bib).
 
 ## News corpus
 
