@@ -99,6 +99,8 @@ python -m pytest -q          # all tests: agent_movement + corpus tooling
 
 The local smoke suite currently models 20 cases. **Seventeen checks reproduce their expected narrow behavior; three are marked known gaps, not security successes.** This is not A2A, trusted peer identity, portable live state or a production system. See the experiment protocol for limits and next steps.
 
+[MobilityBench v0.1](docs/mobilitybench-v0.1.md) extends this with 18 frozen, digest-verified synthetic tasks across three workload families: document work, constrained coding and simulated tools. It compares keep-on-origin, restart-on-destination and the PR #6 local delegate under seeded faults. The A2A, checkpoint-relocation and cross-framework baselines are reported as **unavailable**. Run it with `python -m agent_movement.mobilitybench run --suite v0.1 --out results.jsonl`, then `report --in results.jsonl`. The suite is deterministic and LLM-free, so it supports no general statistical claims.
+
 ## Recommended initial experiment
 
 The local non-destructive **non-A2A** task handoff and deduplication test is now implemented on the feature branch. Next, implement an **actual A2A v1.x SDK-based** interaction between two independent test agents with capability discovery and authorization *before input disclosure*. After that, test crash recovery and same-runtime checkpoint relocation before claiming agent migration.

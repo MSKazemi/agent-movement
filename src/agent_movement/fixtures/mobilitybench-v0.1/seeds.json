@@ -1,0 +1,33 @@
+{
+  "executor": "deterministic-interpreter-v0.1",
+  "fault_assignment": "per seed s: order tasks by sha256('mobilitybench-v0.1:<s>:<task_id>'); fault index = (position + s) mod len(fault_kinds)",
+  "fault_kinds": [
+    "none",
+    "origin_preempted",
+    "effect_ack_lost",
+    "duplicate_delivery",
+    "stale_origin_returns"
+  ],
+  "model": "none (deterministic scripted interpreter; no LLM or network calls)",
+  "repeats": 2,
+  "seeds": [
+    1103,
+    2207,
+    3301
+  ],
+  "smoke": {
+    "repeats": 1,
+    "seeds": [
+      1103
+    ],
+    "tasks": [
+      "doc-release-notes",
+      "doc-meeting-summary",
+      "code-rename-helper",
+      "code-version-bump",
+      "tools-restock-order",
+      "tools-inventory-audit"
+    ]
+  },
+  "suite_version": "mobilitybench-v0.1"
+}

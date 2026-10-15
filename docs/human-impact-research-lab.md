@@ -76,6 +76,8 @@ This is a **single small deterministic engineering check**, not a statistically 
 
 **E5 — Meaningful task and model comparisons (issue #10, [PR #4](https://github.com/MSKazemi/agent-movement/pull/4)):** Freeze input digests and rubrics for document analysis, code editing and multi-step workflows. Include B0 keep, B1 restart, real B2 A2A delegate, B3 same-runtime resume, and later B4 reconstruct. Report task correctness, lost constraints, unauthorized simulated effects, partial outcomes, cost and latency across repeated runs. Publish failures and unavailable baselines.
 
+*Status (2026-10-16):* a deterministic, LLM-free first slice is [MobilityBench v0.1](mobilitybench-v0.1.md). It has 18 frozen synthetic tasks with a SHA-256 release manifest. B0 keep, B1 restart and the PR #6 local delegate are scored under seeded faults. B2 A2A, B3 relocate and B4 reconstruct are reported as unavailable. The suite also includes 12 negative/security fixtures and a report with denominators. Model-based tasks, real A2A and checkpoint relocation remain open.
+
 ## Suggested four-week research sprint
 
 - **Week 1:** Review/merge prerequisite PR #6; run the 20-case smoke and publish a sanitized CI artifact. Record known gaps, not just passes.

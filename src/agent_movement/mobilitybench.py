@@ -1,6 +1,8 @@
 """MobilityBench local smoke: reproducible synthetic *observations*, not safety proof.
 
 Run: python -m agent_movement.mobilitybench --output /tmp/mobilitybench.jsonl
+The v0.1 suite lives in mobilitybench_v01 and is reached through the
+subcommands `run`, `report`, `verify` and `schedule` of this same entry point.
 This uses the draft localhost experiment's application classes directly; it is
 NOT A2A, authenticated networking, process migration, or real external effects.
 """
@@ -274,7 +276,15 @@ def summarize(cases: list[Case]) -> dict[str, int | str]:
     }
 
 
+V01_COMMANDS = ("run", "report", "verify", "schedule")
+
+
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] in V01_COMMANDS:
+        # MobilityBench v0.1 suite (frozen fixtures, baselines, faults); see docs/mobilitybench-v0.1.md.
+        from .mobilitybench_v01 import main as v01_main
+        return v01_main(argv)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", default="-", help="JSONL destination; '-' = stdout")
     args = parser.parse_args(argv)
