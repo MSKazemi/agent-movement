@@ -2,7 +2,7 @@
 
 **Research-stage project: portable, interoperable, and governable AI-agent work across runtimes and environments.**
 
-**Status:** Research-stage. Alongside the research documents, the repository has an **experimental Python package of synthetic, local prototypes**: loopback task handoff with simulated-effect fencing, an optional A2A v1 adapter on the official SDK, authenticated peer handoff, same-runtime LangGraph checkpoint relocation, signed movement receipts and the MobilityBench harness. None of it is production software. It does **not** provide production security, independently tested A2A interoperability, cross-framework migration or deployment to other devices. Last reviewed: 2026-10-16.
+**Status:** Research-stage. Alongside the research documents, the repository has an **experimental Python package of synthetic, local prototypes**: loopback task handoff with simulated-effect fencing, an optional A2A v1 adapter on the official SDK, authenticated peer handoff, same-runtime LangGraph checkpoint relocation, signed movement receipts and the MobilityBench harness. None of it is production software. It does **not** provide production security, independently tested A2A interoperability, cross-framework reconstruction or deployment to other devices. Last reviewed: 2026-10-16.
 
 ## What does "agent movement" mean?
 
@@ -129,7 +129,7 @@ The local smoke suite currently models 20 cases. **Seventeen checks reproduce th
 
 ## Recommended initial experiment
 
-First synthetic, local slices now exist for the non-A2A task handoff and deduplication test, an A2A v1 SDK-based delegation between two processes, peer authentication *before input disclosure*, and same-runtime checkpoint relocation under injected crashes. Both A2A ends use the same Python SDK, so independent interoperability (the A2A inspector or TCK, or a second implementation) is still untested. Cross-framework migration, real devices and production security remain research proposals.
+First synthetic, local slices now exist for the non-A2A task handoff and deduplication test, an A2A v1 SDK-based delegation between two processes, peer authentication *before input disclosure*, and same-runtime checkpoint relocation under injected crashes. Both A2A ends use the same Python SDK, so independent interoperability (the A2A inspector or TCK, or a second implementation) is still untested. Cross-framework reconstruction, real devices and production security remain research proposals.
 
 See [local implementation](docs/local-implementation.md) for the ordered next steps and [roadmap](docs/roadmap.md) for the staged plan.
 

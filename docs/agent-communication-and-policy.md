@@ -138,7 +138,7 @@ ALLOW :=
 If any input is missing, unknown or false: DENY.
 If waiting on human approval: HOLD (no sensitive send and no effect).
 If duplicate request: return previously recorded status; do not reexecute.
-If previous effect status is uncertain: UNKNOWN / RECONCILE, not "success".
+If previous effect status is uncertain: unknown/reconcile (the [canonical outcome label](glossary.md#reconciliation-and-the-unknownreconcile-state)), not "success".
 ~~~
 
 At receiver **repeat** identity, payload, grant, tenant and schema validation against locally trusted facts. Before any tool or physical command, perform **fresh** authorization and revocation checks; never treat an earlier gateway ALLOW as perpetual authority.

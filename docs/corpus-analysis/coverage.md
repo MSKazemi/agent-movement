@@ -206,7 +206,7 @@ The [project README](../../README.md) defines four operations: delegation / hand
 
 | Operation | Keywords |
 | --- | --- |
-| Delegation / handoff | `delegat`, `handoff`, `hand-off`, `hand off`, `handover`, `hand over`, `agent-to-agent`, `a2a`, `subagent`, `sub-agent`, `contract net`, `task assignment`, `task allocation`, `on behalf of` |
+| Delegation | `delegat`, `handoff`, `hand-off`, `hand off`, `handover`, `hand over`, `agent-to-agent`, `a2a`, `subagent`, `sub-agent`, `contract net`, `task assignment`, `task allocation`, `on behalf of` |
 | Portable task context | `portable context`, `task context`, `context transfer`, `context sharing`, `shared context`, `context management`, `context engineering`, `memory`, `checkpoint`, `session state`, `agent state`, `state transfer`, `persistent state`, `serializ`, `snapshot`, `artifact reference`, `resumable` |
 | Runtime relocation | `relocat`, `mobile agent`, `agent mobility`, `code mobility`, `process migration`, `live migration`, `vm migration`, `virtual machine migration`, `durable`, `idempoten`, `safe boundary`, `resum`, `suspend`, `failover`, `crash recovery`, `fault toleran` |
 | Cross-framework migration | `cross-framework`, `framework-agnostic`, `framework agnostic`, `framework-independent`, `framework-neutral`, `interoperab`, `adapter`, `lock-in`, `portabil`, `agent spec`, `agent specification`, `agent definition`, `declarative agent`, `agent file`, `portable representation`, `across frameworks`, `across runtimes`, `cross-runtime`, `different runtime` |
@@ -217,7 +217,7 @@ News (n = 100):
 
 | Operation | Keyword hits | Share | Coded | Both | Keyword only | Coded only |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Delegation / handoff | 37 | 37% | 53 | 34 | 3 | 19 |
+| Delegation | 37 | 37% | 53 | 34 | 3 | 19 |
 | Portable task context | 16 | 16% | 16 | 10 | 6 | 6 |
 | Runtime relocation | 10 | 10% | 25 | 10 | 0 | 15 |
 | Cross-framework migration | 8 | 8% | 19 | 3 | 5 | 16 |
@@ -226,7 +226,7 @@ Papers (n = 83):
 
 | Operation | Keyword hits | Share | Coded | Both | Keyword only | Coded only |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Delegation / handoff | 11 | 13% | 38 | 11 | 0 | 27 |
+| Delegation | 11 | 13% | 38 | 11 | 0 | 27 |
 | Portable task context | 15 | 18% | 19 | 11 | 4 | 8 |
 | Runtime relocation | 11 | 13% | 20 | 11 | 0 | 9 |
 | Cross-framework migration | 6 | 7% | 6 | 2 | 4 | 4 |
@@ -235,7 +235,7 @@ Both corpora combined (n = 183):
 
 | Operation | Keyword hits | Share | Coded | Both | Keyword only | Coded only |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Delegation / handoff | 48 | 26% | 91 | 45 | 3 | 46 |
+| Delegation | 48 | 26% | 91 | 45 | 3 | 46 |
 | Portable task context | 31 | 17% | 35 | 21 | 10 | 14 |
 | Runtime relocation | 21 | 11% | 45 | 21 | 0 | 24 |
 | Cross-framework migration | 14 | 8% | 25 | 5 | 9 | 20 |
@@ -271,49 +271,49 @@ Rules: a cell is listed when its count is ≤ 1. For year × theme, only the las
 
 ### Year × theme
 
-- **H1.** News, T1 (Agent-to-agent protocols and multi-agent interoperability), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T1 queries.
-- **H2.** News, T2 (Model Context Protocol (MCP) ecosystem), 2024: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted T2 queries.
-- **H3.** News, T3 (Security, identity, authorization and trust), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T3 queries.
-- **H4.** News, T4 (Durable execution, state, memory and context portability), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T4 queries.
-- **H5.** News, T5 (Agent runtimes, platforms, hosting and portability), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T5 queries.
-- **H6.** News, T6 (Standards, governance, regulation and observability), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T6 queries.
-- **H7.** News, T7 (Agent-to-user, agentic commerce and cross-organization action), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T7 queries.
-- **H8.** Papers, P1 (Mobile agents and agent/process migration), 2023: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted P1 queries.
-- **H9.** Papers, P2 (Agent communication protocols and interoperability), 2023: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted P2 queries.
-- **H10.** Papers, P3 (Security of LLM agents, tool use and multi-agent handoffs), 2023: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted P3 queries.
-- **H11.** Papers, P1 (Mobile agents and agent/process migration), 2024: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted P1 queries.
-- **H12.** Papers, P2 (Agent communication protocols and interoperability), 2024: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted P2 queries.
-- **H13.** Papers, P1 (Mobile agents and agent/process migration), 2026: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted P1 queries.
-- **H14.** Papers, P6 (Multi-agent orchestration, delegation and portable agent specifications), 2026: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted P6 queries.
+- **G1.** News, T1 (Agent-to-agent protocols and multi-agent interoperability), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T1 queries.
+- **G2.** News, T2 (Model Context Protocol (MCP) ecosystem), 2024: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted T2 queries.
+- **G3.** News, T3 (Security, identity, authorization and trust), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T3 queries.
+- **G4.** News, T4 (Durable execution, state, memory and context portability), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T4 queries.
+- **G5.** News, T5 (Agent runtimes, platforms, hosting and portability), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T5 queries.
+- **G6.** News, T6 (Standards, governance, regulation and observability), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T6 queries.
+- **G7.** News, T7 (Agent-to-user, agentic commerce and cross-organization action), 2024: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted T7 queries.
+- **G8.** Papers, P1 (Mobile agents and agent/process migration), 2023: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted P1 queries.
+- **G9.** Papers, P2 (Agent communication protocols and interoperability), 2023: n = 0. Under-sampled or genuinely sparse for that year? Test with year-restricted P2 queries.
+- **G10.** Papers, P3 (Security of LLM agents, tool use and multi-agent handoffs), 2023: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted P3 queries.
+- **G11.** Papers, P1 (Mobile agents and agent/process migration), 2024: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted P1 queries.
+- **G12.** Papers, P2 (Agent communication protocols and interoperability), 2024: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted P2 queries.
+- **G13.** Papers, P1 (Mobile agents and agent/process migration), 2026: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted P1 queries.
+- **G14.** Papers, P6 (Multi-agent orchestration, delegation and portable agent specifications), 2026: n = 1. Under-sampled or genuinely sparse for that year? Test with year-restricted P6 queries.
 
 ### Theme × core operation (curated codes)
 
-- **H15.** News, T1 × Portable task context: n = 0 coded. Is portable task context rare in the theme “Agent-to-agent protocols and multi-agent interoperability”, or were such items outside this theme's queries?
-- **H16.** News, T2 × Portable task context: n = 0 coded. Is portable task context rare in the theme “Model Context Protocol (MCP) ecosystem”, or were such items outside this theme's queries?
-- **H17.** News, T2 × Cross-framework migration: n = 1 coded. Is cross-framework migration rare in the theme “Model Context Protocol (MCP) ecosystem”, or were such items outside this theme's queries?
-- **H18.** News, T3 × Portable task context: n = 0 coded. Is portable task context rare in the theme “Security, identity, authorization and trust”, or were such items outside this theme's queries?
-- **H19.** News, T3 × Runtime relocation: n = 1 coded. Is runtime relocation rare in the theme “Security, identity, authorization and trust”, or were such items outside this theme's queries?
-- **H20.** News, T3 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Security, identity, authorization and trust”, or were such items outside this theme's queries?
-- **H21.** News, T6 × Portable task context: n = 1 coded. Is portable task context rare in the theme “Standards, governance, regulation and observability”, or were such items outside this theme's queries?
-- **H22.** News, T6 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Standards, governance, regulation and observability”, or were such items outside this theme's queries?
-- **H23.** News, T6 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Standards, governance, regulation and observability”, or were such items outside this theme's queries?
-- **H24.** News, T7 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Agent-to-user, agentic commerce and cross-organization action”, or were such items outside this theme's queries?
-- **H25.** Papers, P1 × Portable task context: n = 1 coded. Is portable task context rare in the theme “Mobile agents and agent/process migration”, or were such items outside this theme's queries?
-- **H26.** Papers, P1 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Mobile agents and agent/process migration”, or were such items outside this theme's queries?
-- **H27.** Papers, P2 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Agent communication protocols and interoperability”, or were such items outside this theme's queries?
-- **H28.** Papers, P3 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Security of LLM agents, tool use and multi-agent handoffs”, or were such items outside this theme's queries?
-- **H29.** Papers, P3 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Security of LLM agents, tool use and multi-agent handoffs”, or were such items outside this theme's queries?
-- **H30.** Papers, P4 × Portable task context: n = 0 coded. Is portable task context rare in the theme “Agent identity, delegated authorization, accountability and governance”, or were such items outside this theme's queries?
-- **H31.** Papers, P4 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Agent identity, delegated authorization, accountability and governance”, or were such items outside this theme's queries?
-- **H32.** Papers, P4 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Agent identity, delegated authorization, accountability and governance”, or were such items outside this theme's queries?
-- **H33.** Papers, P5 × Delegation / handoff: n = 0 coded. Is delegation / handoff rare in the theme “Agent memory, state, context and durable execution”, or were such items outside this theme's queries?
-- **H34.** Papers, P5 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Agent memory, state, context and durable execution”, or were such items outside this theme's queries?
-- **H35.** Papers, P6 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Multi-agent orchestration, delegation and portable agent specifications”, or were such items outside this theme's queries?
+- **G15.** News, T1 × Portable task context: n = 0 coded. Is portable task context rare in the theme “Agent-to-agent protocols and multi-agent interoperability”, or were such items outside this theme's queries?
+- **G16.** News, T2 × Portable task context: n = 0 coded. Is portable task context rare in the theme “Model Context Protocol (MCP) ecosystem”, or were such items outside this theme's queries?
+- **G17.** News, T2 × Cross-framework migration: n = 1 coded. Is cross-framework migration rare in the theme “Model Context Protocol (MCP) ecosystem”, or were such items outside this theme's queries?
+- **G18.** News, T3 × Portable task context: n = 0 coded. Is portable task context rare in the theme “Security, identity, authorization and trust”, or were such items outside this theme's queries?
+- **G19.** News, T3 × Runtime relocation: n = 1 coded. Is runtime relocation rare in the theme “Security, identity, authorization and trust”, or were such items outside this theme's queries?
+- **G20.** News, T3 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Security, identity, authorization and trust”, or were such items outside this theme's queries?
+- **G21.** News, T6 × Portable task context: n = 1 coded. Is portable task context rare in the theme “Standards, governance, regulation and observability”, or were such items outside this theme's queries?
+- **G22.** News, T6 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Standards, governance, regulation and observability”, or were such items outside this theme's queries?
+- **G23.** News, T6 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Standards, governance, regulation and observability”, or were such items outside this theme's queries?
+- **G24.** News, T7 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Agent-to-user, agentic commerce and cross-organization action”, or were such items outside this theme's queries?
+- **G25.** Papers, P1 × Portable task context: n = 1 coded. Is portable task context rare in the theme “Mobile agents and agent/process migration”, or were such items outside this theme's queries?
+- **G26.** Papers, P1 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Mobile agents and agent/process migration”, or were such items outside this theme's queries?
+- **G27.** Papers, P2 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Agent communication protocols and interoperability”, or were such items outside this theme's queries?
+- **G28.** Papers, P3 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Security of LLM agents, tool use and multi-agent handoffs”, or were such items outside this theme's queries?
+- **G29.** Papers, P3 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Security of LLM agents, tool use and multi-agent handoffs”, or were such items outside this theme's queries?
+- **G30.** Papers, P4 × Portable task context: n = 0 coded. Is portable task context rare in the theme “Agent identity, delegated authorization, accountability and governance”, or were such items outside this theme's queries?
+- **G31.** Papers, P4 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Agent identity, delegated authorization, accountability and governance”, or were such items outside this theme's queries?
+- **G32.** Papers, P4 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Agent identity, delegated authorization, accountability and governance”, or were such items outside this theme's queries?
+- **G33.** Papers, P5 × Delegation: n = 0 coded. Is delegation rare in the theme “Agent memory, state, context and durable execution”, or were such items outside this theme's queries?
+- **G34.** Papers, P5 × Cross-framework migration: n = 0 coded. Is cross-framework migration rare in the theme “Agent memory, state, context and durable execution”, or were such items outside this theme's queries?
+- **G35.** Papers, P6 × Runtime relocation: n = 0 coded. Is runtime relocation rare in the theme “Multi-agent orchestration, delegation and portable agent specifications”, or were such items outside this theme's queries?
 
 ### Core operations overall
 
-- **H36.** News: the least-coded core operation is portable task context (16 coded, 16 keyword hits, of 100). Hypothesis: it is under-represented relative to the other three operations in this corpus; a search round with queries aimed specifically at it would test whether that reflects the field or the theme definitions.
-- **H37.** News, Runtime relocation: keyword hits (10) are under half the coded count (25). The keyword list may miss this operation's vocabulary; refine the rule before using it for the next round.
-- **H38.** News, Cross-framework migration: keyword hits (8) are under half the coded count (19). The keyword list may miss this operation's vocabulary; refine the rule before using it for the next round.
-- **H39.** Papers: the least-coded core operation is cross-framework migration (6 coded, 6 keyword hits, of 83). Hypothesis: it is under-represented relative to the other three operations in this corpus; a search round with queries aimed specifically at it would test whether that reflects the field or the theme definitions.
-- **H40.** Papers, Delegation / handoff: keyword hits (11) are under half the coded count (38). The keyword list may miss this operation's vocabulary; refine the rule before using it for the next round.
+- **G36.** News: the least-coded core operation is portable task context (16 coded, 16 keyword hits, of 100). Hypothesis: it is under-represented relative to the other three operations in this corpus; a search round with queries aimed specifically at it would test whether that reflects the field or the theme definitions.
+- **G37.** News, Runtime relocation: keyword hits (10) are under half the coded count (25). The keyword list may miss this operation's vocabulary; refine the rule before using it for the next round.
+- **G38.** News, Cross-framework migration: keyword hits (8) are under half the coded count (19). The keyword list may miss this operation's vocabulary; refine the rule before using it for the next round.
+- **G39.** Papers: the least-coded core operation is cross-framework migration (6 coded, 6 keyword hits, of 83). Hypothesis: it is under-represented relative to the other three operations in this corpus; a search round with queries aimed specifically at it would test whether that reflects the field or the theme definitions.
+- **G40.** Papers, Delegation: keyword hits (11) are under half the coded count (38). The keyword list may miss this operation's vocabulary; refine the rule before using it for the next round.
