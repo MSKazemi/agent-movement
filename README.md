@@ -28,7 +28,7 @@ A useful agent might start on a laptop, delegate to a cloud agent, use tools in 
 | Agent-to-user | [AG-UI](https://github.com/ag-ui-protocol/ag-ui) | Agent/frontend events, state, interaction | Migration between runtimes |
 | Orchestration and recovery | [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence), [Temporal](https://docs.temporal.io/workflow-execution) | Checkpoints, durable execution and recovery | Automatic semantic compatibility across all frameworks |
 | Deployments | [OCI](https://specs.opencontainers.org/image-spec/), [Kubernetes](https://kubernetes.io/docs/concepts/workloads/controllers/job/) | Portable packaging and workload scheduling | App-level state/identity migration |
-| Trust, policy and audit | [OAuth token exchange](https://www.rfc-editor.org/rfc/rfc8693), [SPIFFE](https://spiffe.io/docs/latest/spire-about/spire-concepts/), [OPA](https://www.openpolicyagent.org/docs), [OpenTelemetry](https://opentelemetry.io/docs/specs/semconv/gen-ai/) | Delegated access patterns, workload identity, policy and telemetry | An end-to-end agent mobility protocol |
+| Trust, policy and audit | [OAuth token exchange](https://www.rfc-editor.org/rfc/rfc8693), [SPIFFE](https://spiffe.io/docs/latest/spire-about/spire-concepts/), [OPA](https://www.openpolicyagent.org/docs), [OpenTelemetry](https://github.com/open-telemetry/semantic-conventions-genai) | Delegated access patterns, workload identity, policy and telemetry | An end-to-end agent mobility protocol |
 
 The *research hypothesis* is that a small **portable handoff envelope**, compatible adapters, strict authorization, and an auditable lifecycle could make these layers work together.
 
@@ -61,8 +61,13 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 - [Agent communication governance and enforceable policy proposal](docs/agent-communication-and-policy.md) · [28 planned conformance cases](data/agent-communication-conformance-cases.csv)
 - [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md)
 - [Primary sources and dated research notes](docs/sources.md)
+- [Standards and protocol version tracker (28 specs, primary sources, checked 2026-10-16)](docs/standards-tracker.md) · [CSV](data/standards-tracker.csv)
+- [Glossary: 70 terms, each tagged as standard, research or project working definition](docs/glossary.md)
+- [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
 - [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
-- [Paper corpus: 75 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
+- [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
+- [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
+- [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md)
 
 ## Recommended initial experiment
 
