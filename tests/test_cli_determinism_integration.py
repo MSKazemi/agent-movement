@@ -96,9 +96,11 @@ def test_merge_twice_is_byte_identical(tmp_path, corpus):
     assert check.returncode == 0, check.stdout
 
 
-@pytest.mark.parametrize("corpus,expected", [("news", 100), ("paper", 75)])
-def test_check_passes_on_committed_corpus(corpus, expected):
+@pytest.mark.parametrize("corpus,data", [("news", "news.jsonl"), ("paper", "papers.jsonl")])
+def test_check_passes_on_committed_corpus(corpus, data):
     script, _, _, src = CORPORA[corpus]
+    # Count records from the data, not a constant: later rounds append to the corpus.
+    expected = sum(1 for line in (src / data).read_text(encoding="utf-8").splitlines() if line.strip())
     res = run_tool(script, "check", "--out", str(src))
     assert res.returncode == 0, res.stdout + res.stderr
     assert res.stdout.strip() == f"ok: {expected} records valid"

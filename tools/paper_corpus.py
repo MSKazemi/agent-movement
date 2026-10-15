@@ -170,6 +170,8 @@ def dedupe(candidates: list[dict], kept: list[dict], excluded: list[dict], flow:
         dup = next((k for k in kept + new if ident(k) & ident(r)
                     or SequenceMatcher(None, norm_title(k["title"]), t).ratio() >= 0.9), None)
         if dup:
+            if r["arxiv_id"] and not dup["arxiv_id"]:
+                dup["arxiv_id"] = r["arxiv_id"]  # keep the preprint's arXiv ID on the published version
             excluded.append({**r, "exclusion_reason": f"duplicate of '{dup['title']}' ({dup['theme']})"})
             flow["excluded_duplicate"] += 1
         else:
@@ -286,7 +288,7 @@ def build() -> None:
         "with_doi": sum(bool(r["doi"]) for r in rows),
         "with_arxiv": sum(bool(r["arxiv_id"]) for r in rows),
         "verification_source": dict(Counter(r["verification_source"] for r in rows).most_common()),
-        "year_range": [min(r["year"] for r in rows), max(r["year"] for r in rows)],
+        "year_range": [min(r["year"] for r in rows), max(r["year"] for r in rows)] if rows else [None, None],
     }
     (OUT / "stats.json").write_text(json.dumps(stats, indent=2) + "\n", encoding="utf-8")
     (OUT / "digest.md").write_text(render_digest(rows, stats), encoding="utf-8")
@@ -337,6 +339,8 @@ def check(rows: list[dict] | None = None) -> list[str]:
             errors.append(f"duplicate {field}: {dupes}")
     seen: dict[str, str] = {}
     for r in rows:
+        if not all(k in r for k in ("doi", "arxiv_id", "url")):
+            continue  # already reported as missing keys by validate()
         for i in ident(r):
             if i in seen and not i.startswith("url:"):
                 errors.append(f"duplicate identifier {i}: {seen[i]} and {r['id']}")

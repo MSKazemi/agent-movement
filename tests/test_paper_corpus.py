@@ -107,10 +107,6 @@ def test_check_allows_shared_url_without_shared_identifier():
     assert pc.check([a, b]) == []
 
 
-@pytest.mark.xfail(strict=True, raises=KeyError,
-                   reason="BUG: check() calls ident(r), which indexes r['doi'] / r['arxiv_id'] / r['url'] "
-                          "after validate(); a record missing one of them crashes with KeyError instead of "
-                          "being reported")
 def test_check_reports_missing_doi_instead_of_crashing():
     r = paper_final()
     del r["doi"]
@@ -192,10 +188,6 @@ def test_merge_prefers_published_peer_reviewed_version(paper_out, tmp_path, orde
     assert excl[0]["publication_type"] == "preprint"
 
 
-@pytest.mark.xfail(strict=True,
-                   reason="GAP vs docs/paper-corpus/README.md (exclusion criteria): 'the published version "
-                          "was kept and its arXiv ID retained'. merge() keeps the published record as-is and "
-                          "does not carry the preprint's arxiv_id over when the published record lacks one")
 def test_merge_retains_preprint_arxiv_id_on_published_version(paper_out, tmp_path):
     preprint = paper_raw(**PREPRINT)
     published = paper_raw(arxiv_id="", doi="10.1145/3700000.1")
@@ -286,9 +278,6 @@ def test_to_bib_escapes_and_marks_non_peer_reviewed():
     assert "not peer reviewed" not in pc.to_bib(paper_final())
 
 
-@pytest.mark.xfail(strict=True, raises=ValueError,
-                   reason="BUG: build() computes min()/max() over an empty corpus for year_range, so a merge "
-                          "that excludes every candidate (or an empty papers.jsonl) crashes with ValueError")
 def test_build_handles_empty_corpus(paper_out):
     write_jsonl(paper_out / "papers.jsonl", [])
     pc.build()

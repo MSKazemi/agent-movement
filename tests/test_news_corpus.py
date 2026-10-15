@@ -86,9 +86,6 @@ def test_check_reports_duplicate_url_after_normalisation():
     assert any(e.startswith("duplicate url") for e in errs), errs
 
 
-@pytest.mark.xfail(strict=True, raises=KeyError,
-                   reason="BUG: check() indexes r['url'] for the duplicate-URL pass after validate(); "
-                          "a record missing 'url' crashes with KeyError instead of being reported")
 def test_check_reports_missing_url_instead_of_crashing():
     r = news_final()
     del r["url"]
@@ -261,9 +258,6 @@ def test_bib_escape_special_characters():
     assert nc.bib_escape("a~b^c") == r"a\textasciitilde{}b\textasciicircum{}c"
 
 
-@pytest.mark.xfail(strict=True,
-                   reason="BUG: bib_escape replaces '\\' with '\\textbackslash{}' BEFORE escaping braces, "
-                          "so the braces it just inserted are escaped too, yielding '\\textbackslash\\{\\}'")
 def test_bib_escape_backslash():
     assert nc.bib_escape("C:\\path") == r"C:\textbackslash{}path"
 
@@ -287,9 +281,6 @@ def test_to_bib_without_authors_uses_braced_corporate_author():
     assert r"  author = {{Smith \& Sons}}," in bib
 
 
-@pytest.mark.xfail(strict=True, raises=ValueError,
-                   reason="BUG: build() computes min()/max() over an empty corpus for date_range, so a merge "
-                          "that excludes every candidate (or an empty news.jsonl) crashes with ValueError")
 def test_build_handles_empty_corpus(news_out):
     write_jsonl(news_out / "news.jsonl", [])
     nc.build()
