@@ -18,11 +18,12 @@ NEWS_MERGE  = $(PYTHON) tools/news_corpus.py merge $(NEWS_RAW) --target 100 --ma
 PAPER_MERGE = $(PYTHON) tools/paper_corpus.py merge $(PAPER_RAW)
 # Later rounds are appended in order so published AMP- IDs stay pinned (see paper README §6).
 PAPER_APPEND = $(PYTHON) tools/paper_corpus.py append $(PAPER_DIR)/raw/round2.jsonl --round round2
+PAPER_AUDIT2 = $(PYTHON) tools/paper_corpus.py apply-audit $(PAPER_DIR)/audit-round2.jsonl
 
 .DEFAULT_GOAL := all
-.PHONY: all help check build verify-determinism test bib
+.PHONY: all help check build analysis verify-analysis verify-determinism test bib
 
-all: check verify-determinism test bib ## Run every gate
+all: check verify-determinism verify-analysis test bib ## Run every gate
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-20s %s\n", $$1, $$2}'
@@ -37,6 +38,7 @@ build: ## Rebuild both corpora in place from raw/ + screening + audit (as docume
 	$(PAPER_MERGE)
 	$(PYTHON) tools/paper_corpus.py apply-audit $(PAPER_DIR)/audit.jsonl
 	$(PAPER_APPEND)
+	$(PAPER_AUDIT2)
 
 verify-determinism: ## Rebuild both corpora into a temp dir and require byte-identical output
 	@set -e; tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
@@ -46,6 +48,7 @@ verify-determinism: ## Rebuild both corpora into a temp dir and require byte-ide
 	$(PAPER_MERGE) --out "$$tmp/papers" >/dev/null; \
 	$(PYTHON) tools/paper_corpus.py apply-audit $(PAPER_DIR)/audit.jsonl --out "$$tmp/papers" >/dev/null; \
 	$(PAPER_APPEND) --out "$$tmp/papers" >/dev/null; \
+	$(PAPER_AUDIT2) --out "$$tmp/papers" >/dev/null; \
 	fail=0; \
 	for f in $(NEWS_GEN); do \
 	  if cmp -s "$$tmp/news/$$f" "$(NEWS_DIR)/$$f"; then echo "identical  $(NEWS_DIR)/$$f"; \
@@ -57,6 +60,18 @@ verify-determinism: ## Rebuild both corpora into a temp dir and require byte-ide
 	done; \
 	if [ $$fail -ne 0 ]; then echo "verify-determinism: committed corpus does not match a fresh rebuild (run 'make build')"; exit 1; fi; \
 	echo "verify-determinism: ok (both corpora reproduce byte for byte)"
+
+analysis: ## Regenerate docs/corpus-analysis/ from both corpora
+	$(PYTHON) tools/corpus_analysis.py
+
+verify-analysis: ## Require docs/corpus-analysis/ to match a fresh regeneration
+	@set -e; tmp=$$(mktemp -d docs/.verify-analysis.XXXXXX); trap 'rm -rf "$$tmp"' EXIT; \
+	$(PYTHON) tools/corpus_analysis.py --out "$$tmp" >/dev/null; \
+	fail=0; for f in timeline.md coverage.md; do \
+	  cmp -s "$$tmp/$$f" "docs/corpus-analysis/$$f" || { diff -u "docs/corpus-analysis/$$f" "$$tmp/$$f" | head -40; fail=1; }; \
+	done; \
+	if [ $$fail -ne 0 ]; then echo "verify-analysis: docs/corpus-analysis is stale (run 'make analysis')"; exit 1; fi; \
+	echo "verify-analysis: ok (timeline.md, coverage.md current)"
 
 test: ## Run pytest if tests/ exists
 	@if [ -d tests ]; then $(PYTHON) -m pytest -q; \
