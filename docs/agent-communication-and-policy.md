@@ -178,7 +178,7 @@ At receiver **repeat** identity, payload, grant, tenant and schema validation ag
 
 ## 5. How this interacts with current protocols
 
-- **A2A 1.0:** provides agent discovery, messages, tasks, artifacts, updates, multiple bindings and authentication/authorization hooks. Its server authorizes requests under local policy. Some Send Message operations *may* support deduplication via messageId; do not assume universal exactly-once behavior. [Specification](https://a2a-protocol.org/v1.0.0/specification/).
+- **A2A 1.0:** provides agent discovery, messages, tasks, artifacts, updates, multiple bindings and authentication/authorization hooks. Its server authorizes requests under local policy. The spec says Send Message operations MAY be idempotent and agents may use `messageId` to detect duplicates; do not assume universal exactly-once behavior. [Specification v1.0.1](https://a2a-protocol.org/v1.0.1/specification/).
 - **MCP 2026-07-28:** exposes structured tools/resources/prompts and an HTTP authorization model. Servers are responsible for validating tool inputs, access controls and rate limits. Treat tools' descriptions/annotations and outputs as untrusted unless trusted independently. [Specification](https://modelcontextprotocol.io/specification/2026-07-28), [tools security](https://modelcontextprotocol.io/specification/2026-07-28/server/tools).
 - **Human/UI plane:** can display approvals, messages and status, but the UI does not replace signed/verified approval records, and absence of a UI does not confer implicit consent.
 - **IAM and policy:** OAuth 2.0 token exchange (RFC 8693), SPIFFE workload identity and OPA/Rego are useful building blocks; none alone implements every control. Grant issuers and verification infrastructure must be operated independently of untrusted agent output.
@@ -250,11 +250,11 @@ These are research problems, not claims of unpublished novelty.
 
 ## Primary sources (verified 2026-10-15)
 
-- [A2A Protocol v1.0.0 specification](https://a2a-protocol.org/v1.0.0/specification/) — messages, tasks, discovery, authn/authz and partial idempotency semantics.
+- [A2A Protocol v1.0.1 specification](https://a2a-protocol.org/v1.0.1/specification/) (v1.0.1 is a bug-fix release of v1.0.0) — messages, tasks, discovery, authn/authz and partial idempotency semantics.
 - [MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) and [MCP tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) — tool boundaries and client/server obligations.
 - [OWASP Top 10 for Agentic Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) — agentic security risks, including inter-agent abuse.
 - [NIST AI Agent Standards Initiative](https://www.nist.gov/artificial-intelligence/ai-agent-standards-initiative) — current interoperability, identity, authorization and security research activity; not a prescriptive communication policy.
 - [OPA policy engine](https://www.openpolicyagent.org/docs) — separation of policy evaluation and enforcement.
 - [RFC 8693 OAuth 2.0 Token Exchange](https://www.rfc-editor.org/rfc/rfc8693) — scoped token exchange primitives.
 - [SPIFFE/SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/) — workload identity building blocks.
-- [OpenTelemetry semantic conventions for generative AI](https://opentelemetry.io/docs/specs/semconv/gen-ai/) — observability vocabulary, not proof of causality or authorization.
+- [OpenTelemetry semantic conventions for generative AI](https://github.com/open-telemetry/semantic-conventions-genai) (moved out of opentelemetry.io; status Development) — observability vocabulary, not proof of causality or authorization.
