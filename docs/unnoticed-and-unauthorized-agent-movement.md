@@ -192,14 +192,14 @@ For each trial, publish an event timeline, permitted/blocked decision, independe
 
 ## Verified starting references (research, not endorsements)
 
-- [OWASP Top 10 for Agentic Applications](https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/) — ASI01 goal hijack, ASI02 tool misuse, ASI03 identity abuse, ASI04 supply-chain, ASI05 unexpected execution, ASI07 inter-agent communication, ASI10 rogue agents.
+- [OWASP Top 10 for Agentic Applications](https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/) (2025-12-09) — ASI01 Agent Goal Hijack, ASI02 Tool Misuse, ASI03 Identity & Privilege Abuse, ASI04 Agentic Supply Chain Vulnerabilities, ASI05 Unexpected Code Execution, ASI06 Memory & Context Poisoning, ASI07 Insecure Inter-Agent Communication, ASI08 Cascading Failures, ASI09 Human-Agent Trust Exploitation, ASI10 Rogue Agents.
 - [OWASP Agentic AI Threats and Mitigations](https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/) — security threats and controls taxonomy.
 - [MITRE ATT&CK: Cloud Services (T1021.007)](https://attack.mitre.org/techniques/T1021/007/) — adversary movement through valid cloud accounts/API credentials, with mitigations and detection strategies.
 - [MITRE ATT&CK: SSH (T1021.004)](https://attack.mitre.org/techniques/T1021/004/) — remote-service lateral-movement taxonomy; not agent-specific.
 - [A2A v1.0.1 specification](https://a2a-protocol.org/v1.0.1/specification/) — agent messaging, discovery, task and security metadata; does not confer trust automatically.
 - [A2A enterprise-ready security guidance](https://a2a-protocol.org/v1.0.1/topics/enterprise-ready/) — TLS, authentication and authorization.
 - [MCP spec 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) and [maintainers' release notes](https://blog.modelcontextprotocol.io/posts/2026-07-28/) — tool connection and authorization changes; not universal agent migration.
-- [RFC 8693 OAuth Token Exchange](https://www.rfc-editor.org/rfc/rfc8693), [SPIFFE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/), [OpenTelemetry GenAI conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
+- [RFC 8693 OAuth Token Exchange](https://www.rfc-editor.org/rfc/rfc8693), [SPIFFE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/), [OpenTelemetry GenAI conventions](https://github.com/open-telemetry/semantic-conventions-genai) (moved out of opentelemetry.io; status Development).
 
 **Evidence discipline:** OWASP describes classes of observed and emerging vulnerabilities; MITRE describes real adversary techniques. Neither proves that every AI agent can spread autonomously. A controlled test is required before the repo can claim detection efficacy, revocation completeness or a functioning movement implementation.
 
