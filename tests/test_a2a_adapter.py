@@ -7,6 +7,7 @@ The destination worker always runs as a separate OS process.
 import asyncio
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,16 @@ from test_core import fixture
 
 HAVE_A2A = all(importlib.util.find_spec(name) is not None for name in ("a2a", "uvicorn", "httpx"))
 SKIP_REASON = "optional A2A extra not installed (pip install -e '.[a2a]')"
+
+
+def child_env():
+    """Environment for `python -m agent_movement...` children when the package is not installed.
+
+    pytest's `pythonpath` setting reaches only the test process, so main's corpus CI job
+    (pytest only, no install) needs src/ on the child's PYTHONPATH.
+    """
+    src = str(Path(__file__).resolve().parents[1] / "src")
+    return {**os.environ, "PYTHONPATH": os.pathsep.join(p for p in (src, os.environ.get("PYTHONPATH")) if p)}
 
 
 def envelope(movement, key, kind="word_count", text="one two three", approval="approval-1"):
@@ -39,7 +50,7 @@ class A2AAdapterTests(unittest.TestCase):
         cls.server = subprocess.Popen([
             sys.executable, "-m", "agent_movement.a2a_server", "--db", str(cls.db),
             "--task-id", "task-1", "--approval", "approval-1", "--kind", "word_count",
-        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=child_env())
         line = cls.server.stdout.readline()
         if not line:
             cls.server.kill()
@@ -208,7 +219,7 @@ class A2AAdapterTests(unittest.TestCase):
 class A2AOptionalTests(unittest.TestCase):
     def test_demo_reports_missing_extra(self):
         done = subprocess.run([sys.executable, "-m", "agent_movement.a2a_demo"],
-                              capture_output=True, text=True, timeout=60)
+                              capture_output=True, text=True, timeout=60, env=child_env())
         self.assertEqual(done.returncode, 2)
         self.assertIn("pip install -e '.[a2a]'", done.stderr)
 
