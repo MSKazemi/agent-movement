@@ -101,7 +101,7 @@ Use stable, versioned field meanings and verify the sender against the receiving
   "movement_id": "mov-example-051",
   "parent_movement_id": null,
   "lineage_relation": "delegate",
-  "source": {
+  "origin": {
     "workload_principal": "spiffe://example.test/agent/a",
     "execution_id": "run-example-a-1"
   },

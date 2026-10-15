@@ -63,29 +63,34 @@ The demo outputs a completed task, an idempotent replay, a denied unapproved req
 
 ## Read the research
 
-- [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md)
-- [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
+Suggested reading order:
+
+1. [Agent movement vs copy, clone, replication and multiplication: status audit](docs/agent-movement-vs-copy-replication-multiplication.md): vocabulary, and what is (not) implemented
+2. [Glossary: 70 terms, each tagged as standard, research or project working definition](docs/glossary.md)
+3. [Research landscape and technology comparison](docs/research-landscape.md): what A2A, MCP, LangGraph, Temporal and others do and do not solve
+4. [Standards and protocol version tracker (28 specs, primary sources, checked 2026-10-16)](docs/standards-tracker.md) · [CSV](data/standards-tracker.csv)
+5. [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
+6. [Agent lifecycle, liveness, death and safe retirement (proposed model)](docs/agent-lifecycle-liveness-and-death.md)
+7. [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
+8. [Security, privacy, and threat model](docs/security-and-trust.md)
+9. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
+10. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
+11. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
+12. [Proposed architecture and staged roadmap](docs/roadmap.md)
+13. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
+14. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
+15. [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
+16. [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
+17. [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
+18. [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md)
+
+Experimental code (synthetic, local, not production):
+
 - [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md)
 - [Optional A2A v1 adapter on the official SDK: delegation, not migration; experimental, unauthenticated](docs/a2a-adapter.md)
-- [Same-runtime checkpoint relocation (pinned LangGraph) with a 30-row crash/duplicate fault matrix](docs/checkpoint-relocation.md) (optional extra: `pip install -e '.[relocation]'`)
-- [Research landscape and technology comparison](docs/research-landscape.md)
-- [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
-- [Agent lifecycle, liveness, death and safe retirement (proposed model)](docs/agent-lifecycle-liveness-and-death.md)
-- [Open technical and product questions](docs/open-questions.md)
-- [Proposed architecture and staged roadmap](docs/roadmap.md)
-- [Security, privacy, and threat model](docs/security-and-trust.md)
 - [Peer authentication and pre-disclosure authorization (synthetic, local; `python -m agent_movement.peer_demo`)](docs/peer-authentication.md)
-- [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md)
+- [Same-runtime checkpoint relocation (pinned LangGraph) with a 30-row crash/duplicate fault matrix](docs/checkpoint-relocation.md) (optional extra: `pip install -e '.[relocation]'`)
 - [Signed movement receipts and offline forensic verifier (experimental, synthetic fixtures)](docs/movement-receipts.md)
-- [Primary sources and dated research notes](docs/sources.md)
-- [Standards and protocol version tracker (28 specs, primary sources, checked 2026-10-16)](docs/standards-tracker.md) · [CSV](data/standards-tracker.csv)
-- [Glossary: 70 terms, each tagged as standard, research or project working definition](docs/glossary.md)
-- [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
-- [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
-- [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
-- [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
-- [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
-- [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md)
 
 ## Executable human-impact research pilot (stacked PR)
 
@@ -109,7 +114,7 @@ See [local implementation](docs/local-implementation.md) and [roadmap](docs/road
 
 ## Contribute
 
-Research corrections, protocol compatibility experiments, concrete failure modes, and reproducible benchmarks are especially welcome. Distinguish **verified protocol behavior** from **proposed project design** and link to primary sources. No credentials, private conversations, or confidential task payloads should ever be committed.
+Research corrections, protocol compatibility experiments, concrete failure modes, and reproducible benchmarks are especially welcome. Distinguish **verified protocol behavior** from **proposed project design** and link to primary sources; add any new citation to [docs/sources.md](docs/sources.md). No credentials, private conversations, or confidential task payloads should ever be committed.
 
 **License:** Not selected. Until a license is added by the repository owner, do not assume this repository grants open-source reuse rights.
 
