@@ -20,12 +20,12 @@
 - [gRPC core concepts](https://grpc.io/docs/what-is-grpc/core-concepts/)
 - [RFC 8831 WebRTC DataChannels](https://www.rfc-editor.org/rfc/rfc8831), [RFC 8445 ICE](https://www.rfc-editor.org/rfc/rfc8445), [RFC 8656 TURN](https://www.rfc-editor.org/rfc/rfc8656)
 - [RFC 6762 mDNS](https://www.rfc-editor.org/rfc/rfc6762), [RFC 6763 DNS-SD](https://www.rfc-editor.org/rfc/rfc6763)
-- [libp2p concepts](https://docs.libp2p.io/concepts/), [WireGuard overview](https://www.wireguard.com/)
+- [libp2p documentation](https://libp2p.io/docs/), [WireGuard overview](https://www.wireguard.com/)
 
 ## Messaging, constrained devices and robotics
 
 - [OASIS MQTT 5.0 standard](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
-- [OASIS AMQP 1.0](https://www.oasis-open.org/standard/amqp-v1-0/)
+- [OASIS AMQP 1.0](https://docs.oasis-open.org/amqp/core/v1.0/os/amqp-core-overview-v1.0-os.html)
 - [NATS JetStream](https://docs.nats.io/nats-concepts/jetstream)
 - [Apache Kafka documentation](https://kafka.apache.org/documentation/)
 - [RFC 7252 CoAP](https://www.rfc-editor.org/rfc/rfc7252)
@@ -42,7 +42,7 @@
 - [RFC 8705 OAuth mTLS](https://www.rfc-editor.org/rfc/rfc8705), [RFC 9449 DPoP](https://www.rfc-editor.org/rfc/rfc9449)
 - [SPIFFE/SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/)
 - [Open Policy Agent](https://www.openpolicyagent.org/docs)
-- [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+- [OpenTelemetry GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai) (moved out of opentelemetry.io; status Development)
 
 ## Evidence grading
 
