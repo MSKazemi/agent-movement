@@ -18,3 +18,7 @@ jobs:
       - run: python -m pip install -e .
       - run: python -m unittest discover -s tests -v
       - run: python -m agent_movement.demo
+      # Signed movement receipts (#11): rerun with the optional Ed25519 extra, then verify fixtures offline.
+      - run: python -m pip install -e ".[signing]"
+      - run: python -m unittest discover -s tests -v
+      - run: python -m agent_movement.receipts verify tests/fixtures/movement-receipts/01-valid-delegation
