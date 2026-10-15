@@ -1,6 +1,6 @@
 # Sources and evidence log
 
-Reviewed on **2026-10-15**. This is a selective standards/documentation survey, not a comprehensive systematic review. Verify specific upstream release dates and implementation behavior before claiming conformance. All architecture and envelope design in this repository are **proposals**.
+Reviewed on **2026-10-15**; links and corpus counts fact-checked 2026-10-16. This is a selective standards/documentation survey, not a comprehensive systematic review. Verify specific upstream release dates and implementation behavior before claiming conformance. All architecture and envelope design in this repository are **proposals**.
 
 | Topic | Primary source | Evidence scope |
 |---|---|---|
@@ -33,7 +33,7 @@ Reviewed on **2026-10-15**. This is a selective standards/documentation survey, 
 
 ## Paper corpus
 
-Scholarly papers (75 items, 1980–2026), including the classic mobile-agent, process-migration and delegation literature, are collected and independently audited in [paper-corpus/](paper-corpus/README.md). Each paper has a DOI and/or arXiv ID, a peer-review flag, a paraphrased summary and a biblatex entry in [papers.bib](paper-corpus/papers.bib).
+Scholarly papers (75 items, 1980–2026), including the classic mobile-agent, process-migration and delegation literature, are collected and independently audited in [paper-corpus/](paper-corpus/README.md). 73 of the 75 papers have a DOI and/or arXiv ID (the other two, a USENIX NSDI 2005 paper and an OpenAI white paper, are identified by their canonical URL); each has a peer-review flag, a paraphrased summary and a biblatex entry in [papers.bib](paper-corpus/papers.bib).
 
 ## News corpus
 
