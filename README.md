@@ -57,6 +57,7 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 - [Open technical and product questions](docs/open-questions.md)
 - [Proposed architecture and staged roadmap](docs/roadmap.md)
 - [Security, privacy, and threat model](docs/security-and-trust.md)
+- [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md)
 - [Primary sources and dated research notes](docs/sources.md)
 - [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
 
