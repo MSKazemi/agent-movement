@@ -76,6 +76,18 @@ The demo outputs a completed task, an idempotent replay, a denied unapproved req
 - [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
 - [Paper corpus: 75 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
 
+## Executable human-impact research pilot (stacked PR)
+
+The [human-impact research lab protocol](docs/human-impact-research-lab.md) maps real-world questions about control, identity, privacy, accountability, replication and task continuity onto falsifiable **synthetic** experiments. When the prototype is available, run:
+
+~~~sh
+python -m pip install -e .
+python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
+python -m unittest discover -s tests -v
+~~~
+
+The local smoke suite currently models 20 cases. **Seventeen checks reproduce their expected narrow behavior; three are marked known gaps, not security successes.** This is not A2A, trusted peer identity, portable live state or a production system. See the experiment protocol for limits and next steps.
+
 ## Recommended initial experiment
 
 The local non-destructive **non-A2A** task handoff and deduplication test is now implemented on the feature branch. Next, implement an **actual A2A v1.x SDK-based** interaction between two independent test agents with capability discovery and authorization *before input disclosure*. After that, test crash recovery and same-runtime checkpoint relocation before claiming agent migration.
