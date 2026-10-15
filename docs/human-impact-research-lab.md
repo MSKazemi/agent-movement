@@ -59,7 +59,7 @@ This is a **single small deterministic engineering check**, not a statistically 
 - **Identity before disclosure:** the receiver sees the task message before its local policy validation. An allowed-looking origin string is not a cryptographic identity.
 - **End-to-end revocation:** the simulated gateway enforces ownership epochs, but does not independently recheck the original user's grant at commit.
 - **Privacy across trust domains:** rejection of an unsupported classification does not mean a remote server never received it.
-- **Independent incident reconstruction:** unsiged digests and logs are neither complete nor proof of the truth of an agent's claims.
+- **Independent incident reconstruction:** unsigned digests and logs are neither complete nor proof of the truth of an agent's claims.
 - **Real agent migration:** reopening an artifact receipt is not restoring hidden chain-of-thought, a live process stack or a framework checkpoint.
 - **Exactly-once arbitrary effects:** the simulator's in-transaction idempotency does not extend to non-cooperating third-party APIs.
 - **Real-world human impact:** there are no clinical, employment, educational or social outcome trials here.
