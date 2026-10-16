@@ -61,7 +61,8 @@ class Command:
 
 
 COMMANDS: dict[str, Command] = {c.name: c for c in (
-    Command("demo", "agent_movement.demo:main", "core loopback handoff, replay, denial and stale-epoch fencing",
+    Command("demo", "agent_movement.demo:main",
+            "core loopback handoff, replay, denial, runtime revocation and stale-epoch fencing",
             "agent_movement.demo"),
     Command("a2a-demo", "agent_movement.a2a_demo:main", "A2A v1 delegation demo on the official a2a-sdk",
             "agent_movement.a2a_demo", extra="a2a"),
