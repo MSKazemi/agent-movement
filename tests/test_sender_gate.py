@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from agent_movement.core import ContractError
+from agent_movement.egress_sandbox import supported
 from agent_movement.peer import CARD_PATH, PREFLIGHT_PATH, HandoffAborted
 from agent_movement.sender_gate import OutboundGate
 from agent_movement.trust import HS256, Unauthorized
@@ -68,16 +69,9 @@ def test_positive_sender_authorization_retains_receiver_effect_checks(world):
     assert len(world.receiver.ledger.effects()) == 1
 
 
-@pytest.mark.skipif(
-    __import__("sys").platform != "linux",
-    reason="independent seccomp experiment requires Linux x86_64",
-)
+@pytest.mark.skipif(not supported(), reason="independent seccomp experiment requires Linux x86_64")
 def test_independent_process_broker_obeys_operator_sender_gate(world):
     from agent_movement.egress_lab import run_guarded_agent
-    from agent_movement.egress_sandbox import supported
-
-    if not supported():
-        pytest.skip("only the Linux x86_64 ABI is covered")
 
     probe = Path(__file__).resolve().parents[1] / "src/agent_movement/egress_probe.py"
     bad = policy(world, destinations={("agent-b", "local://other")})
