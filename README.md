@@ -89,7 +89,7 @@ Suggested reading order:
 13. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
 14. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
 15. [Proposed architecture and staged roadmap](docs/roadmap.md)
-16. [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md)
+16. [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md) · [Evaluation plan for reference tasks EV-A, EV-B and EV-C (design only, no results)](docs/evaluation-plan.md)
 17. [2031 frontier: 20 visionary research questions and four testable studies](docs/2031-frontier-research-agenda.md)
 18. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
 19. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))

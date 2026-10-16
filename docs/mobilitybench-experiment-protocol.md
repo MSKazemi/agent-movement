@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-15. **Status:** Proposed study plan, not yet registered or frozen; no benchmark scores have been measured.  
 **Purpose:** Test, rather than assume, the benefit, safety and semantic fidelity of moving an AI agent's work. Companion to [strategy](strategic-target-and-scientific-agenda.md) and [open questions](open-questions.md).
-**Implementation note (2026-10-16):** a first executable, LLM-free pilot with frozen, digest-verified synthetic fixtures and the keep / restart / local-delegate baselines is documented in [MobilityBench v0.1: frozen task-continuity baselines](mobilitybench-v0.1.md). The study plan below, including the A2A, relocation and reconstruction arms, remains a proposal.
+**Implementation note (2026-10-16):** a first executable, LLM-free pilot with frozen, digest-verified synthetic fixtures and the keep / restart / local-delegate baselines is documented in [MobilityBench v0.1: frozen task-continuity baselines](mobilitybench-v0.1.md). The study plan below, including the A2A, relocation and reconstruction arms, remains a proposal. The [evaluation plan for reference tasks EV-A, EV-B and EV-C](evaluation-plan.md) (design only, no results) adds the single-agent tool-use task, the deterministic non-agent baseline and the human-intervention metric.
 
 ## Research questions
 
