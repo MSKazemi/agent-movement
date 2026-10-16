@@ -3,7 +3,7 @@
 **Status:** **Proposed methodology. No results.** This document has no measured costs, prices, savings or return on investment for any system. Every formula below is a measurement plan, and the only worked numbers are labelled **synthetic** parameters.
 **Date:** 2026-10-16. Web sources were accessed on 2026-10-16. Corpus items are cited by ID (`AMP-xxx` = [paper corpus](paper-corpus/README.md), `AMN-xxx` = [news corpus](news-corpus/README.md)).
 **Tracks:** [issue #36](https://github.com/MSKazemi/agent-movement/issues/36), which covers research question 8 of [issue #1](https://github.com/MSKazemi/agent-movement/issues/1): *"How do you measure end-to-end economic value including review cost and incidents?"*
-**Depends on:** MobilityBench v0.1, which is not yet on `main`. The links to [`mobilitybench-v0.1.md`](mobilitybench-v0.1.md), [`mobilitybench-experiment-protocol.md`](mobilitybench-experiment-protocol.md) and [`checkpoint-relocation.md`](checkpoint-relocation.md) resolve after that work is merged. §5 is marked for re-verification.
+**Depends on:** [MobilityBench v0.1](mobilitybench-v0.1.md), its [experiment protocol](mobilitybench-experiment-protocol.md) and [checkpoint relocation](checkpoint-relocation.md), all on `main`. The record fields in §5 were verified against `src/agent_movement` on `main`.
 **Related questions:** [AM-14 and AM-15, and "Economic scheduling"](open-questions.md); the "Cost per completed task" metric in the [roadmap](roadmap.md#proposed-benchmark-metrics).
 
 ## Executive answer
@@ -100,7 +100,7 @@ If P_m ≤ P_b and C_m ≥ C_b, then *m* is dominated. The analysis reports **V\
 
 ## 4. Arms (baselines)
 
-| Arm | Definition | Where each arm is expected to pay (hypotheses to test, not findings) | Status on `integration` |
+| Arm | Definition | Where each arm is expected to pay (hypotheses to test, not findings) | Status on `main` |
 | --- | --- | --- | --- |
 | **B0 keep** | origin finishes, nothing moves | no transfer; under pre-emption the attempt is incomplete, so T7 is the fallback cost | implemented |
 | **B1 restart** | destination starts again from the original request | T1 re-execution; T6 rework from lost session context and duplicated effects; T5 when lost policies are violated | implemented |
@@ -114,7 +114,7 @@ B5 answers research question 4 of issue #1 ("Is agent B actually better than a d
 <!-- Field names verified against src/agent_movement on main at b21da27 (2026-10-16). -->
 ## 5. Mapping to MobilityBench record fields
 
-> **Depends on unmerged work.** These fields were read on 2026-10-16 from the local `integration` branch, which is not yet on `main`. Check them again after the merge.
+> **Verified on `main`.** These field names were checked against `src/agent_movement/mobilitybench_v01.py` and `relocation_demo.py` on `main` (2026-10-16). Re-check them when the record schema changes.
 >
 > Sources:
 > - `src/agent_movement/mobilitybench_v01.py`: `METRIC_KEYS` and `run_attempt()` for attempt records; `run_suite()` for the `run_manifest` record; `run_security_cases()` for `security` records.
