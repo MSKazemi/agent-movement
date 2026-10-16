@@ -21,6 +21,8 @@ An origin agent transfers a **specific task or resumable boundary** to a destina
 
 ## Canonical handoff envelope (`0.2.0-draft`)
 
+**Version compatibility decision:** the live runtime accepts only `0.1.0-draft`; the canonical `0.2.0-draft` remains unimplemented on the wire. See [explicit negotiation, field crosswalk, strict offline projection and reproducible tests](handoff-contract-versioning.md). The package version does not imply wire support.
+
 **Status:** a project proposal, not a published or interoperable wire standard. This section is the **single owner** of the handoff envelope: its name, version, field table and JSON Schema ([`schemas/handoff-envelope.schema.json`](../schemas/handoff-envelope.schema.json)). The [protocol guide's contract](protocols-and-networks/handoff-and-relocation-contract.md#canonical-envelope-and-relocation-profile) and the [communication policy](agent-communication-and-policy.md#envelope-for-delegate-and-move-messages) reference it and add only the constraints listed there; they do not define envelopes of their own. Only a strict subset is implemented (see [Divergences from the implemented contract](#divergences-from-the-implemented-contract)).
 
 **Name.** "Handoff envelope" is the single name. "Task envelope", "versioned envelope", "movement envelope" and "portable handoff envelope" refer to this envelope and are retired as names ([glossary](glossary.md), deferred decision T6 of issue #45).
