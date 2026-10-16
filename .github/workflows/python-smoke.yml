@@ -129,6 +129,8 @@ jobs:
         run: python -m agent_movement.a2a_demo
       - name: Checkpoint relocation demo (pinned LangGraph, 30-row fault matrix)
         run: python -m agent_movement.relocation_demo --json relocation-results.json
+      - name: Checkpoint relocation demo, two stores (digest-verified bundle copy, 11-row copy fault matrix)
+        run: python -m agent_movement.relocation_demo --two-store --json relocation-two-store-results.json
       - name: Unified agent-movement CLI, every subcommand with its extra
         run: |
           agent-movement version
@@ -159,6 +161,8 @@ jobs:
         if: always()
         with:
           name: relocation-results-python-${{ matrix.python-version }}
-          path: relocation-results.json
+          path: |
+            relocation-results.json
+            relocation-two-store-results.json
           if-no-files-found: ignore
           retention-days: 7
