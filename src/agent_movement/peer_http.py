@@ -47,7 +47,7 @@ def make_peer_server(receiver: PeerReceiver | None = None, port: int = 0) -> Loc
             self.respond(*server.receiver.handle("POST", self.path, self.rfile.read(size)))
 
     server = LocalServer(("127.0.0.1", port), Handler)
-    server.receiver = receiver  # type: ignore[attr-defined]
+    server.receiver = receiver
     return server
 
 

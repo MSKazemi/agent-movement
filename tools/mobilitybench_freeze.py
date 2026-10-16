@@ -22,9 +22,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from agent_movement.mobilitybench_v01 import (FIXTURE_ROOT, MANIFEST_NAME, SUITE_SPECS,  # noqa: E402
-                                              build_ground_truth, file_digests, load_fixtures,
-                                              release_digest, schedule_rows)
+from agent_movement.mobilitybench_v01 import (
+    FIXTURE_ROOT,
+    MANIFEST_NAME,
+    SUITE_SPECS,
+    build_ground_truth,
+    file_digests,
+    load_fixtures,
+    release_digest,
+    schedule_rows,
+)
 
 
 def _sync(path: Path, text: str, check: bool) -> bool:

@@ -29,8 +29,9 @@ import subprocess
 import sys
 import tempfile
 import urllib.request
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any
 
 from .a2a_profile import EXTENSION_URI, LEGACY_EXTENSION_URI
 from .core import SCHEMA_VERSION, SQLiteStore
@@ -58,7 +59,7 @@ def run_client(root: Path, url: str, name: str, envelope: dict[str, Any], *extra
     path.write_text(json.dumps(envelope), "utf-8")
     done = subprocess.run([sys.executable, "-m", "agent_movement.a2a_client", "--url", url,
                            "--envelope", str(path), *extra],
-                          capture_output=True, text=True, timeout=60)
+                          capture_output=True, text=True, timeout=60, check=False)
     if not done.stdout.strip():
         raise SystemExit(f"client {name} produced no output (exit {done.returncode}): {done.stderr[-2000:]}")
     return {"exit_code": done.returncode, **json.loads(done.stdout.strip().splitlines()[-1])}
@@ -159,7 +160,8 @@ def main(argv: Sequence[str] = ()) -> None:
             if not line:
                 raise SystemExit("A2A server failed to start: " + (server.stderr.read() if server.stderr else ""))
             url = json.loads(line)["url"]
-            with urllib.request.urlopen(url + "/.well-known/agent-card.json", timeout=10) as response:
+            # url is the loopback address the demo server it just started printed.
+            with urllib.request.urlopen(url + "/.well-known/agent-card.json", timeout=10) as response:  # noqa: S310
                 card = json.load(response)
             results = {
                 "first": run_client(root, url, "first", demo_envelope()),

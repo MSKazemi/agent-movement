@@ -26,14 +26,27 @@ import os
 import sqlite3
 import sys
 import tempfile
+from collections.abc import Callable
 from contextlib import closing
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from .core import EffectGateway, SQLiteStore
-from .relocation import (CRASH_EXIT, EXPORTED_STATE, PINNED_RUNTIME, UNSUPPORTED_STATE, Coordinator,
-                         EffectLedger, Faults, Worker, effect_payload, init_store, local_profile,
-                         observe, runtime_versions)
+from .relocation import (
+    CRASH_EXIT,
+    EXPORTED_STATE,
+    PINNED_RUNTIME,
+    UNSUPPORTED_STATE,
+    Coordinator,
+    EffectLedger,
+    Faults,
+    Worker,
+    effect_payload,
+    init_store,
+    local_profile,
+    observe,
+    runtime_versions,
+)
 
 TASK = "task-report-1"
 EFFECT_ID = "publish-report"
@@ -65,7 +78,7 @@ def run_actor(action: Callable[[], Any]) -> dict[str, Any]:
         code = 0
         try:
             outcome = {"ok": True, "value": action()}
-        except BaseException as exc:  # report every failure to the parent as data
+        except BaseException as exc:  # noqa: BLE001 - report every failure to the parent as data
             code = 0 if type(exc).__name__ in DENIED else 1
             outcome = {"ok": False, "error": type(exc).__name__, "message": str(exc),
                        "report": getattr(exc, "report", None)}
@@ -117,31 +130,31 @@ class Run:
         return self.act("A starts and runs 3 supersteps", lambda: Worker(path, "worker-a").start(
             TASK, ITEMS, constraints(tool), max_supersteps=supersteps))
 
-    def export(self, movement: str = "move-1", to: str = "worker-b.1", crash: str | None = None):
+    def export(self, movement: str = "move-1", to: str = "worker-b.1", crash: str | None = None) -> dict[str, Any]:
         path = self.path
         return self.act(f"A exports {movement}", lambda: Worker(
             path, "worker-a", faults=Faults(crash)).attach(TASK, 1).export(movement, to))
 
     def transfer(self, movement: str = "move-1", profile: dict[str, Any] | None = None,
-                 crash: str | None = None):
+                 crash: str | None = None) -> dict[str, Any]:
         path = self.path
         return self.act(f"coordinator transfers {movement}", lambda: Coordinator(
             path, Faults(crash)).transfer(movement, profile or local_profile()))
 
     def accept(self, worker: str = "worker-b", incarnation: int = 1, movement: str = "move-1",
-               crash: str | None = None):
+               crash: str | None = None) -> dict[str, Any]:
         path = self.path
         return self.act(f"{worker}.{incarnation} accepts {movement}", lambda: Worker(
             path, worker, incarnation, faults=Faults(crash)).accept(movement))
 
     def run(self, worker: str = "worker-b", incarnation: int = 1, epoch: int = 2,
-            supersteps: int | None = None, crash: str | None = None, check: bool = True):
+            supersteps: int | None = None, crash: str | None = None, check: bool = True) -> dict[str, Any]:
         path = self.path
         return self.act(f"{worker}.{incarnation}@{epoch} runs", lambda: Worker(
             path, worker, incarnation, faults=Faults(crash)).attach(TASK, epoch).run(
                 supersteps, check_ownership=check))
 
-    def failover(self, movement: str, to: str):
+    def failover(self, movement: str, to: str) -> dict[str, Any]:
         path = self.path
         return self.act(f"coordinator failover {movement} -> {to}", lambda: Coordinator(path).failover(
             movement, TASK, to, local_profile()))
@@ -188,27 +201,27 @@ def evidence(obs: dict[str, Any]) -> dict[str, Any]:
 # --- scenarios --------------------------------------------------------------
 # Each returns (observed_outcome, recovery_description, final_observation).
 
-def _crash_then(run: Run, crashed: dict[str, Any], recover: Callable[[], None]) -> None:
+def _crash_then(run: Run, crashed: dict[str, Any], recover: Callable[[], object]) -> None:
     if not crashed["crashed"]:
         raise RuntimeError(f"fault did not fire: {run.steps}")
     recover()
 
 
-def c_origin_before_export(run: Run):
+def c_origin_before_export(run: Run) -> tuple[str, dict[str, Any]]:
     run.start_a()
     _crash_then(run, run.export(crash="origin.before_export"), lambda: (
         run.failover("move-1", "worker-b.1"), run.accept(), run.run()))
     return "failover from durable head", run.observe()
 
 
-def c_origin_after_export(run: Run):
+def c_origin_after_export(run: Run) -> tuple[str, dict[str, Any]]:
     run.start_a()
     _crash_then(run, run.export(crash="origin.after_export"), lambda: (
         run.transfer(), run.accept(), run.run()))
     return "coordinator continues recorded request", run.observe()
 
 
-def c_coordinator_before_transfer(run: Run):
+def c_coordinator_before_transfer(run: Run) -> tuple[str, dict[str, Any]]:
     run.start_a()
     run.export()
     _crash_then(run, run.transfer(crash="coordinator.before_transfer"), lambda: (
@@ -216,7 +229,7 @@ def c_coordinator_before_transfer(run: Run):
     return "transaction rolled back; restarted coordinator retries", run.observe()
 
 
-def c_coordinator_after_transfer(run: Run):
+def c_coordinator_after_transfer(run: Run) -> tuple[str, dict[str, Any]]:
     run.start_a()
     run.export()
     _crash_then(run, run.transfer(crash="coordinator.after_transfer"), lambda: (
@@ -224,7 +237,7 @@ def c_coordinator_after_transfer(run: Run):
     return "grant re-delivered from durable record (no 2nd epoch bump)", run.observe()
 
 
-def c_receiver_before_accept(run: Run):
+def c_receiver_before_accept(run: Run) -> tuple[str, dict[str, Any]]:
     run.start_a()
     run.export()
     run.transfer()
@@ -232,7 +245,7 @@ def c_receiver_before_accept(run: Run):
     return "failover worker-b.1 -> worker-b.2 (epoch 3)", run.observe()
 
 
-def c_receiver_after_accept(run: Run):
+def c_receiver_after_accept(run: Run) -> tuple[str, dict[str, Any]]:
     run.start_a()
     run.export()
     run.transfer()
@@ -240,22 +253,22 @@ def c_receiver_after_accept(run: Run):
     return "failover worker-b.1 -> worker-b.2 (epoch 3)", run.observe()
 
 
-def c_checkpoint_before_commit(run: Run):
+def c_checkpoint_before_commit(run: Run) -> tuple[str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     _crash_then(run, run.run(crash="checkpoint.before_commit"), run.recover_to_b2)
     return "failover; LangGraph re-applies durable pending writes", run.observe()
 
 
-def c_checkpoint_after_commit(run: Run):
+def c_checkpoint_after_commit(run: Run) -> tuple[str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     _crash_then(run, run.run(crash="checkpoint.after_commit"), run.recover_to_b2)
     return "failover from B's newer checkpoint", run.observe()
 
 
-def _effect_crash(point: str, note: str):
-    def scenario(run: Run):
+def _effect_crash(point: str, note: str) -> Callable[[Run], tuple[str, dict[str, Any]]]:
+    def scenario(run: Run) -> tuple[str, dict[str, Any]]:
         run.start_a()
         run.relocate()
         _crash_then(run, run.run(crash=point), run.recover_to_b2)
@@ -263,7 +276,7 @@ def _effect_crash(point: str, note: str):
     return scenario
 
 
-def c_ack_after(run: Run):
+def c_ack_after(run: Run) -> tuple[str, dict[str, Any]]:
     run.start_a()
     run.export()
     run.transfer()
@@ -272,12 +285,12 @@ def c_ack_after(run: Run):
 
 
 def _injected(run: Run, label: str, action: Callable[[], Any], expect: str,
-              finish: Callable[[], None]) -> tuple[str, str, dict[str, Any]]:
+              finish: Callable[[], object]) -> tuple[str, str, dict[str, Any]]:
     before = run.observe()
     result = run.act(label, action)
     after = run.observe()
     value = result.get("value")
-    replayed = isinstance(value, dict) and value.get("replayed") is True or value is False
+    replayed = (isinstance(value, dict) and value.get("replayed") is True) or value is False
     if not unchanged(before, after):
         observed = "VIOLATION: state changed"
     elif not result["ok"] and result["error"] in DENIED:
@@ -290,38 +303,41 @@ def _injected(run: Run, label: str, action: Callable[[], Any], expect: str,
     return observed, f"{label} -> {result.get('error') or 'ok'}", run.observe()
 
 
-def d_origin_duplicate(run: Run):
+def d_origin_duplicate(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     path = run.path
-    manifest = Coordinator(path).get("move-1")["manifest_json"]
+    record = Coordinator(path).get("move-1")
+    if record is None:  # relocate() just recorded move-1
+        raise RuntimeError("move-1 was not recorded")
+    manifest = record["manifest_json"]
     return _injected(run, "duplicate request move-1", lambda: Coordinator(path).request(json.loads(manifest)),
-                     "deduplicated", lambda: run.run())
+                     "deduplicated", run.run)
 
 
-def d_origin_stale(run: Run):
+def d_origin_stale(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     return _injected(run, "fenced A exports move-9", lambda: Worker(run.path, "worker-a").attach(
-        TASK, 1).export("move-9", "worker-c.1"), "denied", lambda: run.run())
+        TASK, 1).export("move-9", "worker-c.1"), "denied", run.run)
 
 
-def d_coordinator_duplicate(run: Run):
+def d_coordinator_duplicate(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     return _injected(run, "duplicate transfer move-1", lambda: Coordinator(run.path).transfer(
-        "move-1", local_profile()), "deduplicated", lambda: run.run())
+        "move-1", local_profile()), "deduplicated", run.run)
 
 
-def d_receiver_duplicate(run: Run):
+def d_receiver_duplicate(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     run.run(supersteps=1)
     return _injected(run, "duplicate grant move-1 after B progressed", lambda: Worker(
-        run.path, "worker-b").accept("move-1"), "deduplicated", lambda: run.run())
+        run.path, "worker-b").accept("move-1"), "deduplicated", run.run)
 
 
-def d_receiver_stale(run: Run):
+def d_receiver_stale(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.export()
     run.transfer()
@@ -331,29 +347,29 @@ def d_receiver_stale(run: Run):
         run.path, "worker-b").accept("move-1"), "denied", lambda: run.run("worker-b", 2, 3))
 
 
-def d_checkpoint_partition(run: Run):
+def d_checkpoint_partition(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     return _injected(run, "partitioned A keeps stepping", lambda: Worker(run.path, "worker-a").attach(
-        TASK, 1).run(1, check_ownership=False), "denied", lambda: run.run())
+        TASK, 1).run(1, check_ownership=False), "denied", run.run)
 
 
-def d_intent_stale(run: Run):
+def d_intent_stale(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     return _injected(run, "fenced A records effect intent", lambda: EffectLedger(SQLiteStore(run.path))
                      .record_intent(TASK, EFFECT_ID, "0" * 64, "gateway", "worker-a.1", 1),
-                     "denied", lambda: run.run())
+                     "denied", run.run)
 
 
-def d_commit_stale(run: Run):
+def d_commit_stale(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     return _injected(run, "fenced A commits gated effect", lambda: EffectGateway(SQLiteStore(run.path))
-                     .commit(TASK, "worker-a.1", 1, EFFECT_ID, "stale"), "denied", lambda: run.run())
+                     .commit(TASK, "worker-a.1", 1, EFFECT_ID, "stale"), "denied", run.run)
 
 
-def d_commit_duplicate(run: Run):
+def d_commit_duplicate(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     run.run()
@@ -366,22 +382,23 @@ def d_commit_duplicate(run: Run):
     return _injected(run, "duplicate commit by B (same effect ID)", duplicate, "deduplicated", lambda: None)
 
 
-def d_ack_duplicate(run: Run):
+def d_ack_duplicate(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     return _injected(run, "duplicate ack from worker-b.1", lambda: Coordinator(run.path).acknowledge(
-        "move-1", "worker-b.1", 2), "deduplicated", lambda: run.run())
+        "move-1", "worker-b.1", 2), "deduplicated", run.run)
 
 
-def d_ack_stale(run: Run):
+def d_ack_stale(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     return _injected(run, "stale ack from fenced A", lambda: Coordinator(run.path).acknowledge(
-        "move-1", "worker-a.1", 1), "denied", lambda: run.run())
+        "move-1", "worker-a.1", 1), "denied", run.run)
 
 
-def _mismatch(field: str, change: Callable[[dict[str, Any]], None]):
-    def scenario(run: Run):
+def _mismatch(field: str, change: Callable[[dict[str, Any]], None]
+              ) -> Callable[[Run], tuple[str, str, dict[str, Any], dict[str, Any]]]:
+    def scenario(run: Run) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
         run.start_a()
         run.export()
         profile = local_profile()
@@ -401,7 +418,7 @@ def _mismatch(field: str, change: Callable[[dict[str, Any]], None]):
     return scenario
 
 
-def v_digest_mismatch(run: Run):
+def v_digest_mismatch(run: Run) -> tuple[str, str, dict[str, Any], dict[str, Any]]:
     run.start_a()
     run.export()
     run.transfer()
@@ -492,7 +509,8 @@ MATRIX: list[dict[str, Any]] = [
 
 def row_kind(row: dict[str, Any]) -> str:
     """'crash' rows are judged on the recovered end state, 'inject' rows on the injected message."""
-    return row.get("kind", "crash" if row["id"].startswith("C") else "inject")
+    kind: str = row.get("kind", "crash" if row["id"].startswith("C") else "inject")
+    return kind
 
 
 def classify(row: dict[str, Any], observed: str, obs: dict[str, Any]) -> str:
@@ -587,18 +605,19 @@ def headline(root: str) -> dict[str, Any]:
 
 def headline_ok(h: dict[str, Any]) -> bool:
     runs = h["process_item_runs"]
-    return (h["fenced_a_step"] == "PolicyDenied" and h["fenced_a_commit"] == "PolicyDenied"
+    ok: bool = (h["fenced_a_step"] == "PolicyDenied" and h["fenced_a_commit"] == "PolicyDenied"
             and h["items_by_execution"] == {"worker-a.1": [0, 1, 2], "worker-b.1": [3, 4, 5]}
             and runs["origin worker-a.1"] == 3 and runs["receiver worker-b.1"] == 3
             and runs["restart baseline"] == len(ITEMS) and h["b_first_checkpoint_parent_is_exported"]
             and h["constraints_preserved"] and h["artifacts_from_origin_preserved"]
             and h["word_total"] == EXPECTED_WORDS and h["final_status"] == "done"
             and h["gateway_commits"] == [{"effect_id": EFFECT_ID, "epoch": 2}])
+    return ok
 
 
 def markdown(rows: list[dict[str, Any]]) -> str:
-    lines = ["| ID | Transition | Injected fault | Expected | Observed | Recovery / handling | "
-             "Gated commits | Opaque calls | Item re-exec | Final |",
+    lines = [("| ID | Transition | Injected fault | Expected | Observed | Recovery / handling | "
+              "Gated commits | Opaque calls | Item re-exec | Final |"),
              "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
     for r in rows:
         e = r["evidence"]

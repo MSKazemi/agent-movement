@@ -29,13 +29,15 @@ from __future__ import annotations
 import argparse
 import base64
 import heapq
+import itertools
 import json
 import re
 import sys
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .core import ID, ContractError, parse_json
 from .jcs import CanonicalizationError, canonicalize, jcs_digest
@@ -136,13 +138,13 @@ def parse_time(value: str) -> datetime:
     if not isinstance(value, str) or not TIME.fullmatch(value):
         raise ReceiptError("time must be YYYY-MM-DDTHH:MM:SSZ (UTC)")
     try:
-        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     except ValueError as exc:
         raise ReceiptError("invalid calendar time") from exc
 
 
 def format_time(value: datetime) -> str:
-    return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # --------------------------------------------------------------------------- schema
@@ -243,7 +245,7 @@ def validate_body(body: Any) -> dict[str, Any]:
 
 # --------------------------------------------------------------------------- redaction
 
-def _strings(value: Any):
+def _strings(value: Any) -> Iterator[str]:
     if isinstance(value, str):
         yield value
     elif isinstance(value, dict):
@@ -512,7 +514,7 @@ def verify_notice(raw: bytes, source: str, issuers: dict[str, str]) -> tuple[Not
         notice.reasons.append("signature does not verify over the notice")
         return notice, None
     try:
-        when = datetime.fromtimestamp(payload["revoked_at"], tz=timezone.utc)
+        when = datetime.fromtimestamp(payload["revoked_at"], tz=UTC)
     except (OverflowError, OSError, ValueError):
         notice.reasons.append("revoked_at is out of range")
         return notice, None
@@ -757,12 +759,12 @@ def verify_bundle(bundle: str | Path, trust_path: str | Path | None = None,
     evidence, but only notices signed by an anchored revocation authority are applied.
     """
     bundle = Path(bundle)
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     trust_file = resolve_trust(bundle, trust_path, fixture_trust)
     anchors = load_trust_anchors(trust_file)
     notice_lines = [(f"{REVOCATIONS_FILE}:{n}", raw) for n, raw in _read_lines(bundle / REVOCATIONS_FILE)]
-    for extra in revocations:
-        extra = Path(extra)
+    for name in revocations:
+        extra = Path(name)
         if not extra.is_file():
             raise ReceiptError(f"revocation notice file {extra} not found")
         notice_lines += [(f"{extra.name}:{n}", raw) for n, raw in _read_lines(extra)]
@@ -782,11 +784,12 @@ def verify_bundle(bundle: str | Path, trust_path: str | Path | None = None,
         body = record.body
         problem, earlier = guard.check(body["issuer"]["key_id"], body["nonce"], body["receipt_id"],
                                        record.digest or "", record.index)
-        if problem == "duplicate":
+        # ReplayGuard.check names the earlier record whenever it reports a duplicate or reuse.
+        if problem == "duplicate" and earlier is not None:
             record.verdict = REPLAYED
             record.reasons.append(f"identical receipt already presented at "
                                   f"{records[earlier].file}:{records[earlier].line}")
-        elif problem == "reuse":
+        elif problem == "reuse" and earlier is not None:
             note = "signer reused a nonce or receipt_id for a different body (equivocation)"
             record.notes.append(note)
             records[earlier].notes.append(note)
@@ -871,7 +874,7 @@ def _check_chains(verified: list[Record]) -> list[dict[str, Any]]:
                 if seq > 1 and prev is None:
                     r.notes.append("seq > 1 but no prev_receipt_digest was signed")
         ordered = sorted(by_seq)
-        for low, high in zip(ordered, ordered[1:]):
+        for low, high in itertools.pairwise(ordered):
             if high != low + 1:
                 successor = by_seq[high][0]
                 gaps.append({"key_id": key_id, "principal": successor.key.principal,  # type: ignore[union-attr]
@@ -939,7 +942,7 @@ def _movements(records: list[Record], verified: list[Record]) -> dict[str, Any]:
                 r.conflict("contradictory signed responses for one movement")
         for d in dispatches:
             for r in responses:
-                if d.status != CONFLICTING and r.status != CONFLICTING:
+                if CONFLICTING not in (d.status, r.status):
                     d.grade = r.grade = "E3"
                     d.corroborated_by.append(r.ref)
                     r.corroborated_by.append(d.ref)
@@ -963,7 +966,8 @@ def _movements(records: list[Record], verified: list[Record]) -> dict[str, Any]:
             outcome = _claim(UNKNOWN, note="no verified response from the destination; this is not a failure")
             dest_exec = _claim(UNKNOWN)
 
-        def label(side: str) -> dict[str, Any]:
+        def label(side: str, mine: list[Record] = mine,
+                  claims_only: list[Record] = claims_only) -> dict[str, Any]:
             signed = sorted({r.body[side]["claimed_agent_id"] for r in mine  # type: ignore[index]
                              if r.body[side] and r.body[side]["claimed_agent_id"]})  # type: ignore[index]
             loose = sorted({r.body[side]["claimed_agent_id"] for r in claims_only  # type: ignore[index]
@@ -1016,9 +1020,9 @@ def _effects(verified: list[Record]) -> list[dict[str, Any]]:
                 for t in tool:
                     invoker = t.body["source"]["claimed_principal"] if t.body["source"] else None  # type: ignore[index]
                     named_tool = a.body["effect"]["tool_principal"]  # type: ignore[index]
-                    if a.body["effect"]["status"] != t.body["effect"]["status"] or \
-                            (invoker is not None and invoker != a.key.principal) or \
-                            (named_tool is not None and named_tool != t.key.principal):  # type: ignore[index,union-attr]
+                    if (a.body["effect"]["status"] != t.body["effect"]["status"]  # type: ignore[index]
+                            or (invoker is not None and invoker != a.key.principal)  # type: ignore[union-attr]
+                            or (named_tool is not None and named_tool != t.key.principal)):  # type: ignore[union-attr]
                         status = CONFLICTING
                         a.conflict("agent's effect claim contradicts the independent tool-side record")
                         t.conflict("tool-side record contradicts the agent's effect claim")
@@ -1131,18 +1135,17 @@ def _timeline(records: list[Record], spans: list[dict[str, Any]],
             "corroborated_by": [],
             "notes": ["unsigned telemetry: names, labels and trace_id are claims/correlation, not authentication"],
         })
-    for gap in gaps:
-        nodes.append({
-            "ref": f"gap:{gap['key_id']}:{gap['missing_seq'][0]}-{gap['missing_seq'][1]}",
-            "event_type": "evidence.gap_detected", "claimed_time": gap["time"],
-            "logical_task_id": None, "movement_id": None, "execution_id": None, "outcome": None,
-            "actor": {"verified_principal": gap["principal"], "claimed_principal": None, "claimed_agent_id": None},
-            "status": UNVERIFIABLE, "grade": None, "receipt_verdict": None, "trace_id": None,
-            "corroborated_by": [],
-            "notes": [f"receipts seq {gap['missing_seq'][0]}..{gap['missing_seq'][1]} from this signer are "
-                      "absent; absence of a receipt is not evidence that nothing happened"],
-            "_before": gap["before"],
-        })
+    nodes.extend({
+        "ref": f"gap:{gap['key_id']}:{gap['missing_seq'][0]}-{gap['missing_seq'][1]}",
+        "event_type": "evidence.gap_detected", "claimed_time": gap["time"],
+        "logical_task_id": None, "movement_id": None, "execution_id": None, "outcome": None,
+        "actor": {"verified_principal": gap["principal"], "claimed_principal": None, "claimed_agent_id": None},
+        "status": UNVERIFIABLE, "grade": None, "receipt_verdict": None, "trace_id": None,
+        "corroborated_by": [],
+        "notes": [(f"receipts seq {gap['missing_seq'][0]}..{gap['missing_seq'][1]} from this signer are "
+                   "absent; absence of a receipt is not evidence that nothing happened")],
+        "_before": gap["before"],
+    } for gap in gaps)
     for node in nodes:
         if node["ref"].startswith("telemetry:") and node["trace_id"] in trace_index:
             node["correlated_receipts"] = sorted(trace_index[node["trace_id"]])
@@ -1157,8 +1160,8 @@ def _timeline(records: list[Record], spans: list[dict[str, Any]],
         chain.setdefault(r.key.key_id, []).append((r.body["seq"], i))
     for items in chain.values():
         items.sort()
-        for (_, a), (_, b) in zip(items, items[1:]):
-            edges[a].add(b)
+        for (_, earlier), (_, later) in itertools.pairwise(items):
+            edges[earlier].add(later)
     for i, node in enumerate(nodes):
         if "_before" in node and node["_before"] in by_ref:
             edges[i].add(by_ref[node["_before"]])
@@ -1175,12 +1178,12 @@ def _timeline(records: list[Record], spans: list[dict[str, Any]],
             if mb["parent_movement_id"] == ma["movement_id"] and ta in RESPONSE_TYPES \
                     and tb == "movement.dispatched":
                 edges[i].add(j)
-    indegree = {i: 0 for i in edges}
+    indegree = dict.fromkeys(edges, 0)
     preds: dict[int, list[int]] = {i: [] for i in edges}
-    for a, targets in edges.items():
-        for b in targets:
-            indegree[b] += 1
-            preds[b].append(a)
+    for source, targets in edges.items():
+        for target in targets:
+            indegree[target] += 1
+            preds[target].append(source)
 
     def key(i: int) -> tuple[str, str]:
         return nodes[i]["claimed_time"], nodes[i]["ref"]
@@ -1247,24 +1250,20 @@ def render_text(report: dict[str, Any]) -> str:
             claim = m[name]
             note = f"  ({claim['note']})" if claim.get("note") else ""
             lines.append(f"      {name:<25} {claim['status']:<17} {claim['value']}{note}")
-    for e in report["effects"]:
-        lines.append(f"  effect {e['effect_id']} (task {e['logical_task_id']}): {e['status']} "
-                     f"agent={e['agent_claims']} tool={e['tool_records']}")
-    for s in report["subjects"]:
-        lines.append(f"  subject {s['role']} {s['ref']}: {s['status']}")
-    for edge in report["lineage"]:
-        lines.append(f"  lineage {edge['parent_movement_id']} -[{edge['relation']}]-> {edge['movement_id']}")
-    for ex in report["executions"]:
-        if ex["shares_definition_with"]:
-            lines.append(f"  execution {ex['execution_id']} shares definition digest with "
-                         f"{ex['shares_definition_with']}: kept distinct")
+    lines.extend(f"  effect {e['effect_id']} (task {e['logical_task_id']}): {e['status']} "
+                 f"agent={e['agent_claims']} tool={e['tool_records']}" for e in report["effects"])
+    lines.extend(f"  subject {s['role']} {s['ref']}: {s['status']}" for s in report["subjects"])
+    lines.extend(f"  lineage {edge['parent_movement_id']} -[{edge['relation']}]-> {edge['movement_id']}"
+                 for edge in report["lineage"])
+    lines.extend(f"  execution {ex['execution_id']} shares definition digest with "
+                 f"{ex['shares_definition_with']}: kept distinct"
+                 for ex in report["executions"] if ex["shares_definition_with"])
     lines.append("  timeline: " + ", ".join(f"{v} {k}" for k, v in report["timeline_status"].items()))
     for e in report["timeline"]:
         who = e["actor"]["verified_principal"] or f"claimed:{e['actor']['claimed_agent_id']}"
         lines.append(f"    {e['order']:>2}. {e['claimed_time']} {e['status']:<12} {e['grade'] or '--':<2} "
                      f"{e['event_type']} mov={e['movement_id']} by={who} [{e['ordering_basis']}]")
-        for note in e["notes"]:
-            lines.append(f"          - {note}")
+        lines.extend(f"          - {note}" for note in e["notes"])
     t = report["telemetry"]
     lines.append(f"  telemetry: {t['spans']} spans, {t['malformed_lines']} malformed lines skipped, "
                  f"{t['redactions']} values redacted, {t['dropped_attributes']} attributes dropped")
@@ -1318,7 +1317,7 @@ def main(argv: list[str] | None = None) -> int:
             print("WARNING: " + FIXTURE_TRUST_WARNING.format(path=path), file=sys.stderr)
     if options.command == "timeline":
         print(json.dumps(reports[0]["timeline"], indent=2, ensure_ascii=False))
-        return reports[0]["exit_code"]
+        return int(reports[0]["exit_code"])
     if options.json:
         print(json.dumps(reports[0] if len(reports) == 1 else reports, indent=2, ensure_ascii=False))
     else:

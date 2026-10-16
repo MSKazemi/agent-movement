@@ -12,16 +12,24 @@ from __future__ import annotations
 import hashlib
 import json
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from .core import SCHEMA_VERSION, Approval, EffectGateway, HandoffReceiver, PolicyDenied, SQLiteStore, digest
 from .jcs import canonicalize, jcs_digest
-from .receipts import (RECEIPT_SCHEMA, SIGNATURE_DOMAIN, TRUST_SCHEMA, Ed25519Signer, b64u, commitment,
-                       format_time, validate_body)
+from .receipts import (
+    RECEIPT_SCHEMA,
+    SIGNATURE_DOMAIN,
+    TRUST_SCHEMA,
+    Ed25519Signer,
+    b64u,
+    commitment,
+    format_time,
+    validate_body,
+)
 
-BASE = datetime(2026, 10, 15, 9, 0, 0, tzinfo=timezone.utc)
+BASE = datetime(2026, 10, 15, 9, 0, 0, tzinfo=UTC)
 DOMAIN = "spiffe://synthetic.test"
 AGENTS = {"agent-a": "agent/a", "agent-b": "agent/b", "agent-c": "agent/c", "agent-d": "agent/d",
           "agent-r": "agent/r", "tool-ledger": "tool/ledger"}
@@ -98,14 +106,13 @@ def party(agent: str | None, who: str | None, execution: str | None) -> dict[str
 
 
 def trust_document() -> dict[str, Any]:
-    keys = []
-    for name in sorted(AGENTS):
-        keys.append({"key_id": key_id(name), "principal": principal(name),
-                     "role": "tool" if name.startswith("tool-") else "agent", "alg": "Ed25519",
-                     "public_key": signer(name).public_key, "not_before": "2026-10-01T00:00:00Z",
-                     "not_after": "2027-10-01T00:00:00Z",
-                     "revoked_at": REVOKED_AT if name == "agent-r" else None,
-                     "revocation_ref": REVOCATION_REF if name == "agent-r" else None})
+    keys = [{"key_id": key_id(name), "principal": principal(name),
+             "role": "tool" if name.startswith("tool-") else "agent", "alg": "Ed25519",
+             "public_key": signer(name).public_key, "not_before": "2026-10-01T00:00:00Z",
+             "not_after": "2027-10-01T00:00:00Z",
+             "revoked_at": REVOKED_AT if name == "agent-r" else None,
+             "revocation_ref": REVOCATION_REF if name == "agent-r" else None}
+            for name in sorted(AGENTS)]
     return {"schema": TRUST_SCHEMA, "keys": keys,
             "note": "SYNTHETIC test anchors. Private keys derive from public labels in "
                     "receipt_fixtures.py; never use them for anything real."}
@@ -122,15 +129,16 @@ class Scenario:
         return hexid(f"trace/{self.name}/{label}", 32)
 
     def body(self, who: str, receipt_id: str, receipt_type: str, seconds: int, *, task: str | None,
-             movement: tuple[str, str | None, str | None] | None = None, source: dict | None = None,
-             destination: dict | None = None, execution: dict | None = None, trace: str | None = None,
-             subjects: tuple[tuple[str, str, str], ...] = (), effect: dict | None = None,
+             movement: tuple[str, str | None, str | None] | None = None, source: dict[str, Any] | None = None,
+             destination: dict[str, Any] | None = None, execution: dict[str, Any] | None = None,
+             trace: str | None = None, subjects: tuple[tuple[str, str, str], ...] = (),
+             effect: dict[str, Any] | None = None,
              outcome: str | None = None, audience: str | None = None, claimed: Any = USE_KEY,
              agent_label: str | None = None, seq: int | None = None, prev: Any = USE_KEY,
              signing_key: str | None = None) -> dict[str, Any]:
         kid = key_id(signing_key or who)
         last_seq, last_digest = self.chains.get(kid, (0, None))
-        body = {
+        body: dict[str, Any] = {
             "schema": RECEIPT_SCHEMA, "receipt_id": receipt_id, "receipt_type": receipt_type,
             "issuer": {"key_id": kid, "claimed_principal": principal(who) if claimed is USE_KEY else claimed,
                        "claimed_agent_id": agent_label if agent_label is not None else
@@ -143,7 +151,8 @@ class Scenario:
             "movement": None if movement is None else
             {"movement_id": movement[0], "parent_movement_id": movement[1], "lineage_relation": movement[2]},
             "source": source, "destination": destination, "execution": execution,
-            "correlation": {"trace_id": trace, "span_id": hexid(f"span/{self.name}/{receipt_id}", 16) if trace else None},
+            "correlation": {"trace_id": trace,
+                            "span_id": hexid(f"span/{self.name}/{receipt_id}", 16) if trace else None},
             "subjects": [{"role": r, "ref": ref, "digest": d} for r, ref, d in subjects],
             "effect": effect, "outcome": outcome, "data_classification": "synthetic",
         }
@@ -218,7 +227,8 @@ def gateway_epochs(stale_commit: bool) -> tuple[int, bool]:
         return new, True
 
 
-def _delegation(s: Scenario, mid: str, task: str, *, start: int = 0) -> tuple[dict, dict, str]:
+def _delegation(s: Scenario, mid: str, task: str, *,
+                start: int = 0) -> tuple[dict[str, Any], dict[str, Any], str]:
     trace = s.trace(mid)
     dispatch = s.body("agent-a", f"rcpt-{mid}-dispatch", "movement.dispatched", start, task=task,
                       movement=(mid, None, "delegate"), source=party("agent-a", "agent-a", f"exec-a-{mid}"),
@@ -321,7 +331,7 @@ def scenario_replayed() -> Scenario:
 def scenario_forged() -> Scenario:
     s = Scenario("04-forged-identity")
     mid, task = "mov-forged-1", "task-forged-1"
-    dispatch, accept, trace = _delegation(s, mid, task)
+    dispatch, _accept, trace = _delegation(s, mid, task)
     s.add(seal("agent-a", dispatch))
     attacker = Ed25519Signer("synthetic-attacker-key", hashlib.sha256(b"agent-movement/attacker/v1").digest())
     fake = s.body("agent-b", "rcpt-mov-forged-1-accept-attacker", "movement.accepted", 2, task=task,
