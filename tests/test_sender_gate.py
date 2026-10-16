@@ -111,6 +111,27 @@ def test_signed_grant_is_verified_locally_before_any_request(world, variation):
     )
 
 
+def test_revocation_change_after_admission_blocks_sender_delivery(world):
+    # A trusted operator changes revocation state after metadata admission.
+    # The sender rechecks before transmitting any task-text bytes.
+    checks = []
+
+    def revoked(_grant_id):
+        checks.append(True)
+        return len(checks) >= 2
+
+    assert_denied = pytest.raises(HandoffAborted)
+    with assert_denied as raised:
+        world.handoff(client=client(world, gate=policy(world, revoked=revoked)))
+    assert raised.value.stage == "outbound_gate"
+    assert raised.value.reason == "grant_revoked"
+    assert raised.value.payload_sent is False
+    assert len(checks) == 2
+    assert world.wire.paths() == [CARD_PATH, PREFLIGHT_PATH]
+    assert TEXT.encode() not in world.wire.transmitted()
+    assert world.receiver.ledger.effects() == []
+
+
 def test_key_id_collision_is_not_proof_of_origin_identity(world):
     # The attacker copied the signed card and key *name* but not its key secret.
     assert world.rogue["agent-a"].kid == world.keys["agent-a"].kid
