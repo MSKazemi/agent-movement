@@ -94,9 +94,11 @@ def run_guarded_agent(
            "AMV_BROKER_RESP_FD": str(response_read),
            "AMV_PROBE_PORT": str(probe_port), "AMV_PROBE_OP": operation,
            "AMV_PROBE_TASK": task_id}
-    # Local source checkouts need PYTHONPATH; installed packages on CI do not.
-    if "PYTHONPATH" in os.environ:
-        env["PYTHONPATH"] = os.environ["PYTHONPATH"]
+    # Pytest can add src/ to sys.path without exporting PYTHONPATH. Child cwd is
+    # deliberately neutral, so explicitly pass only this package source path.
+    package_root = str(Path(__file__).resolve().parents[1])
+    extra_paths = os.environ.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = os.pathsep.join((package_root, extra_paths)) if extra_paths else package_root
 
     state: dict[str, Any] = {"status": "not_requested", "count": 0}
     child: subprocess.Popen[str]
