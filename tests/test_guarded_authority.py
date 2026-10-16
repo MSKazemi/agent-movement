@@ -272,3 +272,60 @@ def test_legacy_experiments_still_work_without_enrollment(tmp_path):
     assert legacy.commit("task-z", "agent-a", 1, "e1", "x")
     assert legacy.transfer("task-z", "agent-a", 1, "agent-b") == 2
     assert legacy.commit("task-z", "agent-b", 2, "e2", "y")
+
+
+def test_bare_peer_gateway_cannot_write_guarded_task_without_continuity(lane):
+    """An enrolled task rejects the independent peer ledger, even with no PEP."""
+    rig, legacy, gated = lane
+    enroll(rig, gated)
+    from agent_movement.peer import AuthorizedEffectGateway, PeerLedger
+
+    unguarded_peer = AuthorizedEffectGateway(PeerLedger(rig.store), clock=rig.clock)
+    for _ in range(2):
+        with pytest.raises(Unauthorized, match="guarded_task_requires_guarded_authority"):
+            unguarded_peer.commit(
+                rig.grant["payload"], "agent-b", "task-1",
+                "peer-bypass", "synthetic", movement_id="movement-1",
+            )
+        if gated.inspect("task-1")["phase"] == "prepared":
+            assert gated.transfer("task-1", "movement-1") == 2
+    with sqlite3.connect(rig.store.path) as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM authorized_effects WHERE task_id='task-1'"
+        ).fetchone() == (0,)
+    assert legacy.reconcile("task-1", "peer-bypass") == "unknown"
+
+
+def test_separate_process_peer_gateway_bypass_attempt_is_fenced(lane):
+    """A second process tries the public peer gateway without ContinuityRuntime."""
+    rig, legacy, gated = lane
+    enroll(rig, gated)
+    gated.transfer("task-1", "movement-1")
+    root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(root / "src") + os.pathsep + env.get("PYTHONPATH", "")
+    code = (
+        "import json, sys\\n"
+        "from agent_movement.core import SQLiteStore\\n"
+        "from agent_movement.peer import AuthorizedEffectGateway, PeerLedger\\n"
+        "from agent_movement.trust import Unauthorized\\n"
+        "ledger=PeerLedger(SQLiteStore(sys.argv[1]))\\n"
+        "grant=json.loads(sys.argv[2])\\n"
+        "gateway=AuthorizedEffectGateway(ledger,clock=lambda: 1800000000)\\n"
+        "try:\\n"
+        " gateway.commit(grant,'agent-b','task-1','peer-bypass','synthetic',movement_id='movement-1')\\n"
+        " print('UNGUARDED_EFFECT')\\n"
+        "except Unauthorized as exc:\\n"
+        " print('DENIED:'+exc.reason)\\n"
+    )
+    output = subprocess.run(
+        [sys.executable, "-c", code, str(rig.store.path), json.dumps(rig.grant["payload"])],
+        check=True, capture_output=True, text=True, timeout=15, env=env,
+    )
+    assert output.stdout.strip() == "DENIED:guarded_task_requires_guarded_authority"
+    assert "UNGUARDED_EFFECT" not in output.stdout
+    with sqlite3.connect(rig.store.path) as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM authorized_effects WHERE task_id='task-1'"
+        ).fetchone() == (0,)
+    assert legacy.reconcile("task-1", "peer-bypass") == "unknown"
