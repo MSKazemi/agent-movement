@@ -20,6 +20,36 @@ from typing import Any
 SCHEMA_VERSION = "0.1.0-draft"
 ID = re.compile(r"[A-Za-z][A-Za-z0-9._:-]{0,127}\Z")
 MAX_TEXT = 2048
+# SQLiteStore layout, kept in PRAGMA user_version. 0: unversioned PR #6 layout with
+# global idempotency keys. 1: keys scoped to (sender, key); see SQLiteStore._ensure_schema.
+STORE_SCHEMA_VERSION = 1
+_TABLES = (
+    # Index 0 is formatted with a table name so the migration can build a copy first.
+    """CREATE TABLE IF NOT EXISTS {name} (
+        sender_id TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        movement_id TEXT NOT NULL UNIQUE,
+        envelope_digest TEXT NOT NULL,
+        receipt_json TEXT NOT NULL,
+        PRIMARY KEY (sender_id, idempotency_key))""",
+    """CREATE TABLE IF NOT EXISTS audit_events (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        movement_id TEXT NOT NULL,
+        task_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        info_digest TEXT NOT NULL,
+        event_time TEXT NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS owners (
+        task_id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        epoch INTEGER NOT NULL)""",
+    """CREATE TABLE IF NOT EXISTS effects (
+        task_id TEXT NOT NULL,
+        effect_id TEXT NOT NULL,
+        payload_digest TEXT NOT NULL,
+        epoch INTEGER NOT NULL,
+        PRIMARY KEY (task_id, effect_id))""",
+)
 
 
 class ContractError(ValueError):
@@ -32,6 +62,10 @@ class PolicyDenied(ValueError):
 
 class Conflict(ValueError):
     """Idempotency collision, stale authority or incompatible task state."""
+
+
+class StoreSchemaError(RuntimeError):
+    """The SQLite file has a layout this code cannot use or migrate."""
 
 
 def _object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -142,35 +176,56 @@ class SQLiteStore:
     def __init__(self, path: str | Path):
         self.path = str(path)
         self._enable_wal()
+        self._ensure_schema()
+
+    def _ensure_schema(self) -> None:
+        """Create the tables, or migrate an older file in place, in ONE write transaction.
+
+        ``PRAGMA user_version`` records the layout. 0 is the unversioned PR #6 layout,
+        whose ``deliveries`` table keyed idempotency keys globally. Concurrent openers
+        serialize on ``BEGIN IMMEDIATE`` and re-read the version under the lock, so
+        exactly one of them migrates and the others see the result.
+        """
         with self._connection() as db:
-            db.executescript("""
-                CREATE TABLE IF NOT EXISTS deliveries (
-                    idempotency_key TEXT PRIMARY KEY,
-                    movement_id TEXT NOT NULL UNIQUE,
-                    envelope_digest TEXT NOT NULL,
-                    receipt_json TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS audit_events (
-                    seq INTEGER PRIMARY KEY AUTOINCREMENT,
-                    movement_id TEXT NOT NULL,
-                    task_id TEXT NOT NULL,
-                    event_type TEXT NOT NULL,
-                    info_digest TEXT NOT NULL,
-                    event_time TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS owners (
-                    task_id TEXT PRIMARY KEY,
-                    agent_id TEXT NOT NULL,
-                    epoch INTEGER NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS effects (
-                    task_id TEXT NOT NULL,
-                    effect_id TEXT NOT NULL,
-                    payload_digest TEXT NOT NULL,
-                    epoch INTEGER NOT NULL,
-                    PRIMARY KEY (task_id, effect_id)
-                );
-            """)
+            if db.execute("PRAGMA user_version").fetchone()[0] == STORE_SCHEMA_VERSION:
+                return
+            db.execute("BEGIN IMMEDIATE")
+            version = db.execute("PRAGMA user_version").fetchone()[0]
+            if version > STORE_SCHEMA_VERSION:
+                raise StoreSchemaError(f"store schema version {version} is newer than the "
+                                       f"supported version {STORE_SCHEMA_VERSION}")
+            columns = {row[1] for row in db.execute("PRAGMA table_info(deliveries)")}
+            if columns and "sender_id" not in columns:
+                self._migrate_global_keys(db)
+            for statement in _TABLES:
+                db.execute(statement.format(name="deliveries"))
+            db.execute(f"PRAGMA user_version = {STORE_SCHEMA_VERSION}")
+            db.commit()
+
+    @staticmethod
+    def _migrate_global_keys(db: sqlite3.Connection) -> None:
+        """Version 0 -> 1: scope idempotency keys to their sender.
+
+        Follows the SQLite procedure for schema changes ALTER TABLE cannot express
+        (create, copy, drop, rename). Every version-0 receipt names its origin, and on
+        both receiver paths the envelope origin *is* the sender the new key is scoped to
+        (the peer path builds the envelope from the authenticated origin), so the copy
+        is exact. Old global keys stay unique per sender, and ``movement_id`` keeps its
+        UNIQUE constraint, so no row can conflict.
+        """
+        db.execute(_TABLES[0].format(name="deliveries_v1"))
+        rows = db.execute("SELECT idempotency_key, movement_id, envelope_digest, receipt_json "
+                          "FROM deliveries ORDER BY rowid").fetchall()
+        for key, movement_id, envelope_digest, receipt_json in rows:
+            try:
+                sender = _id(json.loads(receipt_json)["origin_agent_id"], "origin_agent_id")
+            except (ValueError, KeyError, TypeError) as exc:
+                raise StoreSchemaError(f"cannot migrate delivery {movement_id!r}: "
+                                       "stored receipt names no valid origin") from exc
+            db.execute("INSERT INTO deliveries_v1 VALUES(?,?,?,?,?)",
+                       (sender, key, movement_id, envelope_digest, receipt_json))
+        db.execute("DROP TABLE deliveries")
+        db.execute("ALTER TABLE deliveries_v1 RENAME TO deliveries")
 
     def _enable_wal(self, deadline_s: float = 10.0) -> None:
         """Switch the file to WAL once (the mode is persistent).
@@ -224,14 +279,22 @@ class SQLiteStore:
                         "handoff.denied", digest(envelope))
             db.commit()
 
-    def receive(self, envelope: dict[str, Any]) -> dict[str, Any]:
-        """Execute a *pure* preapproved task transactionally, memoizing its receipt."""
+    def receive(self, envelope: dict[str, Any], sender: str | None = None) -> dict[str, Any]:
+        """Execute a *pure* preapproved task transactionally, memoizing its receipt.
+
+        Idempotency keys are scoped to ``sender``: the authenticated sender when the
+        caller knows it (``PeerReceiver``), else the envelope's *claimed* origin
+        (``HandoffReceiver``, which authenticates nobody). Two senders may therefore use
+        the same key. Movement IDs stay unique across all senders.
+        """
         fingerprint = digest(envelope)
         key = envelope["execution"]["idempotency_key"]
+        sender_id = envelope["origin"]["agent_id"] if sender is None else _id(sender, "sender")
         with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             previous = db.execute("SELECT envelope_digest, receipt_json FROM deliveries "
-                                  "WHERE idempotency_key = ?", (key,)).fetchone()
+                                  "WHERE sender_id = ? AND idempotency_key = ?",
+                                  (sender_id, key)).fetchone()
             if previous is not None:
                 if previous[0] != fingerprint:
                     raise Conflict("idempotency key reused with different envelope")
@@ -239,7 +302,7 @@ class SQLiteStore:
                 return {**json.loads(previous[1]), "replayed": True}
             if db.execute("SELECT 1 FROM deliveries WHERE movement_id=?",
                           (envelope["movement_id"],)).fetchone():
-                raise Conflict("movement ID reused with a new idempotency key")
+                raise Conflict("movement ID already used under another idempotency key or sender")
             task = envelope["task"]
             if task["kind"] == "word_count":
                 artifact = {"kind": "word_count", "value": len(task["text"].split())}
@@ -258,8 +321,8 @@ class SQLiteStore:
             }
             self._event(db, receipt["movement_id"], receipt["logical_task_id"],
                         "handoff.accepted", fingerprint)
-            db.execute("INSERT INTO deliveries VALUES(?,?,?,?)",
-                       (key, envelope["movement_id"], fingerprint, canonical(receipt)))
+            db.execute("INSERT INTO deliveries VALUES(?,?,?,?,?)",
+                       (sender_id, key, envelope["movement_id"], fingerprint, canonical(receipt)))
             self._event(db, receipt["movement_id"], receipt["logical_task_id"],
                         "handoff.completed", receipt["artifact_digest"])
             db.commit()

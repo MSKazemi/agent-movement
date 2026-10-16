@@ -133,7 +133,7 @@ Records are processed per bundle in ingestion order: `receipts.jsonl`, then `too
 5. Look up the key in the trust anchors → `UNTRUSTED` if it is unknown.
 6. Verify Ed25519 → `TAMPERED` on failure. Without the extra → `UNCHECKED`.
 7. Check key validity and revocation at the claimed time, issuer principal consistency, and signer role → `UNTRUSTED`.
-8. Detect replays. Replay keys are always **per issuer**, `(key_id, nonce)` and `(key_id, receipt_id)`, never a global key. That differs from PR #6's idempotency keys, which are global rather than per sender. Only receipts whose signature passed enter the replay table, so a forger cannot pre-register a nonce:
+8. Detect replays. Replay keys are always **per issuer**, `(key_id, nonce)` and `(key_id, receipt_id)`, never a global key. PR #6's core idempotency keys were global; since issue #29 they are also scoped per sender, `(sender, idempotency_key)`. Only receipts whose signature passed enter the replay table, so a forger cannot pre-register a nonce:
    - an identical body seen again under the same `(key_id, nonce)` or `(key_id, receipt_id)` → `REPLAYED`, deduplicated;
    - the same nonce or receipt_id with a *different* body from the same key → both receipts `CONFLICTING`, because that is signer equivocation and not something an outsider could replay.
 
