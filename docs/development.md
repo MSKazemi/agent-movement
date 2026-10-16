@@ -95,7 +95,7 @@ python3 -m venv "$VENV"
 "$VENV/bin/python" -m pip install -e '.[a2a,ed25519,hpke,relocation,signing]' "pytest>=9.1"
 ```
 
-With [uv](https://docs.astral.sh/uv/), the same environment is:
+With `uv`, the same environment is:
 
 ```bash
 uv venv "$VENV" --python 3.13
