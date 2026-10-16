@@ -142,9 +142,14 @@ class BaselineSemanticsTests(unittest.TestCase):
         self.assertEqual((rec["stale_commits_fenced"], rec["stale_commits_accepted"]), (1, 0))
 
     def test_unavailable_modes_are_explicit(self):
-        for mode in ("a2a_delegate", "checkpoint_relocate", "cross_framework_reconstruct"):
+        # B4 is never implemented; B2/B3 are unavailable only without their extra (see
+        # test_mobilitybench_optional_modes.py for the forced-missing-extra path).
+        unavailable = [m for m, i in mb.MODES.items() if i["status"] == "unavailable"]
+        self.assertIn("cross_framework_reconstruct", unavailable)
+        for mode in unavailable:
             rec = self.attempt("doc-release-notes", mode)
             self.assertEqual((rec["outcome"], rec["mode_status"]), ("unavailable", "unavailable"))
+            self.assertEqual(rec["reason"], mb.MODES[mode]["unavailable_reason"])
             self.assertIsNone(rec["task_correct"])
             self.assertNotEqual(rec["tracking"], "-")
 
@@ -212,10 +217,13 @@ class SuiteRunTests(unittest.TestCase):
 
     def test_report_has_denominators_unavailable_and_raw_rows(self):
         report = mb.build_report(self.records)
-        for needle in ("## Denominators", "**UNAVAILABLE** (issue #7)", "**UNAVAILABLE** (issue #9)",
+        for needle in ("## Denominators", "**UNAVAILABLE** (not scheduled", "`baseline_not_implemented`",
                        "## Raw per-case results", "known_gap", "correct / attempts",
                        "no confidence intervals"):
             self.assertIn(needle, report)
+        for mode, info in mb.MODES.items():  # scored iff implemented in this environment
+            self.assertEqual(f"| {mode} | {info['baseline']} | implemented |" in report,
+                             info["status"] == "implemented")
         raw_rows = [line for line in report.splitlines() if line.startswith("| 1103 | ")]
         self.assertEqual(len(raw_rows), len(self.records[0]["tasks"]) * len(mb.MODES))
 
