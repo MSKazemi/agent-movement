@@ -269,7 +269,7 @@ def build_app(*, db: Path, base_url: str, receiver_id: str, approvals: list[Appr
     if not kinds or unknown:
         raise ValueError("kinds must be a non-empty subset of " + ", ".join(KINDS))
     store = SQLiteStore(db)
-    log = A2ACorrelationLog(db)
+    log = A2ACorrelationLog(db, store)
     card = build_agent_card(base_url, receiver_id, kinds, client_context_id)
     handler = HandoffRequestHandler(executor=HandoffExecutor(HandoffReceiver(receiver_id, store, approvals), log),
                                     agent_card=card, kinds=kinds, log=log,

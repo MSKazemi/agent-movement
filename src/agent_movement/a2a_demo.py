@@ -30,10 +30,10 @@ import sys
 import tempfile
 import urllib.request
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from .a2a_profile import EXTENSION_URI, LEGACY_EXTENSION_URI
-from .core import SCHEMA_VERSION
+from .core import SCHEMA_VERSION, SQLiteStore
 
 EXTRA_HINT = "optional A2A extra not installed; run: python -m pip install -e '.[a2a]'"
 
@@ -77,7 +77,8 @@ def receiver_tables(db: Path) -> dict[str, list[dict[str, Any]]]:
 
 
 def check(results: dict[str, dict[str, Any]], tables: dict[str, list[dict[str, Any]]],
-          card: dict[str, Any] | None = None) -> list[str]:
+          card: dict[str, Any] | None = None, *, keyed: Callable[[str], str]) -> list[str]:
+    """``keyed`` is the receiver store's ``keyed_digest``: audit rows hold keyed commitments."""
     failures = []
     first, retry, denied = results["first"], results["retry"], results["denied"]
     unknown_cap, unknown_schema = results["unknown_capability"], results["unknown_schema"]
@@ -124,8 +125,11 @@ def check(results: dict[str, dict[str, Any]], tables: dict[str, list[dict[str, A
             failures.append(f"receiver audit has no '{outcome}' row for the {name} A2A task and context IDs")
     completed = [e for e in tables["audit_events"]
                  if e["event_type"] == "handoff.completed" and e["movement_id"] == "a2a-demo-movement"]
-    if len(completed) != 1 or completed[0]["info_digest"] != first.get("receipt", {}).get("artifact_digest"):
-        failures.append("core audit 'handoff.completed' digest does not match the A2A artifact")
+    artifact_digest = first.get("receipt", {}).get("artifact_digest")
+    if len(completed) != 1 or artifact_digest is None or completed[0]["info_digest"] != keyed(artifact_digest):
+        failures.append("core audit 'handoff.completed' commitment does not match the A2A artifact")
+    if artifact_digest is not None and artifact_digest in json.dumps(tables):
+        failures.append("an unsalted artifact digest is stored in the receiver tables")
     rejected = [r for r in tables["a2a_correlations"] if r["outcome"].startswith("rejected.")]
     if len(rejected) != 3 or any(r["a2a_task_id"] for r in rejected):
         failures.append("pre-task rejections must be audited without creating A2A tasks")
@@ -195,7 +199,7 @@ def main(argv: Sequence[str] = ()) -> None:
                            for e in card.get("capabilities", {}).get("extensions", [])],
             "security_schemes": card.get("securitySchemes", {}),
         }
-        failures = check(results, tables, card)
+        failures = check(results, tables, card, keyed=SQLiteStore(db).keyed_digest)
         print(json.dumps({"agent_card": card_summary, "results": results, "receiver": tables,
                           "proves": "delegation (not migration)", "authentication": "none (experimental)",
                           "failures": failures}, indent=2, sort_keys=True))
