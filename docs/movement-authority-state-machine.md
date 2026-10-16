@@ -8,7 +8,7 @@ What state must an agent movement authority coordinate so that two logically dis
 
 The proposed answer is a **product state machine**: task ownership is just one dimension of authority. The effect gateway decides using fresh, independently verified inputs under a single atomic decision-and-commit boundary. A movement is allowed only if the destination has a separately issued, attenuated and correctly bound grant. Human and data-owner permissions are **independent**. A revoked grant cannot be laundered by moving ownership.
 
-The local experiment enumerated **15,453 distinct states and 59,981 transitions through depth eight**, without finding a violation of its declared safety invariants. This is **not exhaustive over the complete finite graph**: the result's `complete_finite_state_space` field is `false`. The four negative-control mutations each produce a concrete counterexample. These figures describe this model version and bound, not arbitrary agents or hardware.
+The initial depth-eight run enumerated **15,453 distinct states and 59,981 transitions**, with no invariant violation, but correctly reports `complete_finite_state_space=false`. A deeper run (`--depth 20`) **exhausted the complete reachable graph in this fixed, tiny universe: 59,200 states and 330,294 transitions, with no invariant violation** (`complete_finite_state_space=true`). This is finite-model exhaustion **only under the explicitly stated two-worker, two-effect, bounded-clock and trusted-gateway assumptions**, not a theorem about the real Python runtime, arbitrary agents or hardware. The four negative-control mutations each produce a counterexample.
 
 ## Model, authority and fault assumptions
 
@@ -80,6 +80,7 @@ From the repository root:
 
 ```sh
 python tools/movement_authority_machine.py --depth 8
+python tools/movement_authority_machine.py --depth 20  # exhaust this particular tiny finite universe
 python tools/movement_authority_machine.py --depth 8 --mutation skip_epoch
 python tools/movement_authority_machine.py --depth 8 --mutation skip_principals
 python tools/movement_authority_machine.py --depth 8 --mutation skip_dedup
@@ -87,7 +88,7 @@ python tools/movement_authority_machine.py --depth 8 --mutation skip_policy
 python -m pytest -q tests/test_movement_authority_machine.py
 ```
 
-The safe run returns exit `0`, `status: no_violation_within_bound` and an explicit completeness flag. Mutated runs intentionally exit `1`, with a shortest trace and the violated invariant. Mutation controls are **negative tests**, not runtime configuration toggles. The tests compare two CLI runs byte-for-byte to catch accidental nondeterminism.
+The safe runs return exit `0`, `status: no_violation_within_bound` and an explicit completeness flag. At depth 20, the flag is true because all states reachable in **this finite specification** were explored; the status name deliberately does not imply runtime security. Mutated runs intentionally exit `1`, with a shortest trace and the violated invariant. Mutation controls are **negative tests**, not runtime configuration toggles. The tests compare two CLI runs byte-for-byte to catch accidental nondeterminism.
 
 ### Observed negative-control witnesses at depth eight
 
