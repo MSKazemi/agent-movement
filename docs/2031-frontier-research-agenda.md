@@ -67,7 +67,9 @@ The rankings are the author's **subjective strategic judgment**, not measured sc
 
 ## 3. Four concrete flagship studies
 
-### Study S1 — ContinuityBench: multi-hop semantic conservation
+### Study S1 — MobilityBench multi-hop track: semantic conservation across hops
+
+**Planned, not implemented.** Since [issue #44](https://github.com/MSKazemi/agent-movement/issues/44) this study is the multi-hop track of MobilityBench, not a separate benchmark; the design, and what [MobilityBench v0.1](mobilitybench-v0.1.md) can and cannot measure today, is in [Planned: multi-hop track](mobilitybench-v0.1.md#planned-multi-hop-track). v0.1 moves each task exactly once, between two executors.
 
 **Research question:** What measurable fraction of *explicit task invariants* survives heterogeneous transfers, and which safeguards improve survival without introducing needless transfers or unacceptable disclosure?
 
@@ -132,7 +134,7 @@ Report the denominator, fault model, model/version, environment, uncertainty, kn
 
 | Period | Valuable research milestone | Evidence required |
 | --- | --- | --- |
-| Late 2026-2027 | Reproducible task handoffs, negative authentication tests and a frozen ContinuityBench v0.1 | Two independent workers, baseline report, denial-before-disclosure traces |
+| Late 2026-2027 | Reproducible task handoffs, negative authentication tests and a frozen first release of the MobilityBench multi-hop track | Two independent workers, baseline report, denial-before-disclosure traces |
 | 2027-2028 | Model-agnostic application-state continuation profile with measurable semantic loss | Two cross-model/runtime adapters, loss reports and refusal cases |
 | 2028-2029 | Covered-domain authority map and revocation closure reports | Independent sink tests, bounded assurances and published unknown states |
 | 2029-2030 | Fork/merge memory provenance and data-deletion experiments | Realistic synthetic branch DAGs, independent evaluation |
@@ -145,10 +147,16 @@ Report the denominator, fault model, model/version, environment, uncertainty, kn
 | 1-2 | Locked terminology, hypotheses, threat model and benchmark manifest | Existing [AM-01..16](open-questions.md), [issue #10](https://github.com/MSKazemi/agent-movement/issues/10) | Public protocol and frozen fixtures; no results claimed |
 | 3-4 | Real official-A2A synthetic handoff + pre-disclosure auth negative tests | [issue #7](https://github.com/MSKazemi/agent-movement/issues/7), [issue #8](https://github.com/MSKazemi/agent-movement/issues/8) | Different workers pass basic task and all secret-canary denials |
 | 5-6 | Same-runtime durable relocation and fault-injection baseline | [issue #9](https://github.com/MSKazemi/agent-movement/issues/9) | Origin fenced, safe checkpoint resume, unknown effects reconciled explicitly |
-| 7-9 | ContinuityBench multi-hop matrix and original-intent constraints | [issue #10](https://github.com/MSKazemi/agent-movement/issues/10) | Per-attempt evidence with baselines, denominator, incompatibility refusals |
+| 7-9 | MobilityBench multi-hop track matrix and original-intent constraints | [issue #10](https://github.com/MSKazemi/agent-movement/issues/10) | Per-attempt evidence with baselines, denominator, incompatibility refusals |
 | 10-12 | Signed lineage receipts and covered-sink authority/descendant pilot | [issue #11](https://github.com/MSKazemi/agent-movement/issues/11) | Independent verifier rejects tampering and reports missing evidence as unknown |
 
-**Recommended distinctive positioning:** Position this repository as **an open scientific observatory and conformance laboratory for moving agent work safely**, not a new competitor to A2A/MCP and not an engine for unapproved autonomous spreading. Its strongest possible artifact is a benchmark that makes attractive mobility claims falsifiable.
+**Positioning** (one statement, used verbatim in the [README](../README.md), the [strategic agenda](strategic-target-and-scientific-agenda.md) and `CITATION.cff`):
+
+<!-- positioning:start -->
+Agent Movement is a research prototype: an open, evidence-first testbed built to make claims about safely moving AI-agent work between executors falsifiable. It currently pairs ranked research questions with synthetic, localhost-only Python prototypes and MobilityBench v0.1, a frozen, deterministic, LLM-free benchmark of 18 synthetic tasks that scores keeping, restarting and locally delegating work under injected faults and reports refusals and unavailable baselines instead of hiding them. It is not production software, a new agent protocol or a rival to A2A or MCP.
+<!-- positioning:end -->
+
+It is also not an engine for unapproved autonomous spreading (see §6).
 
 ## 6. Research ethics, operational limits and negative results
 

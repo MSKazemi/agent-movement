@@ -36,7 +36,7 @@ signing = ["cryptography>=50.0.2"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-agent_movement = ["fixtures/mobilitybench-v0.1/*"]
+agent_movement = ["fixtures/mobilitybench-v0.1/*", "fixtures/mobilitybench-local-smoke/*"]
 
 # The corpus tools in tools/ and the agent_movement core in src/ are stdlib-only;
 # the optional extras above add third-party packages. pytest is needed only to run tests/.
