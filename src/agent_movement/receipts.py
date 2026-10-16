@@ -17,6 +17,11 @@ signer's claim; a bundle can be incomplete; trace IDs are correlation only.
 Run ``python -m agent_movement.receipts verify <dir> --trust <anchors.json>``. Trust
 anchors are never read from the evidence implicitly; ``--fixture-trust`` opts into the
 anchors shipped with the synthetic fixtures, with a warning.
+
+Signed key-revocation notices in the issue #8 format (``trust.issue_revocation``) are
+verified when present (``revocations.jsonl`` in the bundle, or ``--revocations FILE``):
+a notice signed by a revocation authority pinned in the trust anchor file revokes the
+receipt key whose ``key_id`` equals the notice's ``grant_id`` from ``revoked_at`` on.
 """
 
 from __future__ import annotations
@@ -27,13 +32,14 @@ import heapq
 import json
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from .core import ID, ContractError, parse_json
 from .jcs import CanonicalizationError, canonicalize, jcs_digest
+from .trust import ED25519, Ed25519Key, TrustDenied, TrustStore, sealed_parts, verify_revocation
 
 try:  # Optional extra: pip install -e ".[signing]"
     import cryptography
@@ -65,8 +71,8 @@ RESPONSE_TYPES = ("movement.accepted", "movement.rejected")
 LINEAGE = ("delegate", "relocate", "clone", "fork", "replicate", "fan_out")
 OUTCOMES = ("dispatched", "accepted", "rejected", "started", "completed", "failed", "unknown")
 EFFECT_STATUS = ("committed", "rejected", "unknown")
-# revocation_notice/policy_decision reference EXTERNAL signed documents by digest only;
-# this profile does not parse or verify them (e.g. a peer-auth revocation notice).
+# revocation_notice/policy_decision subjects reference EXTERNAL signed documents by digest
+# only. Key-revocation notices in the issue #8 format are verified separately (revocations.jsonl).
 SUBJECT_ROLES = ("envelope", "artifact", "checkpoint", "effect_payload", "revocation_notice", "policy_decision")
 CLASSIFICATIONS = ("synthetic", "public")
 ROLES = ("agent", "tool")
@@ -100,7 +106,9 @@ LIMITS = (
     "Agent labels (claimed_agent_id) are never bound to keys; only trust-anchor principals are verified.",
     "Trust anchors must be obtained out of band; anchors shipped inside the evidence bundle prove nothing.",
     "The verifier never infers events: grade E0 is never assigned and gaps are reported, not filled.",
+    "A revocation notice's revoked_at is its issuer's claim; a receipt backdated before it is not detectable.",
 )
+REVOCATIONS_FILE = "revocations.jsonl"
 
 
 class ReceiptError(ValueError):
@@ -358,19 +366,56 @@ class TrustedKey:
     not_after: datetime
     revoked_at: datetime | None
     revocation_ref: str | None = None  # digest of an EXTERNAL signed revocation notice, if any
+    revocation_verified: bool = False  # True: revoked_at comes from a VERIFIED signed notice
 
     def problem_at(self, when: datetime) -> str | None:
         if when < self.not_before or when >= self.not_after:
             return "claimed issue time is outside the key validity window"
         if self.revoked_at is not None and when >= self.revoked_at:
-            ref = f" (revocation notice {self.revocation_ref})" if self.revocation_ref else ""
+            kind = "verified signed revocation notice" if self.revocation_verified else "revocation notice"
+            ref = f" ({kind} {self.revocation_ref})" if self.revocation_ref else ""
             return "key was revoked before the claimed issue time" + ref
         return None
 
 
+@dataclass(frozen=True)
+class TrustAnchors:
+    """Everything the out-of-band anchor file pins: receipt keys and revocation authorities."""
+
+    keys: dict[str, TrustedKey]
+    revocation_issuers: dict[str, str]  # kid -> base64url Ed25519 public key (issue #8 format)
+
+
 def load_trust(path: Path) -> dict[str, TrustedKey]:
+    return load_trust_anchors(path).keys
+
+
+def _revocation_issuers(items: Any) -> dict[str, str]:
+    """Pinned issue #8 revocation authorities, in ``Ed25519Key.export(private=False)`` form.
+
+    HS256 authorities are refused: a MAC verification key is a shared secret that does not
+    belong in an anchor file, and whoever holds it could forge revocation notices.
+    """
+    if not isinstance(items, list):
+        raise ReceiptError("revocation_issuers must be a list")
+    issuers: dict[str, str] = {}
+    for item in items:
+        if not isinstance(item, dict) or item.get("alg") != ED25519:
+            raise ReceiptError("revocation issuers must be Ed25519 public keys (HS256 would need a shared secret)")
+        k = _exact(item, {"alg", "kid", "public"}, "revocation issuer")
+        _match(k["kid"], ID, "revocation issuer kid", optional=False)
+        if k["kid"] in issuers or len(unb64u(k["public"])) != 32:
+            raise ReceiptError("duplicate revocation issuer kid or invalid Ed25519 public key")
+        issuers[k["kid"]] = k["public"]
+    return issuers
+
+
+def load_trust_anchors(path: Path) -> TrustAnchors:
     doc = parse_json(Path(path).read_bytes())
-    doc = _exact(doc, {"schema", "note", "keys"}, "trust anchor file")
+    if not isinstance(doc, dict):
+        raise ReceiptError("invalid trust anchor file fields")
+    # revocation_issuers is an optional, additive member (issue #32).
+    doc = _exact(doc, {"schema", "note", "keys"} | ({"revocation_issuers"} & set(doc)), "trust anchor file")
     if doc["schema"] != TRUST_SCHEMA or not isinstance(doc["keys"], list):
         raise ReceiptError("unsupported trust anchor file")
     keys: dict[str, TrustedKey] = {}
@@ -392,7 +437,111 @@ def load_trust(path: Path) -> dict[str, TrustedKey]:
                                        parse_time(k["not_before"]), parse_time(k["not_after"]),
                                        None if k["revoked_at"] is None else parse_time(k["revoked_at"]),
                                        k["revocation_ref"])
-    return keys
+    return TrustAnchors(keys, _revocation_issuers(doc.get("revocation_issuers", [])))
+
+
+# --------------------------------------------------------------------------- revocation notices
+
+@dataclass
+class Notice:
+    """One issue #8 signed revocation notice and what the verifier made of it."""
+
+    source: str
+    verdict: str = MALFORMED
+    reasons: list[str] = field(default_factory=list)
+    digest: str | None = None
+    issuer: str | None = None
+    key_id: str | None = None
+    revoked_at: str | None = None
+    applied: bool = False
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"source": self.source, "verdict": self.verdict, "digest": self.digest, "issuer": self.issuer,
+                "revoked_key_id": self.key_id, "revoked_at": self.revoked_at, "applied": self.applied,
+                "reasons": self.reasons}
+
+
+# trust.verify_revocation denial reason -> (notice verdict, report reason)
+_NOTICE_REASONS = {
+    "untrusted_grant_issuer": (UNTRUSTED, "issuer is not a revocation authority in the trust anchors"),
+    "bad_revocation_signature": (TAMPERED, "signature does not verify over the notice"),
+    "key_mismatch": (TAMPERED, "algorithm or kid does not match the pinned revocation authority"),
+    "malformed_revocation": (MALFORMED, "not a well-formed revocation notice"),
+}
+
+
+def verify_notice(raw: bytes, source: str, issuers: dict[str, str]) -> tuple[Notice, datetime | None]:
+    """Verify one sealed notice with ``trust.verify_revocation``; return it and its revocation time.
+
+    The time is returned only for a VALID notice. Only Ed25519 notices can be checked
+    offline: an HS256 verifier would need the authority's shared secret.
+    """
+    notice = Notice(source)
+    try:
+        wire = parse_json(raw)
+        sealed_parts(wire, "revocation")
+        digest = jcs_digest(wire)
+    except (ContractError, CanonicalizationError):
+        notice.reasons.append("not a single strict sealed JSON object {alg, kid, payload, sig}")
+        return notice, None
+    if contains_token_like(wire):
+        notice.reasons.append("credential-like value present; content withheld from the report")
+        return notice, None
+    notice.digest, notice.issuer = digest, wire["kid"]
+    if wire["alg"] != ED25519:
+        notice.verdict = UNTRUSTED
+        notice.reasons.append(f"{wire['alg']} notices cannot be verified offline (a shared secret would be needed)")
+        return notice, None
+    if not HAVE_ED25519:
+        notice.verdict = UNCHECKED
+        notice.reasons.append("signature NOT checked: optional 'cryptography' extra not installed; not applied")
+        return notice, None
+    store = TrustStore.build((), [Ed25519Key.from_public(kid, public) for kid, public in issuers.items()])
+    try:
+        payload = verify_revocation(wire, store)
+    except TrustDenied as exc:
+        notice.verdict, reason = _NOTICE_REASONS.get(exc.reason, (TAMPERED, "rejected by the notice verifier"))
+        notice.reasons.append(reason)
+        return notice, None
+    except (ContractError, ValueError):
+        notice.verdict = TAMPERED
+        notice.reasons.append("signature does not verify over the notice")
+        return notice, None
+    try:
+        when = datetime.fromtimestamp(payload["revoked_at"], tz=timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        notice.reasons.append("revoked_at is out of range")
+        return notice, None
+    notice.verdict, notice.key_id, notice.revoked_at = VALID, payload["grant_id"], format_time(when)
+    return notice, when
+
+
+def apply_notices(keys: dict[str, TrustedKey], raw_lines: Iterable[tuple[str, bytes]],
+                  issuers: dict[str, str]) -> tuple[dict[str, TrustedKey], list[Notice]]:
+    """Return the anchors with every VALID notice applied, plus one report entry per notice.
+
+    A notice can only make a key LESS trusted: the earliest verified revocation time wins
+    over a later one and over the anchor file's own ``revoked_at``.
+    """
+    effective = dict(keys)
+    notices = []
+    for source, raw in raw_lines:
+        notice, when = verify_notice(raw, source, issuers)
+        notices.append(notice)
+        if when is None:
+            continue
+        key = effective.get(notice.key_id or "")
+        if key is None:
+            notice.reasons.append("names no receipt key in the trust anchors; nothing to revoke")
+            continue
+        notice.applied = True
+        if keys[key.key_id].revocation_ref == notice.digest:
+            notice.reasons.append("corroborates the trust anchor's revocation_ref")
+        if key.revoked_at is None or when < key.revoked_at or (when == key.revoked_at
+                                                               and not key.revocation_verified):
+            effective[key.key_id] = replace(key, revoked_at=when, revocation_ref=notice.digest,
+                                            revocation_verified=True)
+    return effective, notices
 
 
 # --------------------------------------------------------------------------- replay
@@ -593,16 +742,27 @@ def resolve_trust(bundle: Path, trust_path: str | Path | None, fixture_trust: bo
 
 
 def verify_bundle(bundle: str | Path, trust_path: str | Path | None = None,
-                  now: datetime | None = None, *, fixture_trust: bool = False) -> dict[str, Any]:
+                  now: datetime | None = None, *, fixture_trust: bool = False,
+                  revocations: Iterable[str | Path] = ()) -> dict[str, Any]:
     """Verify one evidence bundle directory and return a sanitized report.
 
     ``trust_path`` (anchors obtained out of band) is required unless ``fixture_trust``
-    explicitly selects the anchors shipped with a synthetic fixture bundle.
+    explicitly selects the anchors shipped with a synthetic fixture bundle. Signed
+    revocation notices are read from the bundle's ``revocations.jsonl`` and from every
+    file in ``revocations``; they are self-authenticating, so they may travel with the
+    evidence, but only notices signed by an anchored revocation authority are applied.
     """
     bundle = Path(bundle)
     now = now or datetime.now(timezone.utc)
     trust_file = resolve_trust(bundle, trust_path, fixture_trust)
-    trust = load_trust(trust_file)
+    anchors = load_trust_anchors(trust_file)
+    notice_lines = [(f"{REVOCATIONS_FILE}:{n}", raw) for n, raw in _read_lines(bundle / REVOCATIONS_FILE)]
+    for extra in revocations:
+        extra = Path(extra)
+        if not extra.is_file():
+            raise ReceiptError(f"revocation notice file {extra} not found")
+        notice_lines += [(f"{extra.name}:{n}", raw) for n, raw in _read_lines(extra)]
+    trust, notices = apply_notices(anchors.keys, notice_lines, anchors.revocation_issuers)
 
     records: list[Record] = []
     for name in ("receipts.jsonl", "tool-records.jsonl"):
@@ -648,12 +808,14 @@ def verify_bundle(bundle: str | Path, trust_path: str | Path | None = None,
     timeline = _timeline(records, spans, gaps)
 
     counts = {v: sum(r.verdict == v for r in records) for v in VERDICTS}
+    notice_counts = {v: sum(n.verdict == v for n in notices) for v in VERDICTS}
     status_counts = {s: sum(e["status"] == s for e in timeline) for s in (VERIFIABLE, UNVERIFIABLE, CONFLICTING)}
-    rejected = any(counts[v] for v in REJECTED)
+    # A notice that cannot be authenticated is reported, never silently ignored.
+    rejected = any(counts[v] or notice_counts[v] for v in REJECTED)
     conflicts = status_counts[CONFLICTING] > 0 or any(s["status"] == "DIGEST_MISMATCH" for s in subjects)
     if rejected or conflicts:
         exit_code = 1
-    elif counts[UNCHECKED] or not counts[VALID]:
+    elif counts[UNCHECKED] or notice_counts[UNCHECKED] or not counts[VALID]:
         exit_code = 3
     else:
         exit_code = 0
@@ -669,6 +831,7 @@ def verify_bundle(bundle: str | Path, trust_path: str | Path | None = None,
                       "verified_principal": r.key.principal if r.key and r.verdict == VALID else None,
                       "reasons": r.reasons} for r in records],
         "receipt_verdicts": counts,
+        "revocation_notices": [n.as_dict() for n in notices],
         "movements": movements,
         "effects": effects,
         "subjects": subjects,
@@ -1069,6 +1232,10 @@ def render_text(report: dict[str, Any]) -> str:
         if r["verdict"] != VALID:
             where = "" if r["ref"] == r["source"] else f" ({r['source']})"
             lines.append(f"    [{r['verdict']:<9}] {r['ref']}{where}: " + "; ".join(r["reasons"]))
+    for n in report.get("revocation_notices", []):
+        effect = f"revokes {n['revoked_key_id']} from {n['revoked_at']}" if n["applied"] else "not applied"
+        why = "; ".join(n["reasons"])
+        lines.append(f"  revocation notice {n['source']} [{n['verdict']}] {effect}" + (f": {why}" if why else ""))
     for mid, m in report["movements"].items():
         lines.append(f"  movement {mid} [{m['lineage_relation']}] grade={m['grade']}")
         for name in ("source_principal", "destination_principal", "destination_execution_id", "outcome",
@@ -1116,6 +1283,9 @@ def main(argv: list[str] | None = None) -> int:
                              help="synthetic fixtures only: use the trust.json shipped in the bundle or its "
                                   "parent directory, with a warning (such anchors prove nothing)")
         command.add_argument("--now", help="verifier clock, YYYY-MM-DDTHH:MM:SSZ (default: system clock)")
+        command.add_argument("--revocations", type=Path, action="append", default=[], metavar="FILE",
+                             help="extra JSONL file of signed issue #8 revocation notices (repeatable); "
+                                  "the bundle's revocations.jsonl is always read")
     verify.add_argument("--json", action="store_true", help="print the full JSON report")
     make = sub.add_parser("make-fixtures", help="regenerate the deterministic synthetic fixture set")
     make.add_argument("path", type=Path)
@@ -1134,7 +1304,8 @@ def main(argv: list[str] | None = None) -> int:
             raise ReceiptError("no bundle (receipts.jsonl or tool-records.jsonl) found")
         if options.command == "timeline":
             bundles = bundles[:1]
-        reports = [verify_bundle(b, options.trust, now, fixture_trust=options.fixture_trust) for b in bundles]
+        reports = [verify_bundle(b, options.trust, now, fixture_trust=options.fixture_trust,
+                                 revocations=options.revocations) for b in bundles]
     except (ReceiptError, ContractError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

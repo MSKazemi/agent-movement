@@ -74,6 +74,7 @@ agent-movement relocate                               # LangGraph checkpoint rel
 agent-movement relocate --two-store                   # same, checkpoint copied into Worker B's own store
 agent-movement receipts verify tests/fixtures/movement-receipts/01-valid-delegation \
     --trust tests/fixtures/movement-receipts/trust.json --now 2026-10-16T00:00:00Z
+agent-movement demo --receipts /tmp/am-receipts       # same demo, plus signed receipts verified offline
 ```
 
 Each `agent-movement` subcommand forwards its arguments unchanged to an existing module, so `python -m agent_movement.demo`, `python -m agent_movement.mobilitybench` and the others still work. A subcommand whose optional extra is missing prints the install command and exits 2. Every subcommand and flag is listed in the [CLI reference](docs/cli.md), which a test checks against the live `--help` output.
