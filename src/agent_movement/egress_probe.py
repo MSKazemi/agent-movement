@@ -21,8 +21,6 @@ def attempt(name, fn):
         result[name] = "allowed"
     except OSError as exc:
         result[name] = "blocked" if exc.errno == errno.EPERM else "unexpected_errno"
-    except Exception:
-        result[name] = "unexpected_failure"
 
 
 def tcp_send(route):
