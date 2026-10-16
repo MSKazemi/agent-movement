@@ -1,0 +1,171 @@
+name: Python mobility smoke
+
+# One workflow for the agent_movement package (src/). The corpus gates live in corpus.yml.
+#  - core:   no optional extras; proves the stdlib-only core works and the optional tests skip cleanly.
+#  - extras: every optional extra (a2a, ed25519, hpke, relocation, signing); runs every demo.
+on:
+  push:
+    paths: ["src/**", "tests/**", "tools/**", "pyproject.toml", ".github/workflows/python-smoke.yml"]
+  pull_request:
+    paths: ["src/**", "tests/**", "tools/**", "pyproject.toml", ".github/workflows/python-smoke.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: core, no extras (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # The core is stdlib-only, so it also runs on the newest CPython (as corpus.yml does).
+        python-version: ["3.11", "3.13", "3.15"]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e . "pytest>=9.1"
+      # All of tests/: agent_movement + corpus tooling. Tests that need an extra must skip, not fail.
+      - run: python -m pytest -q
+      - run: python -m agent_movement.demo
+      - run: python -m agent_movement.peer_demo
+      - name: MobilityBench 20-case smoke (plus two timing-free runs that must be byte-identical)
+        run: |
+          python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
+          python -m agent_movement.mobilitybench --no-timing --output "$RUNNER_TEMP/smoke-1.jsonl"
+          python -m agent_movement.mobilitybench --no-timing --output "$RUNNER_TEMP/smoke-2.jsonl"
+          cmp "$RUNNER_TEMP/smoke-1.jsonl" "$RUNNER_TEMP/smoke-2.jsonl"
+      - name: MobilityBench v0.1 (digest-verified fixtures, CI smoke subset)
+        run: |
+          python tools/mobilitybench_freeze.py --check
+          python -m agent_movement.mobilitybench verify --suite v0.1
+          python -m agent_movement.mobilitybench run --suite v0.1 --subset smoke --out mobilitybench-v0.1-smoke.jsonl
+          python -m agent_movement.mobilitybench report --in mobilitybench-v0.1-smoke.jsonl --out mobilitybench-v0.1-smoke.md
+      - name: Optional features fail closed without their extra
+        shell: bash
+        run: |
+          fail=0
+          check() { want=$1; shift; rc=0; "$@" >/dev/null 2>&1 || rc=$?; echo "exit $rc (want $want): $*"; [ "$rc" = "$want" ] || fail=1; }
+          check 2 python -m agent_movement.a2a_demo
+          check 1 python -m agent_movement.peer_demo --alg Ed25519
+          check 1 python -m agent_movement.peer_demo --delivery hpke
+          # Receipts: no --trust fails closed (2); without the signing extra signatures are UNCHECKED.
+          R=tests/fixtures/movement-receipts
+          check 2 python -m agent_movement.receipts verify $R/01-valid-delegation --now 2026-10-16T00:00:00Z
+          for pair in 01-valid-delegation:3 02-tampered-receipts:1 03-replayed-receipts:1 \
+                      04-forged-identity:1 05-missing-claims:3 06-conflicting-accounts:3 \
+                      07-fork-lineage:3 08-privacy-canaries:1 09-clock-skew:3; do
+            check ${pair##*:} python -m agent_movement.receipts verify "$R/${pair%%:*}" --trust $R/trust.json --now 2026-10-16T00:00:00Z
+          done
+          exit $fail
+      - name: Unified agent-movement CLI (core subcommands; missing extras give a hint and exit 2)
+        shell: bash
+        run: |
+          agent-movement version
+          agent-movement demo
+          agent-movement peer-demo
+          agent-movement bench verify --suite v0.1
+          fail=0
+          check() { want=$1; shift; rc=0; "$@" >/dev/null 2>&1 || rc=$?; echo "exit $rc (want $want): $*"; [ "$rc" = "$want" ] || fail=1; }
+          check 2 agent-movement a2a-demo
+          check 2 agent-movement relocate
+          check 2 agent-movement peer-demo --alg Ed25519
+          check 2 agent-movement peer-demo --delivery hpke
+          check 2 agent-movement receipts verify tests/fixtures/movement-receipts/01-valid-delegation --trust tests/fixtures/movement-receipts/trust.json
+          exit $fail
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mobilitybench-python-${{ matrix.python-version }}
+          path: |
+            mobilitybench-local.jsonl
+            mobilitybench-v0.1-smoke.jsonl
+            mobilitybench-v0.1-smoke.md
+          if-no-files-found: ignore
+          retention-days: 7
+
+  extras:
+    name: all extras (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e '.[a2a,ed25519,hpke,relocation,signing]' "pytest>=9.1"
+      # Pinned, checksum-verified gitleaks so tests/test_movement_receipts_secret_scan.py runs the
+      # full default rule set here instead of skipping (latest release v8.30.1, 2026-03-21).
+      - name: Install gitleaks (secret-scanner check of the receipt files)
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          echo "GITLEAKS=$RUNNER_TEMP/gitleaks" >> "$GITHUB_ENV"
+      - name: Resolved optional dependency versions
+        run: python -m pip show a2a-sdk uvicorn starlette sse-starlette httpx protobuf cryptography langgraph langgraph-checkpoint langgraph-checkpoint-sqlite | grep -E '^(Name|Version):'
+      - run: python -m pytest -q
+      - run: python -m agent_movement.demo
+      - run: python -m agent_movement.peer_demo
+      - run: python -m agent_movement.peer_demo --alg Ed25519
+      - run: python -m agent_movement.peer_demo --delivery hpke
+      - name: A2A v1 adapter demo (official a2a-sdk)
+        run: python -m agent_movement.a2a_demo
+      - name: Checkpoint relocation demo (pinned LangGraph, 30-row fault matrix)
+        run: python -m agent_movement.relocation_demo --json relocation-results.json
+      - name: Checkpoint relocation demo, two stores (digest-verified bundle copy, 11-row copy fault matrix)
+        run: python -m agent_movement.relocation_demo --two-store --json relocation-two-store-results.json
+      - name: Unified agent-movement CLI, every subcommand with its extra
+        run: |
+          agent-movement version
+          agent-movement peer-demo --alg Ed25519
+          agent-movement a2a-demo
+          agent-movement relocate
+          agent-movement bench smoke --output cli-smoke.jsonl
+          agent-movement receipts verify tests/fixtures/movement-receipts/01-valid-delegation --trust tests/fixtures/movement-receipts/trust.json --now 2026-10-16T00:00:00Z
+          python tools/cli_reference.py --check
+      - name: Movement-receipt fixtures give their expected verifier exit codes
+        shell: bash
+        run: |
+          fail=0
+          R=tests/fixtures/movement-receipts
+          # Trust anchors are never taken from the evidence implicitly: no --trust must exit 2.
+          rc=0; python -m agent_movement.receipts verify "$R/01-valid-delegation" >/dev/null 2>&1 || rc=$?
+          echo "no --trust: exit $rc (want 2)"; [ "$rc" = 2 ] || fail=1
+          for pair in 01-valid-delegation:0 02-tampered-receipts:1 03-replayed-receipts:1 \
+                      04-forged-identity:1 05-missing-claims:0 06-conflicting-accounts:1 \
+                      07-fork-lineage:0 08-privacy-canaries:1 09-clock-skew:0; do
+            name=${pair%%:*}; want=${pair##*:}; rc=0
+            python -m agent_movement.receipts verify "$R/$name" --trust "$R/trust.json" --now 2026-10-16T00:00:00Z >/dev/null || rc=$?
+            echo "$name: exit $rc (want $want)"
+            [ "$rc" = "$want" ] || fail=1
+          done
+          exit $fail
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: relocation-results-python-${{ matrix.python-version }}
+          path: |
+            relocation-results.json
+            relocation-two-store-results.json
+          if-no-files-found: ignore
+          retention-days: 7

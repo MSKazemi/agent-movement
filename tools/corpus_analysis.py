@@ -50,7 +50,7 @@ MONTHS = ["January", "February", "March", "April", "May", "June", "July",
 
 # The four movement operations of the project README, in README order.
 CORE_OPS = [
-    ("delegation", "Delegation / handoff"),
+    ("delegation", "Delegation"),
     ("portable-context", "Portable task context"),
     ("runtime-relocation", "Runtime relocation"),
     ("cross-framework-migration", "Cross-framework migration"),
@@ -465,7 +465,7 @@ def render_gaps(news: Corpus, papers: Corpus, theme_op: dict, kw_theme: dict, cw
     def hyp(text: str) -> None:
         nonlocal h
         h += 1
-        L.append(f"- **H{h}.** {text}")
+        L.append(f"- **G{h}.** {text}")
 
     L += ["### Year × theme", ""]
     for c in (news, papers):
