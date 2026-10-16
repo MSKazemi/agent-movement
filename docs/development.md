@@ -88,7 +88,7 @@ Biblatex cite keys are frozen in the same way. Both tools' `apply-audit` refuse 
 
 ## The `agent_movement` package
 
-`src/agent_movement/` is a research-stage, **synthetic, local** testbed. It is not production software, it calls no model, and it uses only throw-away test keys. Its design is described in the [as-built architecture](architecture.md), and every command, flag and exit code is listed in the [CLI reference](cli.md). The commands in this section were last run against commit `dac5f62` on 2026-10-16 (Python 3.15.0rc2 without extras; Python 3.11.16 and 3.13.15 with all extras), and every exit code quoted below is what they returned.
+`src/agent_movement/` is a research-stage, **synthetic, local** testbed. It is not production software, it calls no model, and it uses only throw-away test keys. Its design is described in the [as-built architecture](architecture.md), and every command, flag and exit code is listed in the [CLI reference](cli.md). The commands in this section were last run against commit `dac5f62` on 2026-10-16 (Python 3.15.0rc2 without extras; Python 3.11.16 and 3.13.15 with all extras), and every exit code quoted below is what they returned. The MobilityBench v0.2 commands, the `tests/test_mobilitybench_v02.py` row and the full-run counts at `8fee89c` were run against commit `8fee89c` on 2026-10-16 (Python 3.12.3, without extras and with all extras). The only `src/` change between the two commits is MobilityBench v0.2 (issue #40).
 
 ### Requirements
 
@@ -142,7 +142,7 @@ Without its extra, a command fails closed instead of pretending to work. Through
 
 ### Tests
 
-`python -m pytest -q` runs all of `tests/`, which covers the corpus tools, the docs checks and the package. `make test PYTHON=python` runs the same command. Tests that need an extra are skipped, not failed, when it is missing. At `dac5f62` the full run gave **521 passed, 249 skipped** without extras and **762 passed, 8 skipped** with all extras; with the `gitleaks` binary on `PATH` or in `$GITLEAKS` (as in the CI extras job), one more test runs (522/248 and 763/7). All exited 0. With all extras and `gitleaks`, the seven remaining skips are the two missing-extra-path tests and the five JavaScript interop tests, which need `npm ci --prefix interop/js` (see [interop and conformance](a2a-adapter.md#interop-and-conformance-run-locally)).
+`python -m pytest -q` runs all of `tests/`, which covers the corpus tools, the docs checks and the package. `make test PYTHON=python` runs the same command. Tests that need an extra are skipped, not failed, when it is missing. At `dac5f62` the full run gave **521 passed, 249 skipped** without extras and **762 passed, 8 skipped** with all extras; with the `gitleaks` binary on `PATH` or in `$GITLEAKS` (as in the CI extras job), one more test runs (522/248 and 763/7). All exited 0. At `8fee89c` (Python 3.12.3, no `gitleaks`), after MobilityBench v0.2 added `tests/test_mobilitybench_v02.py`, the full run gave **551 passed, 253 skipped** without extras and **796 passed, 8 skipped** with all extras, both exit 0. With all extras and `gitleaks`, the seven remaining skips are the two missing-extra-path tests and the five JavaScript interop tests, which need `npm ci --prefix interop/js` (see [interop and conformance](a2a-adapter.md#interop-and-conformance-run-locally)).
 
 Run one group with `python -m pytest -q <file>` (counts below were measured with `$GITLEAKS` set):
 
@@ -167,6 +167,7 @@ Run one group with `python -m pytest -q <file>` (counts below were measured with
 | `tests/test_cli.py` | `agent-movement` dispatch, argument forwarding, extra hints, `docs/cli.md` up to date | core; end-to-end cases need extras | 52 (4 skipped) / 55 (1 skipped) |
 | `tests/test_mobilitybench.py` | Smoke suite: declared verdicts, per-case isolation, order independence, byte-identical `--no-timing` output | core | 16 / 16 |
 | `tests/test_mobilitybench_v01.py` | MobilityBench v0.1 fixtures, runner, report | core | 25 / 25 |
+| `tests/test_mobilitybench_v02.py` | MobilityBench v0.2 (issue #40): frozen release and schedule, mid-step crashes, partitions, the `restart_stable_ids` baseline, the 16 negatives, byte-identical output and the CLI (measured at `8fee89c`, without `$GITLEAKS`) | core; the B2 and B3 fault cases need `a2a` or `relocation` | 30 (4 skipped) / 34 |
 | `tests/test_mobilitybench_optional_modes.py` | B2 (A2A) and B3 (relocation) baselines, and their `unavailable` records without the extras | core; scored cases need `a2a` or `relocation` | 4 (13 skipped) / 17 |
 | `tests/test_review_regressions.py` | Regressions from the PR #6 and #14 review | core | 9 / 9 |
 | `tests/test_handoff_envelope_schema.py` | Marked envelope examples in `docs/` against the envelope schema, and core compatibility | core | 47 / 47 |
@@ -196,7 +197,7 @@ Each demo runs locally on `127.0.0.1` (or in-process), keeps its SQLite files in
 | `agent-movement bench smoke --output "$OUT/smoke.jsonl"` | core | Smoke suite `mobilitybench-local-smoke-v0.2`: 20 cases, 18 `pass`, 2 `known_gap`, 0 `fail` | 0 |
 | `agent-movement bench smoke --no-timing --output "$OUT/s1.jsonl"` (twice, then `cmp` the files) | core | Timing-free output is byte-identical across runs | 0, and `cmp` exits 0 |
 
-MobilityBench v0.1 (see [MobilityBench v0.1](mobilitybench-v0.1.md)):
+MobilityBench v0.1 (see [MobilityBench v0.1](mobilitybench-v0.1.md); `--suite v0.1` is the default):
 
 ```bash
 python tools/mobilitybench_freeze.py --check                     # exit 0: ground truth and manifest match
@@ -207,6 +208,18 @@ agent-movement bench report --in "$OUT/v01.jsonl" --out "$OUT/v01.md"         # 
 ```
 
 The smoke run gave 36 attempts (6 tasks, 1 seed, 6 modes) and 12 security cases (10 pass, 2 `known_gap`, 0 fail). In a core-only environment `a2a_delegate` and `checkpoint_relocate` are recorded as `unavailable` with the reasons `extra_not_installed:a2a` and `extra_not_installed:relocation`; with the `a2a` and `relocation` extras they are scored, and only `cross_framework_reconstruct` (`baseline_not_implemented`) stays unavailable. The B2 and B3 runners are in `mobilitybench_optional.py`; `tests/test_mobilitybench_optional_modes.py` covers them.
+
+MobilityBench v0.2 (see [MobilityBench v0.2](mobilitybench-v0.2.md) and its [results](mobilitybench-v0.2-results.md); run at `8fee89c`):
+
+```bash
+python tools/mobilitybench_freeze.py --suite v0.2 --check                       # exit 0: fixtures, ground truth, schedule and manifest are consistent
+agent-movement bench verify --suite v0.2                                         # exit 0: release digest 2408da9a…
+agent-movement bench schedule --suite v0.2 --subset smoke                        # exit 0: 10 frozen schedule rows
+agent-movement bench run --suite v0.2 --subset smoke --no-timing --out "$OUT/v02.jsonl"   # exit 0
+agent-movement bench report --in "$OUT/v02.jsonl" --out "$OUT/v02.md"            # exit 0
+```
+
+Without extras the smoke run gave 70 attempts (10 tasks, 1 seed, 7 modes, of which `a2a_delegate`, `checkpoint_relocate` and `cross_framework_reconstruct` are `unavailable`) and 16 security cases (14 pass, 2 `known_gap`, 0 fail); a second `--no-timing` run was byte-identical (`cmp` exit 0). The full run (`bench run --suite v0.2 --no-timing`, 630 records per repeat, 2 repeats) reproduced both published timing-free `outcome_digest` values: `70109cfd…` without extras and `c7760c6c…` with the `a2a` and `relocation` extras, each with 0 harness errors and 0 reproducibility mismatches.
 
 Exported live receipts verify like any other bundle: `agent-movement receipts verify --trust "$OUT/live/trust-anchors.json" "$OUT/live/live-run"` exited 0, and a copy with one `"outcome":"accepted"` changed to `"rejected"` exited 1. Signed revocation notices are read from a bundle's `revocations.jsonl` or from `--revocations FILE`, and are applied only when signed by an issuer pinned in the anchors' `revocation_issuers`.
 
@@ -256,14 +269,14 @@ The code cannot check the operator's claim: a false `confirmed_done` loses the e
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | [`corpus.yml`](../.github/workflows/corpus.yml) | push and pull request to `main` | `gates`: `make check verify-determinism verify-analysis`, `make check-ids`, `make check-tests-registry`, `make sources` (every external URL indexed in `docs/sources.md`), then `make test` on Python 3.15. `bibliography`: `make bib BIB_STRICT=1`. |
-| [`python-smoke.yml`](../.github/workflows/python-smoke.yml) | push or pull request touching `src/`, `tests/`, `tools/`, `pyproject.toml` or the workflow | `core` (Python 3.11, 3.13, 3.15; no extras): pytest, `demo`, `peer_demo`, the smoke suite (once with timing, then twice with `--no-timing`, compared with `cmp`), MobilityBench v0.1, the fail-closed checks above (including the receipt exit codes without `signing`) and the `agent-movement` CLI with its exit-2 hints (including `demo --receipts` without `signing`). `extras` (Python 3.11, 3.13; all extras plus a pinned, checksum-verified `gitleaks`): pytest, every demo including `peer_demo --delivery hpke` and `relocation_demo --two-store`, the nine receipt fixtures with `--trust`, every CLI subcommand, `tools/cli_reference.py --check`, `demo --receipts` with its bundle verified (0) and a tampered copy rejected (1), the operator reconciliation walkthrough, and the v0.1 smoke subset with B2 and B3 scored. Both upload their result files as artifacts for 7 days. |
+| [`python-smoke.yml`](../.github/workflows/python-smoke.yml) | push or pull request touching `src/`, `tests/`, `tools/`, `pyproject.toml` or the workflow | `core` (Python 3.11, 3.13, 3.15; no extras): pytest, `demo`, `peer_demo`, the smoke suite (once with timing, then twice with `--no-timing`, compared with `cmp`), MobilityBench v0.1, MobilityBench v0.2 (`freeze --suite v0.2 --check`, `verify`, the smoke subset with a report, then two `--no-timing` smoke runs compared with `cmp`), the fail-closed checks above (including the receipt exit codes without `signing`) and the `agent-movement` CLI with its exit-2 hints (including `demo --receipts` without `signing`). `extras` (Python 3.11, 3.13; all extras plus a pinned, checksum-verified `gitleaks`): pytest, every demo including `peer_demo --delivery hpke` and `relocation_demo --two-store`, the nine receipt fixtures with `--trust`, every CLI subcommand, `tools/cli_reference.py --check`, `demo --receipts` with its bundle verified (0) and a tampered copy rejected (1), the operator reconciliation walkthrough, and the v0.1 and v0.2 smoke subsets with B2 and B3 scored (each fails unless `cross_framework_reconstruct` is the only unavailable mode). Both upload their result files as artifacts for 7 days. |
 | [`static-checks.yml`](../.github/workflows/static-checks.yml) | push or pull request touching `src/`, the checked tool and test file, `pyproject.toml`, the `Makefile` or the workflow | `lint-typecheck` (Python 3.13, every extra plus the `lint` group): `make lint typecheck STATIC_REQUIRED=1`, see [Static checks](#static-checks). |
 | [`a2a-interop.yml`](../.github/workflows/a2a-interop.yml) | push or pull request touching the A2A modules, `interop/`, the A2A tests or `pyproject.toml`; manual | Optional, `continue-on-error`: `js-interop` (an `@a2a-js/sdk` client against the Python server, `tests/test_a2a_js_interop.py`) and `conformance` (the A2A TCK and Inspector at pinned commits). See [interop and conformance](a2a-adapter.md#interop-and-conformance-run-locally). |
 | [`docs-links.yml`](../.github/workflows/docs-links.yml) | push to `main` and every pull request | `relative-links`: lychee in offline mode over all Markdown files |
 
 ### Adding a MobilityBench case
 
-There are two suites, and they are extended differently.
+There are two kinds of suite, and they are extended differently: the smoke suite, and the frozen MobilityBench releases (v0.1 and v0.2).
 
 **Smoke suite (`mobilitybench.py`, fixture-based).** A case has two parts, and both are needed:
 
@@ -272,7 +285,7 @@ There are two suites, and they are extended differently.
 
 If only one part exists, the CLI exits 2 with `case_fixture_invalid`: a declaration without an evaluator is reported as `no evaluator for scenario <name>`, and an evaluator without a declaration as `packaged declarations do not cover every evaluator`. In a rehearsal on a scratch copy of the package with one added `pass` case, the declaration alone and the evaluator alone each exited 2, and both together gave 21 cases (19 `pass`, 2 `known_gap`) with exit 0. `tests/test_mobilitybench.py` derives its counts from the declarations and passed, but `tests/test_mobilitybench_v01.py` (`test_run_smoke_report_verify_and_legacy_entrypoint`) still asserts that the smoke output has exactly 20 lines and failed, so update that number in the same change.
 
-**MobilityBench v0.1 (`fixtures/mobilitybench-v0.1/`).** This release is frozen and must not be edited in place: a new task, rubric or ground truth needs a new suite version and a new fixture directory ([versioning rule](mobilitybench-v0.1.md#frozen-release)). At `dac5f62` the harness knows one suite (`mobilitybench_v01.SUITES = {"v0.1": ...}`), and `verify_fixtures` requires the manifest's `suite_version` to equal `SUITE_VERSION`. A new release therefore also needs a change in `mobilitybench_v01.py` and in the `package-data` pattern in `pyproject.toml`. You can draft and test a case in a copy without touching the release:
+**MobilityBench v0.1 (`fixtures/mobilitybench-v0.1/`).** This release is frozen and must not be edited in place: a new task, rubric or ground truth needs a new suite version and a new fixture directory ([versioning rule](mobilitybench-v0.1.md#frozen-release)). At `8fee89c` the harness knows two suites (`mobilitybench_v01.SUITE_SPECS`, keys `v0.1` and `v0.2`), and `verify_fixtures(directory, suite)` requires the manifest's `suite_version` to equal that suite's version and its file list to equal the suite's files. A new release therefore also needs a new `Suite` entry in `SUITE_SPECS` and a new `package-data` pattern in `pyproject.toml`, as v0.2 added (commit `1d2e7f3`, issue #40). You can draft and test a case in a copy without touching the release:
 
 ```bash
 DRAFT=$(mktemp -d)/mobilitybench-draft
