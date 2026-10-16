@@ -56,10 +56,10 @@ All objects are closed: an unknown member anywhere is rejected (`additionalPrope
 | `requirements.checkpoint_format` | ID or null | relocate | Checkpoint format that the destination must restore. |
 | `requirements.runtime_version` | ID or null | relocate | Pinned runtime version for the checkpoint. |
 | `authority.approval_ref` | ID | yes | Reference to the approval record (policy decision, plus human approval where required) that authorizes this transfer. |
-| `authority.grant_ref` | ID | no | Opaque reference to a scoped, short-lived delegation grant. Never a bearer token or a raw credential. |
+| `authority.grant_ref` | ID | no | Opaque reference to a scoped, short-lived delegation grant. Never a bearer token or a raw credential. In the peer-authentication prototype the grant carries a signed `max_uses` (default 1); idempotent retries do not consume a use (`src/agent_movement/peer.py`). |
 | `authority.expires_at` | RFC 3339 date-time | no | Expiry of the authority carried by this envelope. |
 | `authority.delegation_depth` | integer ≥ 0 | no | Hops of transitive delegation so far. |
-| `execution.idempotency_key` | ID | yes | Deduplication key for retries of this transfer. |
+| `execution.idempotency_key` | ID | yes | Deduplication key for retries of this transfer. The implementation scopes it per (sender, key): two senders may use the same key, while `movement_id` stays globally unique (`src/agent_movement/core.py`, store schema v1). |
 | `execution.checkpoint_ref` | ID or null | relocate | Reference to the approved application checkpoint. The checkpoint is a separate contract and is never embedded. |
 | `execution.fencing_epoch` | integer ≥ 1 or null | relocate | Monotonic coordinator epoch that fences the previous executor. |
 | `execution.max_runtime_seconds` | integer ≥ 1 | no | Runtime budget. |
