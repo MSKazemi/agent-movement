@@ -142,10 +142,27 @@ jobs:
       - run: python -m agent_movement.peer_demo --delivery hpke
       - name: A2A v1 adapter demo (official a2a-sdk)
         run: python -m agent_movement.a2a_demo
-      - name: Checkpoint relocation demo (pinned LangGraph, 30-row fault matrix)
+      - name: Checkpoint relocation demo (pinned LangGraph, 30-row fault matrix, 9 reconciliation rows)
         run: python -m agent_movement.relocation_demo --json relocation-results.json
-      - name: Checkpoint relocation demo, two stores (digest-verified bundle copy, 11-row copy fault matrix)
+      - name: Checkpoint relocation demo, two stores (digest-verified bundle copy, 11-row copy fault matrix, 9 reconciliation rows)
         run: python -m agent_movement.relocation_demo --two-store --json relocation-two-store-results.json
+      - name: Operator reconciliation CLI (stale epoch denied, decide, replay, resume)
+        shell: bash
+        run: |
+          set -euo pipefail
+          M="python -m agent_movement.relocation_reconcile"
+          D="$RUNNER_TEMP/reconcile"
+          $M example --dir "$D" --two-store > /dev/null
+          C="$D/example/coordinator.sqlite"
+          decide=(decide --authority "$C" --task task-report-1 --effect publish-report --decision confirmed_done
+                  --operator ops-ci --reason "CI walkthrough")
+          rc=0; $M "${decide[@]}" --epoch 2 || rc=$?
+          echo "stale epoch: exit $rc (want 1)"; [ "$rc" = 1 ]
+          $M "${decide[@]}" --epoch 3 > /dev/null
+          $M "${decide[@]}" --epoch 3 | grep -q '"replayed": true'
+          $M resume --authority "$C" --task task-report-1 --worker worker-b --incarnation 2 --epoch 3 \
+            --store "$D/example/worker-b.sqlite" | grep -q '"status": "done"'
+          $M log --authority "$C"
       - name: Unified agent-movement CLI, every subcommand with its extra
         run: |
           agent-movement version

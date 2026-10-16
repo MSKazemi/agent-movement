@@ -145,15 +145,119 @@ options:
 ### `agent-movement relocate`
 
 ```text
-usage: agent-movement relocate [-h] [--json JSON] [--two-store]
+usage: agent-movement relocate [-h] [--json JSON] [--two-store] {reconcile} ...
 
 Synthetic same-runtime checkpoint relocation experiment
+
+positional arguments:
+  {reconcile}
+    reconcile  operator reconciliation of parked unknown-outcome effects (see 'reconcile --help')
 
 options:
   -h, --help   show this help message and exit
   --json JSON  also write full results as JSON
   --two-store  give each worker its own SQLite store and copy the checkpoint as a digest-verified
                bundle (copy-specific fault matrix)
+```
+
+### `agent-movement relocate reconcile`
+
+```text
+usage: agent-movement relocate reconcile [-h] {list,decide,resume,log,example} ...
+
+Resolve parked effects whose outcome is unknown (operator reconciliation). The decision is fenced
+by the ownership epoch and audited, not verified.
+
+positional arguments:
+  {list,decide,resume,log,example}
+    list                list parked effects and their decisions (JSON)
+    decide              record confirmed_done or confirmed_absent for a parked effect
+    resume              the owning worker continues the task after a decision
+    log                 print the append-only reconciliation audit log (JSON)
+    example             create a synthetic parked task to try the commands on
+
+options:
+  -h, --help            show this help message and exit
+```
+
+### `agent-movement relocate reconcile list`
+
+```text
+usage: agent-movement relocate reconcile list [-h] --authority AUTHORITY [--task TASK]
+
+options:
+  -h, --help            show this help message and exit
+  --authority AUTHORITY
+                        coordinator SQLite file (owners, epochs, reconciliation records)
+  --task TASK           only this logical task ID
+```
+
+### `agent-movement relocate reconcile decide`
+
+```text
+usage: agent-movement relocate reconcile decide [-h] --authority AUTHORITY --task TASK
+                                                --effect EFFECT
+                                                --decision {confirmed_done,confirmed_absent}
+                                                --operator OPERATOR --reason REASON --epoch EPOCH
+
+options:
+  -h, --help            show this help message and exit
+  --authority AUTHORITY
+                        coordinator SQLite file (owners, epochs, reconciliation records)
+  --task TASK           logical task ID
+  --effect EFFECT       parked effect ID
+  --decision {confirmed_done,confirmed_absent}
+                        confirmed_done: continue without re-execution; confirmed_absent: retry
+                        once under a new effect ID
+  --operator OPERATOR   operator identity recorded in the audit log
+  --reason REASON       why (evidence of the out-of-band check), <= 512 bytes
+  --epoch EPOCH         ownership epoch the operator inspected; denied if the task has moved on
+```
+
+### `agent-movement relocate reconcile resume`
+
+```text
+usage: agent-movement relocate reconcile resume [-h] --authority AUTHORITY --task TASK
+                                                --worker WORKER --incarnation INCARNATION
+                                                --epoch EPOCH [--store STORE]
+
+options:
+  -h, --help            show this help message and exit
+  --authority AUTHORITY
+                        coordinator SQLite file (owners, epochs, reconciliation records)
+  --task TASK           logical task ID
+  --worker WORKER       worker ID of the current owner, e.g. worker-b
+  --incarnation INCARNATION
+                        incarnation of the current owner
+  --epoch EPOCH         current ownership epoch
+  --store STORE         the worker's own store (two-store mode only)
+```
+
+### `agent-movement relocate reconcile log`
+
+```text
+usage: agent-movement relocate reconcile log [-h] --authority AUTHORITY [--task TASK]
+
+options:
+  -h, --help            show this help message and exit
+  --authority AUTHORITY
+                        coordinator SQLite file (owners, epochs, reconciliation records)
+  --task TASK           only this logical task ID
+```
+
+### `agent-movement relocate reconcile example`
+
+```text
+usage: agent-movement relocate reconcile example [-h] --dir DIR [--crash {after,before}]
+                                                 [--two-store]
+
+options:
+  -h, --help            show this help message and exit
+  --dir DIR             new or empty directory for the SQLite files
+  --crash {after,before}
+                        crash the receiver after (row C14, default) or before (row C13) the opaque
+                        call
+  --two-store           one store per worker (bundle copy)
 ```
 
 ### `agent-movement bench`
