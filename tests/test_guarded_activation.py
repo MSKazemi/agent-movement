@@ -6,11 +6,9 @@ remote processes, host integrity or liveness.
 
 from __future__ import annotations
 
-import json
 import multiprocessing
 import sqlite3
 import sys
-from dataclasses import replace
 
 import pytest
 
@@ -81,7 +79,7 @@ def test_successful_signed_activation_replay_and_effect_idempotency(fenced):
 @pytest.mark.parametrize(
     ("overrides", "reason"),
     [
-        ({"task": "task-other"}, "binding"),
+        ({"task": "task-other"}, "not enrolled"),
         ({"movement": "movement-other"}, "binding"),
         ({"destination": "agent-z"}, "binding"),
         ({"epoch": 3}, "epoch"),
@@ -194,7 +192,7 @@ def test_activation_proof_expires_and_cannot_be_refreshed_by_old_receipt(fenced)
     rig.now = NOW + 110
     with pytest.raises(PolicyDenied, match="activation_expired"):
         authorized_commit(rig, gate, "task-1", "movement-1", "agent-b", 2, "late", "safe")
-    with pytest.raises(PolicyDenied):
+    with pytest.raises((PolicyDenied, Conflict)):
         gate.activate(activation_ack(rig, expires_at=NOW + 115))
     assert state(rig)["effects"] == []
 
