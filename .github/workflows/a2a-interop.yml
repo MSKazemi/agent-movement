@@ -1,0 +1,84 @@
+name: A2A interop (optional)
+
+# Optional, non-blocking checks for the A2A adapter (issue #28). Both jobs are continue-on-error
+# and this workflow is not a required status check, so an npm/PyPI/GitHub outage or an upstream
+# tool problem never blocks core CI (python-smoke.yml, corpus.yml).
+#  - js-interop: an @a2a-js/sdk client (interop/js, exact pin + lockfile) completes handoffs
+#                against the Python a2a-sdk server; A2A_INTEROP_REQUIRED=1 turns skips into failures.
+#  - conformance: the official A2A TCK and the A2A Inspector validators at pinned commits
+#                 (interop/conformance/fetch_tools.sh) against python -m agent_movement.a2a_server,
+#                 compared with interop/conformance/tck-expected.json.
+# Local equivalent: docs/a2a-adapter.md, "Interop and conformance: run locally".
+on:
+  push:
+    paths: ["src/agent_movement/a2a_*.py", "interop/**", "tests/test_a2a_*.py", "pyproject.toml",
+            ".github/workflows/a2a-interop.yml"]
+  pull_request:
+    paths: ["src/agent_movement/a2a_*.py", "interop/**", "tests/test_a2a_*.py", "pyproject.toml",
+            ".github/workflows/a2a-interop.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js-interop:
+    name: "@a2a-js/sdk client -> Python a2a-sdk server"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: python -m pip install -e '.[a2a]' "pytest>=9.1"
+      - run: npm ci --prefix interop/js --no-audit --no-fund
+      - name: Versions
+        run: |
+          node --version
+          npm ls --prefix interop/js @a2a-js/sdk
+          python -m pip show a2a-sdk | grep -E '^(Name|Version):'
+      - name: Cross-SDK handoff tests (must not skip)
+        env:
+          A2A_INTEROP_REQUIRED: "1"
+        run: python -m pytest -q -rs tests/test_a2a_js_interop.py
+
+  conformance:
+    name: A2A TCK + Inspector validators (pinned)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      # uv lets fetch_tools.sh install the TCK from the TCK's own uv.lock (uv sync --frozen).
+      - run: python -m pip install -e '.[a2a]' uv
+      - name: Fetch a2a-tck and a2a-inspector at the pinned commits
+        run: bash interop/conformance/fetch_tools.sh "$RUNNER_TEMP/a2a-tools"
+      - name: Run the conformance smoke
+        run: >-
+          python interop/conformance/run_conformance.py
+          --tck "$RUNNER_TEMP/a2a-tools/a2a-tck"
+          --inspector "$RUNNER_TEMP/a2a-tools/a2a-inspector"
+          --out a2a-conformance
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: a2a-conformance
+          path: a2a-conformance
+          if-no-files-found: ignore
+          retention-days: 14

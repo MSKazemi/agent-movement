@@ -1,0 +1,557 @@
+{
+  "tck": {
+    "repository": "https://github.com/a2aproject/a2a-tck",
+    "commit": "263b9cfaf16a554bdfb166a7ba5b67716e946349",
+    "commit_date": "2026-09-01",
+    "package_version": "1.0.0",
+    "spec": "A2A v1.0.0 (a2aproject/A2A@173695755607e884aa9acf8ce4feed90e32727a1, vendored by the TCK)",
+    "note": "Newest tag is 1.0.0.alpha2 (2026-05-27, no GitHub release); it predates a2a-tck PR #230 (follow redirects), so its JSON-RPC client cannot reach a non-root JSON-RPC endpoint. main is pinned instead."
+  },
+  "server": "python -m agent_movement.a2a_server (a2a-sdk[http-server]==1.2.2)",
+  "deviations": {
+    "D1-required-extension": "The handoff profile is a required extension (A2A v1.0 sec. 3.3.4, 4.6.1); the TCK harness at this commit does not send A2A-Extensions for required card extensions (a2a-tck PR #197, open), so every positive-path message is answered with ExtensionSupportRequiredError (-32008 / HTTP 400).",
+    "D2-profile-only-messages": "Even with the extension activated (verified with a2a-tck PR #197 applied), the TCK's plain-text or TCK-scenario messages are not handoff messages and are refused with InvalidParamsError (-32602) before any task exists, by design of the profile (docs/a2a-profile-extension.md sec. 4). Tests that need a TCK-created task are therefore SKIPPED.",
+    "D3-content-type-mapping": "Expects ContentTypeNotSupportedError for a wrong HTTP Content-Type header (and HTTP 415). a2a-sdk 1.2.2 does not check the request Content-Type header and maps ContentTypeNotSupportedError to HTTP 400, not the 415 of the A2A v1.0 sec. 5.4 table; under this server the request is refused first by D1. Upstream SDK behaviour, not changed here.",
+    "D4-tck-send-003": "CORE-SEND-003: the server returns the correct ContentTypeNotSupportedError (-32005, reason CONTENT_TYPE_NOT_SUPPORTED), but the TCK requirement at this commit declares no expected_error, so its validator counts any error response as a failure (TCK defect).",
+    "D5-last-modified-may": "CARD-CACHE-003 is a MAY (sec. 8.6.1): no Last-Modified header; the card carries Cache-Control max-age and an ETag (304 on If-None-Match)."
+  },
+  "status_notes": {
+    "SKIPPED": "Skipped by the TCK: no gRPC interface, push notifications and the extended card are not declared, or the test needs a task created from a TCK message (D1, D2).",
+    "NOT TESTED": "Recorded by no test in this run: the TCK has no automated test for the requirement at this commit (authentication, TLS, card signing, binding equivalence, versioning), or the test that records it first needs a successful send from a TCK message (D1, D2)."
+  },
+  "requirements": {
+    "AUTH-INTASK-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "AUTH-INTASK-002": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "AUTH-INTASK-003": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "AUTH-INTASK-004": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "AUTH-INTASK-005": {
+      "level": "SHOULD",
+      "status": "NOT TESTED"
+    },
+    "AUTH-INTASK-006": {
+      "level": "SHOULD",
+      "status": "NOT TESTED"
+    },
+    "AUTH-SCOPE-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "AUTH-SCOPE-002": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "AUTH-SCOPE-003": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "AUTH-SERVER-001": {
+      "level": "SHOULD",
+      "status": "NOT TESTED"
+    },
+    "AUTH-SERVER-002": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "AUTH-TLS-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "AUTH-TLS-002": {
+      "level": "SHOULD",
+      "status": "NOT TESTED"
+    },
+    "BIND-EQUIV-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "BIND-EQUIV-002": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "BIND-EQUIV-003": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "BIND-EQUIV-004": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "BIND-FIELD-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CARD-CACHE-001": {
+      "level": "SHOULD",
+      "status": "PASS"
+    },
+    "CARD-CACHE-002": {
+      "level": "SHOULD",
+      "status": "PASS"
+    },
+    "CARD-CACHE-003": {
+      "level": "MAY",
+      "status": "FAIL",
+      "deviation": "D5-last-modified-may"
+    },
+    "CARD-DISC-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CARD-EXT-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "CARD-EXT-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "CARD-PROTO-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CARD-PROTO-002": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CARD-SIGN-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "CARD-SIGN-002": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "CARD-SIGN-003": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "CARD-SIGN-004": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "CARD-STRUCT-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-CANCEL-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "CORE-CANCEL-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "CORE-CANCEL-003": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-CAP-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-CAP-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "CORE-CAP-003": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-CAP-004": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "CORE-ERR-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-ERR-002": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-EXECUTION-MODE-001": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "CORE-EXECUTION-MODE-002": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "CORE-GET-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "CORE-GET-002": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-HIST-001": {
+      "level": "SHOULD",
+      "status": "SKIPPED"
+    },
+    "CORE-HIST-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "CORE-HIST-003": {
+      "level": "SHOULD",
+      "status": "SKIPPED"
+    },
+    "CORE-HIST-004": {
+      "level": "MAY",
+      "status": "SKIPPED"
+    },
+    "CORE-HIST-005": {
+      "level": "SHOULD",
+      "status": "SKIPPED"
+    },
+    "CORE-HIST-006": {
+      "level": "SHOULD",
+      "status": "SKIPPED"
+    },
+    "CORE-LIST-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-LIST-002": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-LIST-003": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-LIST-004": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-LIST-005": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-MULTI-001": {
+      "level": "MAY",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "CORE-MULTI-001a": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "CORE-MULTI-002": {
+      "level": "MAY",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "CORE-MULTI-002a": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "CORE-MULTI-003": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "CORE-MULTI-004": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "CORE-MULTI-005": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "CORE-MULTI-006": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "CORE-SEND-001": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "CORE-SEND-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "CORE-SEND-003": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D4-tck-send-003"
+    },
+    "CORE-STREAM-001": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "CORE-STREAM-002": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "CORE-STREAM-003": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "DM-ART-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "DM-MSG-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "DM-MSG-002": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "DM-PART-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "DM-SERIAL-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "DM-SERIAL-002": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "DM-SERIAL-003": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "DM-SERIAL-004": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "DM-SERIAL-005": {
+      "level": "SHOULD",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "DM-STATUS-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "DM-TASK-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "DM-TASK-002": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "GRPC-ERR-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "GRPC-ERR-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "GRPC-ERR-003": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "GRPC-META-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "GRPC-SVC-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "GRPC-SVC-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "GRPC-SVC-003": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "HTTP_JSON-ERR-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "HTTP_JSON-ERR-002": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "HTTP_JSON-QP-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "HTTP_JSON-SSE-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "HTTP_JSON-STATUS-001": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D3-content-type-mapping"
+    },
+    "HTTP_JSON-SVC-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "HTTP_JSON-SVC-002": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "HTTP_JSON-URL-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "HTTP_JSON-URL-002": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "JSONRPC-ERR-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "JSONRPC-ERR-002": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "JSONRPC-ERR-003": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "JSONRPC-FMT-001": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D1-required-extension"
+    },
+    "JSONRPC-FMT-002": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "JSONRPC-SSE-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "JSONRPC-SSE-002": {
+      "level": "MUST",
+      "status": "FAIL",
+      "deviation": "D3-content-type-mapping"
+    },
+    "JSONRPC-SVC-001": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "JSONRPC-SVC-002": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "PUSH-CREATE-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "PUSH-CREATE-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "PUSH-DEL-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "PUSH-DEL-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "PUSH-DELIVER-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "PUSH-DELIVER-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "PUSH-DELIVER-003": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "PUSH-GET-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "PUSH-GET-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "PUSH-LIST-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "STREAM-ORDER-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "STREAM-ORDER-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "STREAM-ORDER-003": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "STREAM-ORDER-004": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "STREAM-SUB-001": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "STREAM-SUB-002": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "STREAM-SUB-003": {
+      "level": "MUST",
+      "status": "SKIPPED"
+    },
+    "STREAM-SUB-004": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "VER-CLIENT-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "VER-CLIENT-002": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "VER-SERVER-001": {
+      "level": "MUST",
+      "status": "NOT TESTED"
+    },
+    "VER-SERVER-002": {
+      "level": "MUST",
+      "status": "PASS"
+    },
+    "VER-SERVER-003": {
+      "level": "MUST",
+      "status": "PASS"
+    }
+  }
+}

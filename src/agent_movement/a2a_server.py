@@ -27,6 +27,7 @@ from typing import Any
 
 from google.protobuf.json_format import MessageToDict
 from starlette.applications import Starlette
+from starlette.routing import Mount
 
 from a2a.helpers import new_data_part, new_task
 from a2a.server.agent_execution import AgentExecutor, RequestContext
@@ -35,9 +36,11 @@ from a2a.server.request_handlers import DefaultRequestHandlerV2
 from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes, create_rest_routes
 from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
 from a2a.types import (AgentCapabilities, AgentCard, AgentExtension, AgentInterface, AgentSkill,
-                       ExtensionSupportRequiredError, InvalidParamsError, Message, Role,
-                       SendMessageRequest, TaskState, UnsupportedOperationError)
+                       ContentTypeNotSupportedError, ExtensionSupportRequiredError,
+                       InvalidParamsError, Message, Role, SendMessageRequest, TaskNotFoundError,
+                       TaskState, UnsupportedOperationError)
 from a2a.utils.constants import PROTOCOL_VERSION_CURRENT, TransportProtocol
+from a2a.utils.input_mode_validator import validate_input_modes
 
 from .a2a_profile import (CLIENT_CONTEXT_BOUND, CLIENT_CONTEXT_POLICIES, CLIENT_CONTEXT_REJECTED,
                           EXTENSION_URI, EXTENSION_URIS, KINDS, LEGACY_EXTENSION_URI,
@@ -49,6 +52,10 @@ from .core import (SCHEMA_VERSION, Approval, Conflict, ContractError, HandoffRec
 
 JSONRPC_PATH = "/a2a/jsonrpc"
 REST_PREFIX = "/a2a/rest"
+# A2A v1.0 sec. 8.6.1: the Agent Card endpoint SHOULD send Cache-Control with max-age (the SDK
+# always sends a content-hash ETag). The card is fixed for the life of the process; the short
+# max-age covers a restart on the same port with different --advertise or contextId options.
+AGENT_CARD_CACHE_CONTROL = "public, max-age=60"
 
 
 def build_agent_card(base_url: str, receiver_id: str, kinds: list[str],
@@ -155,6 +162,7 @@ class HandoffRequestHandler(DefaultRequestHandlerV2):
                  client_context_id: str = CLIENT_CONTEXT_REJECTED):
         super().__init__(agent_executor=executor, task_store=InMemoryTaskStore(),
                          agent_card=agent_card, validate_input_modes=True)
+        self.card = agent_card
         self.kinds = frozenset(kinds)
         self.log = log
         self.client_context_id = client_context_id
@@ -164,6 +172,19 @@ class HandoffRequestHandler(DefaultRequestHandlerV2):
         # still exactly what the client sent (empty means "server, generate one").
         message_id = params.message.message_id or "missing"
         try:
+            # Core-spec checks first, with the errors A2A v1.0 assigns to them; they hold with or
+            # without the profile and would otherwise be masked by the profile's InvalidParams.
+            # sec. 3.1.1: a stated part media type the card does not declare ->
+            # ContentTypeNotSupportedError (the same SDK check DefaultRequestHandlerV2 runs).
+            validate_input_modes(params.message, self.card)
+            if params.message.task_id:
+                # sec. 3.4.2: an unknown taskId MUST give TaskNotFoundError. A known one names a
+                # task this worker already finished (handoffs run to a terminal state), and
+                # sec. 3.1.1 answers messages to terminal tasks with UnsupportedOperationError.
+                if await self.task_store.get(params.message.task_id, context) is None:
+                    raise TaskNotFoundError(message="task not found")
+                raise UnsupportedOperationError(
+                    message="task continuation is not supported by the handoff profile")
             activated = context.requested_extensions & set(EXTENSION_URIS)
             if not activated:
                 raise ExtensionSupportRequiredError(
@@ -178,7 +199,8 @@ class HandoffRequestHandler(DefaultRequestHandlerV2):
             if envelope["task"]["kind"] not in self.kinds:
                 raise UnsupportedOperationError(
                     message="capability not advertised by this agent: " + skill_id(envelope["task"]["kind"]))
-        except (ExtensionSupportRequiredError, InvalidParamsError, UnsupportedOperationError) as exc:
+        except (ContentTypeNotSupportedError, ExtensionSupportRequiredError, InvalidParamsError,
+                TaskNotFoundError, UnsupportedOperationError) as exc:
             await asyncio.to_thread(self.log.record, message_id=message_id,
                                     outcome="rejected." + type(exc).__name__)
             raise
@@ -258,8 +280,15 @@ def build_app(*, db: Path, base_url: str, receiver_id: str, approvals: list[Appr
         yield
         await handler.aclose()
 
-    routes = [*create_agent_card_routes(card), *create_jsonrpc_routes(handler, JSONRPC_PATH),
-              *create_rest_routes(handler, path_prefix=REST_PREFIX)]
+    # The HTTP+JSON routes are mounted *under* REST_PREFIX instead of passing path_prefix: with
+    # path_prefix, a2a-sdk 1.2.2 also adds a root-level Mount('/{tenant}') that captures every
+    # two-segment path. That put the optional tenant segment before the interface URL (the A2A
+    # v1.0 binding puts it after: <interface url>/{tenant}/message:send, a2a.proto) and swallowed
+    # POST /a2a/jsonrpc/, so Starlette never sent its trailing-slash 307 to /a2a/jsonrpc and
+    # the A2A TCK's JSON-RPC client (which posts to "<url>/") got a 404 (docs/a2a-adapter.md).
+    routes = [*create_agent_card_routes(card, cache_control=AGENT_CARD_CACHE_CONTROL),
+              *create_jsonrpc_routes(handler, JSONRPC_PATH),
+              Mount(REST_PREFIX, routes=create_rest_routes(handler))]
     return Starlette(routes=routes, lifespan=lifespan)
 
 
