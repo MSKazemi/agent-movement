@@ -73,7 +73,7 @@ flowchart LR
   R --> A
 ~~~
 
-Offline copy/delegation can succeed after delayed transfer. Exclusive live task relocation requires a defensible fencing mechanism and may be refused during partitions.
+Offline copy/delegation can succeed after delayed transfer. Exclusive checkpoint relocation requires a defensible fencing mechanism and may be refused during partitions.
 
 ## Network selection checklist
 

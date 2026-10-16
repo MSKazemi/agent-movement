@@ -15,7 +15,7 @@
 
 **One-line positioning:** *The testbed and safety layer for verifiable AI-agent task mobility.*
 
-**What it is NOT:** a new LLM model, a universal agent operating system, a replacement for MCP/A2A, a promise of lossless cross-framework migration, a way to extract hidden reasoning/model internals, or a system for self-installation on third-party devices.
+**What it is NOT:** a new LLM model, a universal agent operating system, a replacement for MCP/A2A, a promise of lossless cross-framework reconstruction, a way to extract hidden reasoning/model internals, or a system for self-installation on third-party devices.
 
 ### Why this is a stronger target than a protocol-only project
 
@@ -194,7 +194,7 @@ Use [MobilityBench experimental protocol](mobilitybench-experiment-protocol.md) 
 
 Every result must identify: dataset revision and digest; source/destination agent and runtime versions; model/provider/version and settings; checkpoint format; movement mode; compatibility losses; trust domain; fault schedule; number of repeated trials; grader; complete/failed/canceled/unknown; source and effect receipts; elapsed time; token/compute/net cost; policy and privacy violations.
 
-**Important metrics:** task correctness, preserved constraints, safe continuation rate, duplicate synthetic commits, stale-owner rejections, leaked synthetic secret canaries, movement bytes, p50/p95 latency, cost per correct completion, and independently verifiable evidence completeness.
+**Important metrics:** task correctness, preserved constraints, safe continuation rate, duplicate synthetic commits, stale-owner rejections, leaked synthetic secret canaries, movement bytes, p50/p95 latency, cost per correct completion (see the proposed [economic evaluation methodology](economic-evaluation.md)), and independently verifiable evidence completeness.
 
 **Baselines:** keep running on A; start over on B; ordinary A2A delegation; same-runtime checkpoint/restore; later, cross-framework reconstructed continuation. A successful move is not necessarily useful if it is slower, less accurate or harder to audit than the baseline.
 
@@ -225,6 +225,6 @@ Every result must identify: dataset revision and digest; source/destination agen
 - **[R8] SPIFFE/SPIRE concepts:** https://spiffe.io/docs/latest/spire-about/spire-concepts/ — attested workload identity building blocks.
 - **[R9] OpenTelemetry GenAI conventions:** https://github.com/open-telemetry/semantic-conventions-genai — moved from opentelemetry.io (the old page is now only a "moved" notice); Development status with no tagged release, so pin a commit before implementing.
 - **[R10] OWASP Top 10 for Agentic Applications 2026:** https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/ — agent security threat taxonomy.
-- **[R11] Specification portability research (Aug 2026, preprint):** https://arxiv.org/abs/2608.21208 — controlled specification reuse across coding assistants; relevant motivation, **not** evidence of actual runtime checkpoint migration.
+- **[R11] Specification portability research (Aug 2026, preprint):** https://arxiv.org/abs/2608.21208 — controlled specification reuse across coding assistants; relevant motivation, **not** evidence of actual runtime checkpoint relocation.
 
 **Verified at source level on 2026-10-15:** A2A/MCP descriptions, Agent Spec conference publication, NIST initiative, SPIFFE/SPIRE identity model and OWASP taxonomy. The evaluation architecture, effort allocation, hypotheses, data models, safety arguments and project ordering above are **recommendations requiring implementation and independent validation**. No experiment or market demand study was performed in preparing this document.

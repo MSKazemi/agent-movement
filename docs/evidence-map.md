@@ -169,7 +169,7 @@ Direct 8 · partial 17 · background 4.
 
 **Background:** [AMN-065](news-corpus/digest.md#amn-065), [AMN-066](news-corpus/digest.md#amn-066), [AMP-043](paper-corpus/digest.md#amp-043), [AMP-045](paper-corpus/digest.md#amp-045).
 
-**Reading.** This is the best-evidenced P0 question. It has formal foundations (AMP-002, AMP-016, AMP-017), an agent-specific design with formal guarantees and an evaluation (AMP-066), and a demonstrated privilege-inheritance failure (AMN-052). Still missing: tests, in a handoff setting, of the negative cases that AM-05 and E1 name (wrong audience, elevated scope, revoked grant, offline queued action). The Amazon v. Perplexity rulings (AMN-070, AMN-089) show that the legal standing of user-delegated agent authority is unsettled.
+**Reading.** This is the best-evidenced P0 question. It has formal foundations (AMP-002, AMP-016, AMP-017), an agent-specific design with formal guarantees and an evaluation (AMP-066), and a demonstrated privilege-inheritance failure (AMN-052). Still missing: tests, in a handoff setting, of the negative cases that AM-05 and X1 name (wrong audience, elevated scope, revoked grant, offline queued action). The Amazon v. Perplexity rulings (AMN-070, AMN-089) show that the legal standing of user-delegated agent authority is unsettled.
 
 ### AM-06 (P0): Which context and memory may legally and safely cross boundaries?
 
