@@ -16,7 +16,7 @@ Study which aspects of an agentic task—**execution ownership, bounded permissi
 | Small abstract relocation checker | [movement_modelcheck.py](../tools/movement_modelcheck.py) | 336 states and 1,130 transitions in a fixed abstract experiment, with stale-worker negative control | No network/host containment |
 | Model to current SQLite gateway | [runtime-model-refinement.md](runtime-model-refinement.md), merged PR #85 | Reachable synthetic traces replayed with independently read SQL owner/effect rows | Core low-level CAS not policy-complete |
 | Unified authority model | [MASM-0.1](movement-authority-state-machine.md), merged [PR #92](https://github.com/MSKazemi/agent-movement/pull/92) | 59,200 states and 330,294 transitions in the **complete tiny finite model**; four weakened variants yield counterexamples | Model assumptions, especially one honest atomic gateway, are stronger than real deployments |
-| First opt-in guarded runtime lane | [guarded-authority-transfer.md](guarded-authority-transfer.md), [PR #94](https://github.com/MSKazemi/agent-movement/pull/94) | Proposed implementation binds signed intent, scoped grant, multi-principal continuity, atomic fenced owner CAS and simulated effects on one SQLite store | Still requires CI, adversarial review, second implementation, multi-route mediation, external effect evidence |
+| First opt-in guarded runtime lane | [guarded-authority-transfer.md](guarded-authority-transfer.md), merged [PR #94](https://github.com/MSKazemi/agent-movement/pull/94) | Tested opt-in implementation binds signed intent, scoped grant, multi-principal continuity, atomic fenced owner CAS and simulated effects on one SQLite store | CI passed; independent adversarial review, second implementation, multi-route mediation and external effect evidence remain open |
 
 The model exploration counts are observations for **fixed finite state spaces**, not general safety probabilities and not formal verification of hidden LLM state, arbitrary processes or hostile devices. Do not combine the two models' state counts as though they were independent production tests.
 
@@ -33,7 +33,7 @@ The model exploration counts are observations for **fixed finite state spaces**,
 
 **Tracked:** [#93: real guarded authority transfer](https://github.com/MSKazemi/agent-movement/issues/93) and [#50: mandatory all-path runtime policy](https://github.com/MSKazemi/agent-movement/issues/50).
 
-- Review PR #94's explicit trust boundaries and CI. Verify guarded enrollment is performed *before* any effect for tasks claiming the protected profile; reject pre-existing unaccounted effects rather than resetting a budget.
+- Audit merged PR #94's explicit trust boundaries, even though its CI passed. Verify guarded enrollment is performed *before* any effect for tasks claiming the protected profile; reject pre-existing unaccounted effects rather than resetting a budget.
 - Demonstrate every **enabled** path to a protected effect: core gateway, peer `authorized_effects`, A2A adapter, relocation, command tool/transport and subprocess. A verified origin *message* is not a sandbox. Disable or independently mediate alternatives when asserting a secure execution profile.
 - Extend the MASM scheduler to generate executable failure schedules: revoke-before/after-fence, expiry and policy change at the commit boundary, duplicate concurrent effect IDs, crash/restart, partition/reheal, stale worker, shared-budget races, and unknown opaque effects.
 - Collect independently observed database/event traces, not merely Python return values. Classify `PASS`, `COUNTEREXAMPLE`, `UNSUPPORTED`, `OUT_OF_SCOPE` separately.
@@ -66,7 +66,7 @@ make lint typecheck
 make sources check-ids
 ```
 
-The guarded transfer test is introduced by PR #94; it does not exist in `main` until the PR is merged. The model's negative controls deliberately exit nonzero on counterexamples and should not be placed in a success-only CI step without asserting the expected failure.
+The guarded transfer test is available in `main` after merged PR #94; its Python, static, corpus and docs-link GitHub workflows passed. The model's negative controls deliberately exit nonzero on counterexamples and should not be placed in a success-only CI step without asserting the expected failure.
 
 ## Research reporting rule
 
