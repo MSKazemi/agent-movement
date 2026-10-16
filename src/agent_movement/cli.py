@@ -78,6 +78,9 @@ COMMANDS: dict[str, Command] = {c.name: c for c in (
     Command("receipts", "agent_movement.receipts:main",
             "offline verifier for signed movement receipts: verify | timeline | make-fixtures",
             "agent_movement.receipts", extra="signing"),
+    Command("purge", "agent_movement.retention:main",
+            "delete store rows older than a retention period; keeps fencing and in-flight rows",
+            "agent_movement.retention"),
 )}
 
 BUILTINS = {"version": "print the package version, the Python version and which optional extras are installed"}

@@ -116,7 +116,7 @@ Related documents: [landscape](research-landscape.md), [questions](open-question
 
 Every external URL cited in the README and in `docs/`, grouped by the citing document. Corpus records and generated files are excluded; see `EXCLUDE_GLOBS` in [`tools/sources_index.py`](../tools/sources_index.py). *Cited in* lists every document that cites the URL. *Accessed* is the date stated next to the citation (basis `citation`), else in its section heading (`section`), else in the document header (`document`), else the default 2026-10-15 (`default`). A date stated in a document is the date the source was reviewed for that document. It is not a fresh link check. `make sources` fails when a cited URL is missing here.
 
-**Documents:** 33 · **Citations (document, URL):** 448 · **Unique URLs:** 266
+**Documents:** 34 · **Citations (document, URL):** 450 · **Unique URLs:** 268
 
 ### [README](../README.md)
 
@@ -252,6 +252,13 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://doi.org/10.1145/3719027.3765196> | cross-agent-prompt-injection | 2026-10-16 | citation |
 | <https://genai.owasp.org/llmrisk/llm01-prompt-injection/> | cross-agent-prompt-injection, glossary | 2026-10-16 | document |
 | <https://modelcontextprotocol.io/specification/2026-07-28/server/tools> | agent-communication-and-policy, cross-agent-prompt-injection | 2026-10-16 | document |
+
+### [data-retention](data-retention.md)
+
+| URL | Cited in | Accessed | Date basis |
+|---|---|---|---|
+| <https://www.rfc-editor.org/rfc/rfc2104> | data-retention | 2026-10-16 | section |
+| <https://www.sqlite.org/pragma.html> | data-retention | 2026-10-16 | section |
 
 ### [device-compatibility-and-capability-matrix](device-compatibility-and-capability-matrix.md)
 

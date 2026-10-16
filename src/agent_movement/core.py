@@ -7,9 +7,11 @@ remote authorization, external tools, or general checkpoint migration is provide
 from __future__ import annotations
 
 import hashlib
+import hmac
 from contextlib import contextmanager
 import json
 import re
+import secrets
 import sqlite3
 import time
 from dataclasses import dataclass
@@ -22,15 +24,38 @@ ID = re.compile(r"[A-Za-z][A-Za-z0-9._:-]{0,127}\Z")
 MAX_TEXT = 2048
 # SQLiteStore layout, kept in PRAGMA user_version. 0: unversioned PR #6 layout with
 # global idempotency keys. 1: keys scoped to (sender, key); see SQLiteStore._ensure_schema.
-STORE_SCHEMA_VERSION = 1
+# 2: every stored content digest is a keyed commitment under a per-store secret, stored
+# receipts carry no content-derived fields, and deliveries record when they were made
+# (issue #39; see docs/data-retention.md).
+STORE_SCHEMA_VERSION = 2
+# Domain separation for SQLiteStore.keyed_digest; change the suffix if the construction changes.
+_COMMITMENT_LABEL = b"agent-movement/store-commitment/v1\x00"
+# Receipt fields derived from task content. They are recomputed from the presented envelope
+# on every (re)delivery -- the tasks are pure -- and are never written to the store.
+RECEIPT_CONTENT_FIELDS = ("envelope_digest", "artifact", "artifact_digest")
+# The version-1 deliveries layout, frozen for the 0 -> 1 migration.
+_DELIVERIES_V1 = """CREATE TABLE IF NOT EXISTS {name} (
+        sender_id TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        movement_id TEXT NOT NULL UNIQUE,
+        envelope_digest TEXT NOT NULL,
+        receipt_json TEXT NOT NULL,
+        PRIMARY KEY (sender_id, idempotency_key))"""
+# The per-store secret. Never part of audit(), receipts or any export; see keyed_digest.
+_STORE_SECRET = """CREATE TABLE IF NOT EXISTS store_secret (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        hmac_key BLOB NOT NULL,
+        created_at TEXT NOT NULL)"""
 _TABLES = (
-    # Index 0 is formatted with a table name so the migration can build a copy first.
+    # Index 0 is formatted with a table name so a migration can build a copy first.
+    # envelope_digest holds SQLiteStore.fingerprint(envelope), a keyed commitment.
     """CREATE TABLE IF NOT EXISTS {name} (
         sender_id TEXT NOT NULL,
         idempotency_key TEXT NOT NULL,
         movement_id TEXT NOT NULL UNIQUE,
         envelope_digest TEXT NOT NULL,
         receipt_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
         PRIMARY KEY (sender_id, idempotency_key))""",
     """CREATE TABLE IF NOT EXISTS audit_events (
         seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,6 +74,13 @@ _TABLES = (
         payload_digest TEXT NOT NULL,
         epoch INTEGER NOT NULL,
         PRIMARY KEY (task_id, effect_id))""",
+)
+# Digest columns of OTHER modules' tables that can share a store file. The 1 -> 2 migration
+# wraps them with the store key as well, so no plain content digest survives the upgrade.
+_FOREIGN_DIGEST_COLUMNS = (
+    ("authorized_effects", "payload_digest"),  # agent_movement.peer
+    ("a2a_correlations", "envelope_digest"),   # agent_movement.a2a_profile
+    ("a2a_correlations", "artifact_digest"),
 )
 
 
@@ -145,6 +177,32 @@ def validate_envelope(value: Any) -> dict[str, Any]:
     return v
 
 
+def _artifact(task: dict[str, Any]) -> dict[str, Any]:
+    if task["kind"] == "word_count":
+        return {"kind": "word_count", "value": len(task["text"].split())}
+    return {"kind": "sha256", "value": hashlib.sha256(task["text"].encode("utf-8")).hexdigest()}
+
+
+def build_receipt(envelope: dict[str, Any]) -> dict[str, Any]:
+    """The completion receipt of a validated envelope: a pure function of the envelope."""
+    artifact = _artifact(envelope["task"])
+    return {
+        "status": "completed",
+        "movement_id": envelope["movement_id"],
+        "logical_task_id": envelope["logical_task_id"],
+        "origin_agent_id": envelope["origin"]["agent_id"],
+        "destination_agent_id": envelope["destination"]["agent_id"],
+        "trace_id": envelope["observability"]["trace_id"],
+        "envelope_digest": digest(envelope),
+        "artifact": artifact,
+        "artifact_digest": digest(artifact),
+    }
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 @dataclass(frozen=True)
 class Approval:
     """Preconfigured receiver-side grant for exactly one synthetic/public task."""
@@ -171,36 +229,125 @@ class Approval:
 
 
 class SQLiteStore:
-    """Transactional synthetic delivery results plus a separate fenced effect ledger."""
+    """Transactional synthetic delivery results plus a separate fenced effect ledger.
+
+    Content digests (of envelopes, artifacts and effect payloads) are stored only as keyed
+    commitments under a random per-store secret (:meth:`keyed_digest`), so the file, its
+    audit export and its logs cannot be used to confirm a guess of low-entropy task text
+    without that secret. Equal inputs still map to equal commitments within one store,
+    which is all that replay and idempotent-retry detection need.
+    """
 
     def __init__(self, path: str | Path):
         self.path = str(path)
         self._enable_wal()
         self._ensure_schema()
+        with self._connection() as db:
+            self._key = self._read_key(db)
 
     def _ensure_schema(self) -> None:
         """Create the tables, or migrate an older file in place, in ONE write transaction.
 
         ``PRAGMA user_version`` records the layout. 0 is the unversioned PR #6 layout,
-        whose ``deliveries`` table keyed idempotency keys globally. Concurrent openers
-        serialize on ``BEGIN IMMEDIATE`` and re-read the version under the lock, so
-        exactly one of them migrates and the others see the result.
+        whose ``deliveries`` table keyed idempotency keys globally; 1 stored plain SHA-256
+        content digests. Concurrent openers serialize on ``BEGIN IMMEDIATE`` and re-read
+        the version under the lock, so exactly one of them migrates and the others see
+        the result.
         """
         with self._connection() as db:
             if db.execute("PRAGMA user_version").fetchone()[0] == STORE_SCHEMA_VERSION:
                 return
+            # Overwrite the plain digests the migration replaces instead of leaving them in
+            # free pages; the TRUNCATE checkpoint below then clears them from the WAL.
+            db.execute("PRAGMA secure_delete = ON")
             db.execute("BEGIN IMMEDIATE")
             version = db.execute("PRAGMA user_version").fetchone()[0]
             if version > STORE_SCHEMA_VERSION:
                 raise StoreSchemaError(f"store schema version {version} is newer than the "
                                        f"supported version {STORE_SCHEMA_VERSION}")
+            if version == STORE_SCHEMA_VERSION:  # another opener migrated while we waited
+                db.commit()
+                return
+            tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            db.execute(_STORE_SECRET)
+            if db.execute("SELECT 1 FROM store_secret WHERE id = 1").fetchone() is None:
+                db.execute("INSERT INTO store_secret VALUES(1,?,?)", (secrets.token_bytes(32), utc_now_iso()))
             columns = {row[1] for row in db.execute("PRAGMA table_info(deliveries)")}
             if columns and "sender_id" not in columns:
                 self._migrate_global_keys(db)
+            self._migrate_commitments(db, self._read_key(db), tables)
             for statement in _TABLES:
                 db.execute(statement.format(name="deliveries"))
             db.execute(f"PRAGMA user_version = {STORE_SCHEMA_VERSION}")
             db.commit()
+            if version > 0 or tables:  # an existing file was rewritten
+                db.execute("PRAGMA wal_checkpoint(TRUNCATE)")  # best effort; busy readers delay it
+
+    @staticmethod
+    def _read_key(db: sqlite3.Connection) -> bytes:
+        try:
+            row = db.execute("SELECT hmac_key FROM store_secret WHERE id = 1").fetchone()
+        except sqlite3.OperationalError:  # no such table
+            row = None
+        if row is None or not isinstance(row[0], bytes) or len(row[0]) < 32:
+            # Never mint a fresh key here: every stored commitment would silently stop
+            # matching, turning exact retries into idempotency conflicts.
+            raise StoreSchemaError("store secret is missing or invalid; stored commitments cannot be checked")
+        return row[0]
+
+    @staticmethod
+    def _keyed(key: bytes, sha256_hex: str) -> str:
+        return hmac.new(key, _COMMITMENT_LABEL + str(sha256_hex).encode("utf-8"), hashlib.sha256).hexdigest()
+
+    def keyed_digest(self, sha256_hex: str) -> str:
+        """HMAC-SHA256 commitment, under this store's secret, to a plain SHA-256 hex digest.
+
+        Wrapping the digest (rather than the raw value) is what lets the 1 -> 2 migration
+        convert stored plain digests without the original content.
+        """
+        return self._keyed(self._key, sha256_hex)
+
+    def fingerprint(self, value: Any) -> str:
+        """Keyed commitment to a JSON value: ``keyed_digest(digest(value))``."""
+        return self.keyed_digest(digest(value))
+
+    def _migrate_commitments(self, db: sqlite3.Connection, key: bytes, tables: set[str]) -> None:
+        """Version 1 -> 2: replace every stored plain content digest by its keyed commitment.
+
+        ``deliveries`` is rebuilt (SQLite create/copy/drop/rename procedure) to add
+        ``created_at`` -- backfilled from the movement's earliest audit event, else the
+        migration time -- and its receipts lose the content-derived fields, which
+        :meth:`receive` recomputes from the presented envelope. Digest columns elsewhere
+        are wrapped in place. Equality is preserved: a retry after the upgrade computes
+        ``keyed(sha256(content))``, exactly the wrapped value.
+        """
+        def keyed(value: Any) -> Any:
+            return None if value is None else self._keyed(key, value)
+
+        db.create_function("am_keyed", 1, keyed, deterministic=True)
+        if "deliveries" in tables:
+            db.execute(_TABLES[0].format(name="deliveries_v2"))
+            now = utc_now_iso()
+            first_seen = dict(db.execute("SELECT movement_id, event_time FROM audit_events "
+                                         "ORDER BY seq DESC").fetchall()) if "audit_events" in tables else {}
+            rows = db.execute("SELECT sender_id, idempotency_key, movement_id, envelope_digest, receipt_json "
+                              "FROM deliveries ORDER BY rowid").fetchall()
+            for sender, key_, movement_id, envelope_digest, receipt_json in rows:
+                try:
+                    stored = json.loads(receipt_json)
+                    stored = {k: v for k, v in stored.items() if k not in RECEIPT_CONTENT_FIELDS}
+                except (ValueError, AttributeError) as exc:
+                    raise StoreSchemaError(f"cannot migrate delivery {movement_id!r}: "
+                                           "stored receipt is not a JSON object") from exc
+                db.execute("INSERT INTO deliveries_v2 VALUES(?,?,?,?,?,?)",
+                           (sender, key_, movement_id, keyed(envelope_digest), canonical(stored),
+                            first_seen.get(movement_id, now)))
+            db.execute("DROP TABLE deliveries")
+            db.execute("ALTER TABLE deliveries_v2 RENAME TO deliveries")
+        for table, column in (("audit_events", "info_digest"), ("effects", "payload_digest"),
+                              *_FOREIGN_DIGEST_COLUMNS):
+            if table in tables:
+                db.execute(f"UPDATE {table} SET {column} = am_keyed({column})")
 
     @staticmethod
     def _migrate_global_keys(db: sqlite3.Connection) -> None:
@@ -213,7 +360,7 @@ class SQLiteStore:
         is exact. Old global keys stay unique per sender, and ``movement_id`` keeps its
         UNIQUE constraint, so no row can conflict.
         """
-        db.execute(_TABLES[0].format(name="deliveries_v1"))
+        db.execute(_DELIVERIES_V1.format(name="deliveries_v1"))
         rows = db.execute("SELECT idempotency_key, movement_id, envelope_digest, receipt_json "
                           "FROM deliveries ORDER BY rowid").fetchall()
         for key, movement_id, envelope_digest, receipt_json in rows:
@@ -268,15 +415,14 @@ class SQLiteStore:
     @staticmethod
     def _event(db: sqlite3.Connection, movement_id: str, task_id: str,
                event_type: str, fingerprint: str) -> None:
-        now = datetime.now(timezone.utc).isoformat()
         db.execute("INSERT INTO audit_events(movement_id,task_id,event_type,info_digest,event_time) "
-                   "VALUES(?,?,?,?,?)", (movement_id, task_id, event_type, fingerprint, now))
+                   "VALUES(?,?,?,?,?)", (movement_id, task_id, event_type, fingerprint, utc_now_iso()))
 
     def denied(self, envelope: dict[str, Any]) -> None:
         with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             self._event(db, envelope["movement_id"], envelope["logical_task_id"],
-                        "handoff.denied", digest(envelope))
+                        "handoff.denied", self.fingerprint(envelope))
             db.commit()
 
     def receive(self, envelope: dict[str, Any], sender: str | None = None) -> dict[str, Any]:
@@ -286,45 +432,39 @@ class SQLiteStore:
         caller knows it (``PeerReceiver``), else the envelope's *claimed* origin
         (``HandoffReceiver``, which authenticates nobody). Two senders may therefore use
         the same key. Movement IDs stay unique across all senders.
+
+        The returned receipt is unchanged by issue #39 (its ``envelope_digest`` and
+        ``artifact_digest`` are plain SHA-256, so the sender can check them), but the store
+        keeps only a keyed commitment to the envelope and a receipt without its
+        content-derived fields; a replay recomputes those from the presented envelope,
+        which the commitment check proved equal to the original.
         """
-        fingerprint = digest(envelope)
+        receipt = build_receipt(envelope)
+        fingerprint = self.fingerprint(envelope)
         key = envelope["execution"]["idempotency_key"]
         sender_id = envelope["origin"]["agent_id"] if sender is None else _id(sender, "sender")
         with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            previous = db.execute("SELECT envelope_digest, receipt_json FROM deliveries "
+            previous = db.execute("SELECT envelope_digest FROM deliveries "
                                   "WHERE sender_id = ? AND idempotency_key = ?",
                                   (sender_id, key)).fetchone()
             if previous is not None:
-                if previous[0] != fingerprint:
+                if not hmac.compare_digest(previous[0], fingerprint):
                     raise Conflict("idempotency key reused with different envelope")
                 db.commit()
-                return {**json.loads(previous[1]), "replayed": True}
+                return {**receipt, "replayed": True}
             if db.execute("SELECT 1 FROM deliveries WHERE movement_id=?",
                           (envelope["movement_id"],)).fetchone():
                 raise Conflict("movement ID already used under another idempotency key or sender")
-            task = envelope["task"]
-            if task["kind"] == "word_count":
-                artifact = {"kind": "word_count", "value": len(task["text"].split())}
-            else:
-                artifact = {"kind": "sha256", "value": hashlib.sha256(task["text"].encode("utf-8")).hexdigest()}
-            receipt = {
-                "status": "completed",
-                "movement_id": envelope["movement_id"],
-                "logical_task_id": envelope["logical_task_id"],
-                "origin_agent_id": envelope["origin"]["agent_id"],
-                "destination_agent_id": envelope["destination"]["agent_id"],
-                "trace_id": envelope["observability"]["trace_id"],
-                "envelope_digest": fingerprint,
-                "artifact": artifact,
-                "artifact_digest": digest(artifact),
-            }
+            stored = {k: v for k, v in receipt.items() if k not in RECEIPT_CONTENT_FIELDS}
             self._event(db, receipt["movement_id"], receipt["logical_task_id"],
                         "handoff.accepted", fingerprint)
-            db.execute("INSERT INTO deliveries VALUES(?,?,?,?,?)",
-                       (sender_id, key, envelope["movement_id"], fingerprint, canonical(receipt)))
+            db.execute("INSERT INTO deliveries(sender_id,idempotency_key,movement_id,envelope_digest,"
+                       "receipt_json,created_at) VALUES(?,?,?,?,?,?)",
+                       (sender_id, key, envelope["movement_id"], fingerprint, canonical(stored),
+                        utc_now_iso()))
             self._event(db, receipt["movement_id"], receipt["logical_task_id"],
-                        "handoff.completed", receipt["artifact_digest"])
+                        "handoff.completed", self.keyed_digest(receipt["artifact_digest"]))
             db.commit()
             return {**receipt, "replayed": False}
 
@@ -406,7 +546,7 @@ class EffectGateway:
             payload_bytes = None
         if payload_bytes is None or len(payload_bytes) > MAX_TEXT:
             raise ContractError("invalid payload")
-        fingerprint = hashlib.sha256(payload_bytes).hexdigest()
+        fingerprint = self.store.keyed_digest(hashlib.sha256(payload_bytes).hexdigest())
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             owner = db.execute("SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)).fetchone()
