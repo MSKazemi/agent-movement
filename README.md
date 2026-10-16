@@ -62,14 +62,14 @@ The core needs Python 3.11+ and only the standard library. Each optional extra a
 ```sh
 python -m pip install -e . pytest                     # core only
 agent-movement demo                                   # handoff, replay, denial, stale-epoch fencing
-agent-movement peer-demo                              # authenticated peer handoff (HS256)
+agent-movement peer-demo                              # authenticated peer handoff (HS256, plaintext: no confidentiality)
 agent-movement bench verify --suite v0.1              # MobilityBench v0.1 fixture digests
 python -m pytest -q                                   # all tests: agent_movement + corpus tooling
 
-python -m pip install -e '.[a2a,ed25519,relocation,signing]'   # every optional extra
+python -m pip install -e '.[a2a,ed25519,hpke,relocation,signing]'   # every optional extra
 agent-movement version                                # package version and installed extras
 agent-movement a2a-demo                               # A2A v1 delegation via the official a2a-sdk
-agent-movement peer-demo --alg Ed25519                # asymmetric peer keys
+agent-movement peer-demo --alg Ed25519                # asymmetric peer keys, HPKE-sealed delivery
 agent-movement relocate                               # LangGraph checkpoint relocation fault matrix
 agent-movement relocate --two-store                   # same, checkpoint copied into Worker B's own store
 agent-movement receipts verify tests/fixtures/movement-receipts/01-valid-delegation \
@@ -119,7 +119,7 @@ Experimental code (synthetic, local, not production):
 - [Language and SDK strategy (public proposal; Python-first, with what is implemented so far)](docs/language-and-sdk-strategy.md)
 - [Optional A2A v1 adapter on the official SDK: delegation, not migration; experimental, unauthenticated](docs/a2a-adapter.md)
 - [A2A profile extension spec: the resolvable extension URI, envelope ↔ A2A field mapping, error codes and the server-generated contextId policy](docs/a2a-profile-extension.md)
-- [Peer authentication and pre-disclosure authorization (synthetic, local; `python -m agent_movement.peer_demo`)](docs/peer-authentication.md)
+- [Peer authentication and pre-disclosure authorization (synthetic, local; `python -m agent_movement.peer_demo`), with optional HPKE-sealed delivery](docs/peer-authentication.md)
 - [Same-runtime checkpoint relocation (pinned LangGraph) with a 30-row crash/duplicate fault matrix, plus a two-store mode that copies the checkpoint as a digest-verified bundle (11 copy fault rows)](docs/checkpoint-relocation.md) (optional extra: `pip install -e '.[relocation]'`)
 - [Signed movement receipts and offline forensic verifier (experimental, synthetic fixtures)](docs/movement-receipts.md)
 

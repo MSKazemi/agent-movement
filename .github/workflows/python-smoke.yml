@@ -2,7 +2,7 @@ name: Python mobility smoke
 
 # One workflow for the agent_movement package (src/). The corpus gates live in corpus.yml.
 #  - core:   no optional extras; proves the stdlib-only core works and the optional tests skip cleanly.
-#  - extras: every optional extra (a2a, ed25519, relocation, signing); runs every demo.
+#  - extras: every optional extra (a2a, ed25519, hpke, relocation, signing); runs every demo.
 on:
   push:
     paths: ["src/**", "tests/**", "tools/**", "pyproject.toml", ".github/workflows/python-smoke.yml"]
@@ -57,6 +57,7 @@ jobs:
           check() { want=$1; shift; rc=0; "$@" >/dev/null 2>&1 || rc=$?; echo "exit $rc (want $want): $*"; [ "$rc" = "$want" ] || fail=1; }
           check 2 python -m agent_movement.a2a_demo
           check 1 python -m agent_movement.peer_demo --alg Ed25519
+          check 1 python -m agent_movement.peer_demo --delivery hpke
           # Receipts: no --trust fails closed (2); without the signing extra signatures are UNCHECKED.
           R=tests/fixtures/movement-receipts
           check 2 python -m agent_movement.receipts verify $R/01-valid-delegation --now 2026-10-16T00:00:00Z
@@ -106,7 +107,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - run: python -m pip install -e '.[a2a,ed25519,relocation,signing]' "pytest>=9.1"
+      - run: python -m pip install -e '.[a2a,ed25519,hpke,relocation,signing]' "pytest>=9.1"
       # Pinned, checksum-verified gitleaks so tests/test_movement_receipts_secret_scan.py runs the
       # full default rule set here instead of skipping (latest release v8.30.1, 2026-03-21).
       - name: Install gitleaks (secret-scanner check of the receipt files)
@@ -125,6 +126,7 @@ jobs:
       - run: python -m agent_movement.demo
       - run: python -m agent_movement.peer_demo
       - run: python -m agent_movement.peer_demo --alg Ed25519
+      - run: python -m agent_movement.peer_demo --delivery hpke
       - name: A2A v1 adapter demo (official a2a-sdk)
         run: python -m agent_movement.a2a_demo
       - name: Checkpoint relocation demo (pinned LangGraph, 30-row fault matrix)
