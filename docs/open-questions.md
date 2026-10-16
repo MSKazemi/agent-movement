@@ -8,7 +8,7 @@
 
 The central unsolved problem is not sending a message between agents. It is **preserving useful task continuity, exclusive execution authority, and safety across an execution boundary**.
 
-This project's working definition of *movement* is a transfer of task ownership and, when supported, an explicitly portable application checkpoint to a different executor. A transfer of the same agent's opaque model internals, hidden chain-of-thought or live process memory is **not** assumed possible.
+This project's working definition of a *move* (movement in the strict sense) is a transfer of task ownership and, when supported, an explicitly portable application checkpoint to a different executor. A transfer of the same agent's opaque model internals, hidden chain-of-thought or live process memory is **not** assumed possible.
 
 The three most fundamental questions are:
 
@@ -69,23 +69,23 @@ These questions are related but distinct. A2A and MCP provide interoperability *
 
 ## Three proposed experiments, in research order
 
-### E1 — Minimum safe handoff (tests AM-01, 02, 05, 06, 09, 10)
+### X1 — Minimum safe handoff (tests AM-01, 02, 05, 06, 09, 10)
 
 - Implement two *local* test agents with different implementation boundaries, authenticated A2A exchange, a public/synthetic task and a structured result.
 - Use a versioned task envelope: task ID, origin execution ID, destination ID, intent and constraints, allowed artifact references, policy/approval reference, idempotency key and correlation ID.
 - Negative tests: unsupported schema, forged endpoint/Agent Card, overbroad permission, unapproved data, prompt injection and revoked grant.
 - **Pass condition:** correct artifact and end-to-end audit; zero transmitted secret canaries, zero unauthorized synthetic tool calls, and explicit denial with no input disclosure before trust verification.
-- **Do not claim:** checkpoint migration. E1 proves delegated interoperability only.
+- **Do not claim:** checkpoint relocation. X1 proves delegated interoperability only.
 
-### E2 — Same-runtime durable relocation (tests AM-02, 03, 04, 07)
+### X2 — Same-runtime durable relocation (tests AM-02, 03, 04, 07)
 
 - Pick a single checkpoint-capable framework and persistent store; move one logical task from Worker A to Worker B at a defined safe boundary.
-- Introduce an epoch/fencing token, a durable side-effect intent/ack record, stable operation IDs and a simulated payment/action tool with idempotency support.
+- Introduce a fencing epoch (a monotonic fencing token), a durable side-effect intent/ack record, stable operation IDs and a simulated payment/action tool with idempotency support.
 - Crash A, B or the coordinator at *every* transition; delay messages, inject duplicate delivery and partition connectivity.
 - **Pass condition:** one active authorized executor per task epoch, no duplicated simulated committed effects in the test, correct fail-closed outcomes for ambiguous actions, and a verified post-restart state.
 - **Do not claim:** exactly-once execution for arbitrary third-party tools.
 
-### E3 — Cross-framework and cross-model continuation (tests AM-01, 07, 08, 11, 14, 15)
+### X3 — Cross-framework and cross-model continuation (tests AM-01, 07, 08, 11, 14, 15)
 
 - Choose two pinned frameworks/models. Export only an explicitly portable *application-level* state representation, not undocumented runtime internals.
 - Compare (A) from-scratch re-execution, (B) transcript/context replay, (C) A2A task delegation, (D) checkpoint-based same-runtime continuation, and (E) cross-framework reconstructed continuation.
@@ -97,7 +97,7 @@ These questions are related but distinct. A2A and MCP provide interoperability *
 
 - Run IDs, operation and lineage; source/destination framework and model versions; exact source snapshot hash.
 - Task class, intent constraints, input classification, approval scope and required capabilities.
-- Movement mode, compatibility decision, accepted losses and outcome state (*complete*, *failed*, *canceled*, *unknown/reconcile*).
+- Movement mode, compatibility decision, accepted losses and outcome state (*completed*, *failed*, *canceled*, *unknown/reconcile*).
 - Quality score with evaluator/rubric, constraint preservation, retries/duplicate tool intents/effects, privacy/policy violations, elapsed time and cost.
 - Reproducible environment and fault-injection seed; sanitized trace and artifact digests.
 

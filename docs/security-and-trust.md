@@ -69,7 +69,7 @@ These gaps are open. None of the controls above closes them.
 - Never export raw OAuth access tokens, API keys or browser cookies inside an envelope.
 - Do not allow arbitrary destination URLs to pull internal metadata endpoints (SSRF).
 - Human approval for any irreversible external tool action; initial demo should simulate such actions instead.
-- Differentiate **request received**, **accepted**, **executing**, **completed**, **failed**, **canceled** and **unknown**.
+- Differentiate **submitted** (request received), **accepted**, **working**, **completed**, **failed**, **canceled** and **unknown/reconcile**. Use the [A2A v1.0 task-state](https://a2a-protocol.org/v1.0.0/specification/#413-taskstate) names where A2A defines the state; *accepted* (the receiver took ownership) and *unknown/reconcile* are movement-outcome states that A2A does not define.
 - Treat "exactly once" as unproven absent end-to-end guarantees.
 - Adopt threat modeling and tests before enabling remote execution in untrusted domains.
 
