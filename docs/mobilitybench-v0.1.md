@@ -231,7 +231,42 @@ The `report` subcommand regenerates these tables, the per-family breakdown, the 
 4. `report --in results.jsonl` should match the tables above, apart from timing.
 5. CI (`.github/workflows/python-smoke.yml`) runs `freeze --check`, `verify` and the smoke subset (6 tasks × 1 seed × 6 modes plus the 12 negatives) on Python 3.11, 3.13 and 3.15 in its core (no extras) job, and uploads the JSONL and the Markdown report as artifacts.
 
+## Planned: multi-hop track
+
+**Status: planned, not implemented.** No code, fixture or result for this track exists yet. This section is a design, not a report. The track was renamed from ContinuityBench, the name that the [2031 frontier research agenda](2031-frontier-research-agenda.md) (§3, flagship studies) first used for the same deliverable ([issue #44](https://github.com/MSKazemi/agent-movement/issues/44)). It is part of MobilityBench, not a separate benchmark, so it shares this suite's rules: frozen fixtures, a release digest, paired fault schedules, explicit unavailable modes and published refusals.
+
+**What v0.1 does today.** Verified against the source on 2026-10-16:
+
+| Property of v0.1 | Where it is fixed in the code |
+| --- | --- |
+| Each task moves **once**, at a single integer `movement_at` that falls strictly inside the plan | `src/agent_movement/mobilitybench_v01.py::validate_task`, `::Attempt` (`self.m`) |
+| There are exactly two executors, `agent-a` (origin) and `agent-b` (destination) | `::run_restart`, `::run_local_delegate` |
+| No model is called: a scripted interpreter executes the plans | `::EXECUTOR`, `::MODEL` (`"none"`) |
+| Three modes are implemented (B0, B1, B2-local); B2 A2A, B3 relocation and B4 reconstruction are recorded as unavailable | `::MODES` |
+| Each (seed, task) gets one of five fault kinds; the movement-related kinds act on that single move (pre-emption at `movement_at`, duplicated transfer messages, a stale origin after the move) | `::FAULT_KINDS`, `::fault_schedule`, `::run_keep`, `::run_restart`, `::Attempt.send` |
+| `v0.1` is the only registered suite | `::SUITES` |
+
+v0.1 therefore measures a single hop. It cannot say how constraints, evidence or effect identity behave over a chain of transfers.
+
+**Research question.** What fraction of a task's *explicit invariants* survives a chain of 0, 1, 2, 4 or 8 transfers between heterogeneous executors? Which safeguards (original-intent anchors, clarification, carried evidence) improve survival without adding needless transfers or unacceptable disclosure? This is frontier question FM-02. No assumption is made that drift grows monotonically with hop count.
+
+**Proposed design.**
+
+- **Fixtures:** a new suite version with its own fixture directory and release digest. v0.1 is never edited in place (see *Versioning rule* above). The task schema replaces the single `movement_at` with an ordered list of movement points and executors (`agent-a` → `agent-b` → `agent-c` …).
+- **Invariant annotation:** each task carries invariant IDs for hard constraints, factual evidence references, allowed and forbidden actions, open uncertainties, required approvals, already committed effects and budget. The current constraint and policy rules (`::CONSTRAINT_RULES`, `::POLICY_RULES`) are the starting set.
+- **Task mix:** an initial pre-registered set of 100-200 synthetic or public cases. That figure is an engineering starting point, not a power calculation. It covers document synthesis with protected facts, constrained coding, multi-step simulated tools, and tasks whose correct answer is **abstention**.
+- **Comparators:** no move; restart at each hop; ordinary delegation at each hop; A2A handoff; same-runtime checkpoint relocation; cross-model application-level reconstruction. Each comparator is scored **only if it is implemented** for this track. Otherwise it is reported as unavailable, exactly as v0.1 does.
+- **Perturbations:** lossy summaries at a hop, conflicting evidence, simulated receiver refusal, and the v0.1 fault kinds applied at any hop rather than only at one point.
+- **Primary metric:** invariant survival per hop and end to end (the *hop drift curve*), not the similarity of generated text.
+- **Secondary metrics:** task correctness, unsafe or duplicate simulated effects, false confidence, detection of unknown states, disclosure bytes per trust boundary, total runtime, compute and monetary cost.
+- **Evaluation:** programmatic invariant checks wherever possible, and blind human review for ambiguous semantic outcomes. A deterministic interpreter gives zero variance, so statistical claims need the planned LLM executor with repeated sampling. The final sample size is set from pilot variance, with denominators and confidence intervals reported.
+- **Critical falsifier:** if a restart or single-agent baseline wins on cost-adjusted quality, or if the invariant check misses known planted violations, then mobility-first framing is abandoned for those task classes and the result is published as a negative finding.
+
+**Prerequisites before any result is claimed:** the multi-hop fixture schema and ground truth, at least one implemented movement comparator beyond B2-local, and a pre-registered protocol update in the [experiment protocol](mobilitybench-experiment-protocol.md).
+
 ## Next versions
 
 - **v0.2:** score B3 once issue #9 lands, with crash points inside the plan (not only at the movement point) and partitions. Score B2 once issue #7 lands.
+- **Multi-hop track (planned):** chains of 0-8 transfers with annotated invariants; see [Planned: multi-hop track](#planned-multi-hop-track).
+- **Cost terms:** the proposed [economic evaluation methodology](economic-evaluation.md) maps each cost term to a field in the per-attempt record, or marks it unmeasured (human review time, incident severity, wire bytes).
 - **Later:** an LLM executor behind the same interface, with pinned model versions in `run_version.model`, real repeated sampling, and pre-registered sample sizes and intervals. Also blinded human rubric scoring for document tasks, and external task contributions.

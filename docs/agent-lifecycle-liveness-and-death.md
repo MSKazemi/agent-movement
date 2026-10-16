@@ -351,6 +351,6 @@ This payload is intentionally synthetic. The project has **not** defined canonic
 - [Martin Kleppmann, How to do distributed locking (2016)](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html): explains stale lease holders, monotonically increasing fencing tokens and the need for storage/target enforcement.
 - [SPIFFE, Working with SVIDs](https://spiffe.io/docs/latest/deploying/svids/): explains authenticated workload identity; authentication alone is not a liveness, correctness or identity-continuity guarantee.
 
-**Proposal versus fact:** Everything labeled project states, operational predicates, invariants, JSON, timers, tests or roadmap in this document is proposed Agent Movement design. No production deployment, empirical test results, universal death proof, protocol extension or verified cross-framework migration is claimed.
+**Proposal versus fact:** Everything labeled project states, operational predicates, invariants, JSON, timers, tests or roadmap in this document is proposed Agent Movement design. No production deployment, empirical test results, universal death proof, protocol extension or verified cross-framework reconstruction is claimed.
 
 Related repository research: [how it works](how-it-works.md), [security and trust](security-and-trust.md), [forensics](agent-forensics-and-fingerprints.md), [open questions](open-questions.md) and [roadmap](roadmap.md).
