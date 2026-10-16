@@ -35,7 +35,9 @@ EXCLUDED_DIRS = ("docs/news-corpus", "docs/paper-corpus")
 CROSSWALK = "docs/question-id-crosswalk.md"
 IGNORE_MARKER = "check-ids: ignore"
 
-# A hyphenated local identifier such as HB-S01 is prefixed, not a bare S01.\n# A word boundary alone also matches after a hyphen; exclude that left context.\nBARE_ID = re.compile(r"(?<![\w-])[QS]\d+\b")
+# A hyphenated local identifier such as HB-S01 is prefixed, not a bare S01.
+# A word boundary alone also matches after a hyphen; exclude that left context.
+BARE_ID = re.compile(r"(?<![\w-])[QS]\d+\b")
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 # Spans whose text is not prose; each is blanked to spaces so columns stay true.
 NOISE = (
