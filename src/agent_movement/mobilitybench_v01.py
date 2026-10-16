@@ -39,15 +39,28 @@ import tempfile
 import textwrap
 import time
 from collections import Counter
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any
 
-from .core import (ID, SCHEMA_VERSION, Approval, Conflict, ContractError, EffectGateway,
-                   HandoffReceiver, PolicyDenied, SQLiteStore, canonical, digest, parse_json)
+from .core import (
+    ID,
+    SCHEMA_VERSION,
+    Approval,
+    Conflict,
+    ContractError,
+    EffectGateway,
+    HandoffReceiver,
+    PolicyDenied,
+    SQLiteStore,
+    canonical,
+    digest,
+    parse_json,
+)
 from .mobilitybench import CANARY, exception_outcome
 from .trust import HmacKey, issue_revocation
 
@@ -90,10 +103,10 @@ class Suite:
 
 
 V02_METRIC_KEYS = ("effect_id_conflicts", "messages_dropped", "messages_delayed", "retries")
-V02_RECORD_FIELDS = ("crash_step", "fault_not_applied_reason") + V02_METRIC_KEYS
+V02_RECORD_FIELDS = ("crash_step", "fault_not_applied_reason", *V02_METRIC_KEYS)
 SUITE_SPECS: dict[str, Suite] = {
     "v0.1": Suite("v0.1", SUITE_VERSION, FIXTURE_FILES, FAULT_KINDS),
-    "v0.2": Suite("v0.2", SUITE_VERSION_V02, FIXTURE_FILES + ("schedule.jsonl",), FAULT_KINDS_V02,
+    "v0.2": Suite("v0.2", SUITE_VERSION_V02, (*FIXTURE_FILES, "schedule.jsonl"), FAULT_KINDS_V02,
                   extra_modes=("restart_stable_ids",), extra_metrics=V02_METRIC_KEYS,
                   doc="docs/mobilitybench-v0.2.md"),
 }
@@ -459,10 +472,10 @@ class Attempt:
         # "ledger_wins" (restart_stable_ids): the ledger keeps the first payload; counted.
         self.conflict_policy = "raise"
         self.step_runs: Counter[int] = Counter()
-        self.metrics = {k: 0 for k in (
+        self.metrics = dict.fromkeys((
             "unknown_events", "reconciled_events", "stale_commits_fenced", "stale_commits_accepted",
             "duplicate_deliveries_suppressed", "transfer_bytes", "transfer_messages",
-            "sensitive_transfers", "steps_executed", "steps_reexecuted") + extra_metrics}
+            "sensitive_transfers", "steps_executed", "steps_reexecuted", *extra_metrics), 0)
         self.sensitive = sorted({t for r in all_rules(task) if r["rule"] == "redact_terms" for t in r["terms"]})
 
     def hear(self, state: AgentState, step: int, min_at: int = 0) -> None:
@@ -700,7 +713,7 @@ def run_restart(att: Attempt, stable_ids: bool = False) -> Outcome:
             break
         except SimulatedCrash as crash:
             if run > 1:
-                raise RuntimeError("a scheduled crash fired twice")
+                raise RuntimeError("a scheduled crash fired twice") from crash
             # Same owner and epoch, new process, from step 0; the events the crashed
             # process heard (up to the crash step) are lost with it.
             run, heard_until = 2, max(heard_until, crash.step + 1)
@@ -750,7 +763,8 @@ def check_receipts(att: Attempt, envelope: dict[str, Any], receipts: list[dict[s
         if not extra["replayed"] or extra["artifact"] != first["artifact"]:
             raise RuntimeError("duplicate delivery executed twice")
         att.metrics["duplicate_deliveries_suppressed"] += 1
-    return first["artifact"]["value"]
+    value: int | str = first["artifact"]["value"]
+    return value
 
 
 def deliver_with_receipts(att: Attempt, message: dict[str, Any], call: Callable[[], dict[str, Any]],
@@ -858,7 +872,7 @@ def check_constraint(rule: dict[str, Any], task: dict[str, Any], state: AgentSta
         blob = "\n".join(state.out + payloads)
         return not any(term in blob for term in rule["terms"])
     if kind == "forbid_path":
-        return state.files.get(rule["path"]) == task["input"].get("files", {}).get(rule["path"])
+        return bool(state.files.get(rule["path"]) == task["input"].get("files", {}).get(rule["path"]))
     if kind == "max_line_length":
         return all(len(line) <= rule["n"] for content in state.files.values() for line in content.split("\n"))
     if kind == "require_label":
@@ -915,7 +929,8 @@ def evaluate(task: dict[str, Any], truth: dict[str, Any], state: AgentState, att
 def _ledger_rows(path: Path) -> int:
     db = sqlite3.connect(path)
     try:
-        return db.execute("SELECT COUNT(*) FROM effects").fetchone()[0]
+        count: int = db.execute("SELECT COUNT(*) FROM effects").fetchone()[0]
+        return count
     finally:
         db.close()
 
@@ -928,7 +943,7 @@ METRIC_KEYS = ("task_correct", "output_correct", "constraints_preserved", "const
 
 
 # Fault kinds a mode cannot experience by construction (v0.2 records name the reason).
-_TRANSFERLESS = ("duplicate_delivery",) + PARTITION_KINDS
+_TRANSFERLESS = ("duplicate_delivery", *PARTITION_KINDS)
 NOT_APPLICABLE: dict[tuple[str, str], str] = {
     **{("keep_on_origin", f): "no_transfer_channel" for f in _TRANSFERLESS},
     ("keep_on_origin", "stale_origin_returns"): "no_ownership_transfer",
@@ -974,7 +989,7 @@ def run_attempt(task: dict[str, Any], truth: dict[str, Any] | None, mode: str, f
                               "outcome": "unavailable", "reason": info.get("unavailable_reason"),
                               "model_calls": 0}
     metric_keys = METRIC_KEYS + spec.extra_metrics
-    record.update({k: None for k in metric_keys})
+    record.update(dict.fromkeys(metric_keys))
     if spec.extra_metrics:
         record.update(crash_step=crash_step if fault in CRASH_KINDS else None, fault_not_applied_reason=None)
     t0 = time.perf_counter_ns()
@@ -990,8 +1005,8 @@ def run_attempt(task: dict[str, Any], truth: dict[str, Any] | None, mode: str, f
             record.update(att.metrics)
             if truth is not None:
                 record.update(evaluate(task, truth, state, att, outcome == "completed"))
-        except Exception as exc:  # recorded as a harness error, never as a baseline success
-            record.update({k: None for k in metric_keys})
+        except Exception as exc:  # noqa: BLE001 - recorded as a harness error, never as a baseline success
+            record.update(dict.fromkeys(metric_keys))
             record.update(outcome="harness_error", reason=type(exc).__name__)
     if spec.extra_metrics:
         record["fault_not_applied_reason"] = fault_not_applied_reason(
@@ -1049,7 +1064,7 @@ def _neg_receiver(workdir: Path, revoked: bool = False) -> HandoffReceiver:
         Approval("neg-approval", "neg-task", "agent-a", "agent-b", "word_count", revoked=revoked)])
 
 
-def _sec_classification_gate(case, fx, workdir):
+def _sec_classification_gate(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     task, truth = _security_task(case, fx)
     rec = run_attempt(task, truth, case["mode"], case.get("fault", "none"), workdir / "attempt",
                       fx.suite, case.get("crash_step"))
@@ -1060,7 +1075,7 @@ def _sec_classification_gate(case, fx, workdir):
     return observed, {"reason": rec["reason"] or "none", "transfer_bytes_before_refusal": rec["transfer_bytes"] or 0}
 
 
-def _sec_run_task(case, fx, workdir):
+def _sec_run_task(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     task, truth = _security_task(case, fx)
     rec = run_attempt(task, truth, case["mode"], case.get("fault", "none"), workdir / "attempt",
                       fx.suite, case.get("crash_step"))
@@ -1072,7 +1087,7 @@ def _sec_run_task(case, fx, workdir):
     return rec["outcome"], {"reason": rec["reason"] or "none", "transfer_bytes": rec["transfer_bytes"] or 0}
 
 
-def _sec_canary(case, fx, workdir):
+def _sec_canary(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     task, truth = _security_task(case, fx)
     rec = run_attempt(task, truth, case["mode"], "none", workdir / "attempt", fx.suite)
     receiver_db = workdir / "attempt" / "receiver.sqlite"
@@ -1085,7 +1100,7 @@ def _sec_canary(case, fx, workdir):
                       and rec["sensitive_transfers"] > 0}
 
 
-def _sec_forged_destination(case, fx, workdir):
+def _sec_forged_destination(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     receiver = _neg_receiver(workdir)
     try:
         receiver.receive(_envelope("forged", destination={"agent_id": "agent-x"}))
@@ -1094,7 +1109,7 @@ def _sec_forged_destination(case, fx, workdir):
     return "accepted", {"denial_type": "none"}
 
 
-def _sec_movement_id_reuse(case, fx, workdir):
+def _sec_movement_id_reuse(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     receiver = _neg_receiver(workdir)
     receiver.receive(_envelope("reuse"))
     try:
@@ -1104,7 +1119,7 @@ def _sec_movement_id_reuse(case, fx, workdir):
     return "accepted", {"denial_type": "none"}
 
 
-def _sec_effect_conflict(case, fx, workdir):
+def _sec_effect_conflict(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     gateway = EffectGateway(SQLiteStore(workdir / "neg.sqlite"))
     epoch = gateway.claim("neg-effects", "agent-a")
     gateway.commit("neg-effects", "agent-a", epoch, "neg-effect-1", "synthetic payload")
@@ -1115,7 +1130,7 @@ def _sec_effect_conflict(case, fx, workdir):
     return "accepted", {"denial_type": "none"}
 
 
-def _sec_data_not_instructions(case, fx, workdir):
+def _sec_data_not_instructions(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     task, truth = _security_task(case, fx)
     rec = run_attempt(task, truth, case["mode"], "none", workdir / "attempt", fx.suite)
     declared = {op["to"] for op in task["plan"] if op["op"] == "effect"}
@@ -1125,7 +1140,7 @@ def _sec_data_not_instructions(case, fx, workdir):
         "task_correct": bool(rec["task_correct"]), "unexpected_effects": rec["unexpected_effects"] or 0}
 
 
-def _sec_tampered_fixture(case, fx, workdir):
+def _sec_tampered_fixture(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     copy = workdir / "fixtures"
     shutil.copytree(fx.directory, copy)
     target = copy / "tasks.jsonl"
@@ -1139,13 +1154,13 @@ def _sec_tampered_fixture(case, fx, workdir):
     return "accepted", {"error_type": "none"}
 
 
-def _sec_unknown(case, fx, workdir):
+def _sec_unknown(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     gateway = EffectGateway(SQLiteStore(workdir / "neg.sqlite"))
     gateway.claim("neg-effects", "agent-a")
     return gateway.reconcile("neg-effects", "never-committed"), {"local_ledger_authoritative_only": True}
 
 
-def _sec_revocation(case, fx, workdir):
+def _sec_revocation(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     receiver = _neg_receiver(workdir)
     receiver.receive(_envelope("before-revocation"))  # approved work starts on agent-b
     gateway = EffectGateway(receiver.store)
@@ -1163,7 +1178,7 @@ def _sec_revocation(case, fx, workdir):
         "new_handoff_denied": True, "simulated_commit_after_revocation": committed}
 
 
-def _sec_stable_id_conflict(case, fx, workdir):
+def _sec_stable_id_conflict(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     """v0.2: a restart with deterministic IDs re-issues an origin effect with a different payload."""
     task, truth = _security_task(case, fx)
     rec = run_attempt(task, truth, case["mode"], "none", workdir / "attempt", fx.suite)
@@ -1175,7 +1190,7 @@ def _sec_stable_id_conflict(case, fx, workdir):
                       "unexpected_effects": rec["unexpected_effects"] or 0}
 
 
-def _sec_lost_receipt(case, fx, workdir):
+def _sec_lost_receipt(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     """v0.2: the receipt of a delegated step is lost; the origin's retry must be a replay."""
     task, truth = _security_task(case, fx)
     rec = run_attempt(task, truth, case["mode"], "partition_drop_reply", workdir / "attempt", fx.suite)
@@ -1186,7 +1201,7 @@ def _sec_lost_receipt(case, fx, workdir):
                       "duplicate_deliveries_suppressed": rec["duplicate_deliveries_suppressed"] or 0}
 
 
-def _sec_crash_zombie(case, fx, workdir):
+def _sec_crash_zombie(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     """v0.2: the origin 'crashed' inside an effect step but was only paused; after the task
     moved it wakes up and sends its in-flight commit with its old epoch."""
     task, truth = _security_task(case, fx)
@@ -1202,7 +1217,7 @@ def _sec_crash_zombie(case, fx, workdir):
     return "committed", {"zombie_commit_attempted": True}
 
 
-def _sec_runtime_revocation(case, fx, workdir):
+def _sec_runtime_revocation(case: dict[str, Any], fx: Fixtures, workdir: Path) -> tuple[str, dict[str, Any]]:
     """v0.2: as `neg-revocation-not-at-effect`, but the grant is revoked at runtime with a signed
     notice (issue #38), which the core gateway rechecks at the effect commit."""
     authority = HmacKey.generate("authority-mobilitybench-v02")  # synthetic, fresh per run
@@ -1252,7 +1267,7 @@ def run_security_cases(fx: Fixtures, root: Path, timing: bool = True) -> list[di
             observed, evidence = SECURITY[case["attack"]](case, fx, workdir)
             if any(not isinstance(k, str) or type(v) not in (str, int, bool) for k, v in evidence.items()):
                 raise TypeError("invalid evidence schema")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - observed research failure, not silent success
             observed, evidence = "unexpected_exception", {"exception_type": type(exc).__name__}
         if observed == case["expected"]:
             verdict = "known_gap" if case["known_gap"] else "pass"
@@ -1344,7 +1359,7 @@ def run_suite(suite: str = "v0.1", subset: str = "full", seeds: list[int] | None
         "seeds": seeds, "repeats": repeats, "tasks": [t["task_id"] for t in tasks],
         "modes": {m: dict(v) for m, v in modes.items()}, "fault_kinds": list(spec.fault_kinds),
         "fault_assignment": fx.seeds["fault_assignment"],
-        "started_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat() if timing else None}
+        "started_at": datetime.now(UTC).replace(microsecond=0).isoformat() if timing else None}
     if spec.extra_metrics:
         manifest["crash_step_assignment"] = fx.seeds["crash_step_assignment"]
     records: list[dict[str, Any]] = [manifest]
@@ -1363,8 +1378,8 @@ def run_suite(suite: str = "v0.1", subset: str = "full", seeds: list[int] | None
                             record["elapsed_ms"] = None
                         records.append({"record_type": "attempt", "run_id": run_id, "run_version": run_version,
                                         "seed": seed, "repeat": repeat, **record})
-        for record in run_security_cases(fx, root, timing):
-            records.append({**record, "run_id": run_id, "run_version": run_version})
+        records.extend({**record, "run_id": run_id, "run_version": run_version}
+                       for record in run_security_cases(fx, root, timing))
     blob = canonical(records)
     leaked = [s for s in sensitive_strings(fx) if s in blob]
     if leaked:
@@ -1401,13 +1416,14 @@ def mode_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "missing_effects_completed": _sum(done, "missing_effects"),
         "median_elapsed_ms": round(statistics.median(elapsed), 3) if elapsed else None,
         # v0.2 records only, so v0.1 summaries keep their v0.1 keys.
-        **({k: _sum(rows, k) for k in V02_METRIC_KEYS} | {"faults_applied": sum(r["fault_applied"] is True for r in rows)}
+        **({k: _sum(rows, k) for k in V02_METRIC_KEYS}
+           | {"faults_applied": sum(r["fault_applied"] is True for r in rows)}
            if rows and "effect_id_conflicts" in rows[0] else {}),
     }
 
 
 def reproducibility(records: list[dict[str, Any]]) -> dict[str, Any]:
-    groups: dict[tuple, set[str]] = {}
+    groups: dict[tuple[Any, ...], set[str]] = {}
     for r in _attempts(records, None):
         groups.setdefault((r["seed"], r["task_id"], r["mode"]), set()).add(r["outcome_fingerprint"])
     repeats = {r["repeat"] for r in _attempts(records, None)}
@@ -1486,11 +1502,11 @@ def build_report(records: list[dict[str, Any]]) -> str:
     lines = [
         f"# MobilityBench {spec.key} report — run `{manifest['run_id']}`",
         "",
-        "> **Pilot, deterministic, LLM-free.** A scripted interpreter executed frozen synthetic tasks; "
-        "effects are simulated SQLite commits. Outcomes are deterministic functions of (task, mode, fault), "
-        "so repeats test reproducibility, not sampling variance: no confidence intervals or significance "
-        "claims are made, and none should be inferred from these counts. Unavailable baselines are listed, "
-        f"not scored. See `{spec.doc}` for rubrics and validity threats.",
+        ("> **Pilot, deterministic, LLM-free.** A scripted interpreter executed frozen synthetic tasks; "
+         "effects are simulated SQLite commits. Outcomes are deterministic functions of (task, mode, fault), "
+         "so repeats test reproducibility, not sampling variance: no confidence intervals or significance "
+         "claims are made, and none should be inferred from these counts. Unavailable baselines are listed, "
+         f"not scored. See `{spec.doc}` for rubrics and validity threats."),
         "",
         "## Run manifest",
         "",
@@ -1505,24 +1521,26 @@ def build_report(records: list[dict[str, Any]]) -> str:
         "",
         "## Denominators",
         "",
-        f"- Attempt records (all repeats): **{len(_attempts(records, None))}**; summary tables use repeat 0 only: "
-        f"**{len(attempts)}** = {len(manifest['tasks'])} tasks × {len(manifest['seeds'])} seeds × {len(modes)} modes.",
-        f"- Implemented-mode attempts (repeat 0): **{sum(r['mode_status'] == 'implemented' for r in attempts)}**; "
-        f"unavailable-mode records: **{sum(r['mode_status'] == 'unavailable' for r in attempts)}** (not scored).",
+        (f"- Attempt records (all repeats): **{len(_attempts(records, None))}**; summary tables use repeat 0 only: "
+         f"**{len(attempts)}** = {len(manifest['tasks'])} tasks × {len(manifest['seeds'])} seeds "
+         f"× {len(modes)} modes."),
+        (f"- Implemented-mode attempts (repeat 0): **{sum(r['mode_status'] == 'implemented' for r in attempts)}**; "
+         f"unavailable-mode records: **{sum(r['mode_status'] == 'unavailable' for r in attempts)}** (not scored)."),
         f"- Harness errors (all repeats): **{summary['harness_errors']}**.",
-        f"- Security/negative cases: **{summary['security_total']}** "
-        f"({summary['security']['pass']} pass, {summary['security']['known_gap']} known gap, "
-        f"{summary['security']['gap_closed']} gap closed, {summary['security']['fail']} fail).",
+        (f"- Security/negative cases: **{summary['security_total']}** "
+         f"({summary['security']['pass']} pass, {summary['security']['known_gap']} known gap, "
+         f"{summary['security']['gap_closed']} gap closed, {summary['security']['fail']} fail)."),
         "",
         "## Baseline summary (repeat 0)",
         "",
-        "`correct` requires completed + exact output digest + all constraints + no policy violation, "
-        "duplicate, unexpected or missing effect. Each fraction shows its own denominator.",
+        ("`correct` requires completed + exact output digest + all constraints + no policy violation, "
+         "duplicate, unexpected or missing effect. Each fraction shows its own denominator."),
         "",
-        "| mode | baseline | status | completed | correct / attempts | correct / completed | constraints kept "
-        "(completed) | policy violations | duplicate effects | unexpected effects | unknown→reconciled | "
-        "stale fenced | transfer bytes | refused | incomplete | median ms |",
-        "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ("| mode | baseline | status | completed | correct / attempts | correct / completed | constraints kept "
+         "(completed) | policy violations | duplicate effects | unexpected effects | unknown→reconciled | "
+         "stale fenced | transfer bytes | refused | incomplete | median ms |"),
+        ("| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: "
+         "| ---: | ---: | ---: | ---: | ---: | ---: |"),
     ]
     for mode, info in modes.items():
         s = summary["modes"][mode]
@@ -1540,11 +1558,11 @@ def build_report(records: list[dict[str, Any]]) -> str:
     implemented = [m for m, i in modes.items() if i["status"] == "implemented"]
     if v02:
         lines += ["", "## Fault-path evidence (repeat 0)", "",
-                  "`faults applied` counts attempts on which the scheduled fault actually acted; the others are "
-                  "listed with their reason under *Fault applicability*. Effect-ID conflicts are re-issued effects "
-                  "whose deterministic ID already held a different payload (the ledger kept the first one).", "",
-                  "| mode | faults applied / attempts | effect-ID conflicts | messages dropped | messages delayed "
-                  "| retries | duplicate deliveries suppressed | steps re-executed |",
+                  ("`faults applied` counts attempts on which the scheduled fault actually acted; the others are "
+                   "listed with their reason under *Fault applicability*. Effect-ID conflicts are re-issued effects "
+                   "whose deterministic ID already held a different payload (the ledger kept the first one)."), "",
+                  ("| mode | faults applied / attempts | effect-ID conflicts | messages dropped | messages delayed "
+                   "| retries | duplicate deliveries suppressed | steps re-executed |"),
                   "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
         for mode in [m for m, i in modes.items() if i["status"] == "implemented"]:
             s = summary["modes"][mode]
@@ -1563,8 +1581,8 @@ def build_report(records: list[dict[str, Any]]) -> str:
             lines.append(f"| {mode} | " + " | ".join(cells) + " |")
     if v02:
         lines += ["", "## Fault applicability (repeat 0): applied / scheduled", "",
-                  "A fault that cannot act on a mode is reported, never silently dropped: every scheduled but "
-                  "unapplied fault carries a `fault_not_applied_reason` (table below).", "",
+                  ("A fault that cannot act on a mode is reported, never silently dropped: every scheduled but "
+                   "unapplied fault carries a `fault_not_applied_reason` (table below)."), "",
                   "| mode | " + " | ".join(f for f in fault_kinds if f != "none") + " |",
                   "| --- |" + " ---: |" * (len(fault_kinds) - 1)]
         for mode in modes:
@@ -1584,9 +1602,9 @@ def build_report(records: list[dict[str, Any]]) -> str:
               "| mode | outcome | reason | count |", "| --- | --- | --- | ---: |"]
     lines += [f"| {m} | {o} | `{why}` | {n} |" for (m, o, why), n in sorted(reasons.items())] or ["| – | – | – | 0 |"]
     lines += ["", "## Unavailable baselines", "",
-              "An unavailable mode is never scored. `extra_not_installed:<extra>` means the run's environment "
-              "lacked that optional extra (`pip install -e '.[<extra>]'`); `baseline_not_implemented` means "
-              "no implementation exists.", "",
+              ("An unavailable mode is never scored. `extra_not_installed:<extra>` means the run's environment "
+               "lacked that optional extra (`pip install -e '.[<extra>]'`); `baseline_not_implemented` means "
+               "no implementation exists."), "",
               "| mode | baseline | reason | tracking | records |", "| --- | --- | --- | --- | ---: |"]
     unavailable = [f"| {m} | {i['baseline']} | `{i.get('unavailable_reason', 'baseline_not_implemented')}` | "
                    f"{i['tracking']} | {summary['modes'][m]['unavailable']} |"
@@ -1594,8 +1612,8 @@ def build_report(records: list[dict[str, Any]]) -> str:
     lines += unavailable or ["| – | – | – | – | 0 |"]
     security = [r for r in records if r.get("record_type") == "security"]
     lines += ["", "## Negative and security fixtures", "",
-              "A `known_gap` reproduces a deliberately documented missing control; it is **not** a pass. "
-              "`gap_closed` means the control now exists: the case must be rewritten in the next suite version.", "",
+              ("A `known_gap` reproduces a deliberately documented missing control; it is **not** a pass. "
+               "`gap_closed` means the control now exists: the case must be rewritten in the next suite version."), "",
               "| case | mode | questions | expected | observed | verdict |", "| --- | --- | --- | --- | --- | --- |"]
     lines += [f"| {r['case_id']} | {r['mode']} | {', '.join(r['question_ids'])} | `{r['expected']}` | "
               f"`{r['observed']}` | **{r['verdict']}** |" for r in security]
@@ -1604,8 +1622,8 @@ def build_report(records: list[dict[str, Any]]) -> str:
               f"- Repeats: {repro['repeats']}; (seed, task, mode) groups: {repro['groups']}; groups with differing "
               f"outcome fingerprints: **{len(repro['mismatched'])}**" +
               (": " + ", ".join(repro["mismatched"]) if repro["mismatched"] else "."),
-              "- Fingerprints exclude wall-clock time, which is machine-dependent and not a fair cross-mode "
-              "latency comparison.", "",
+              ("- Fingerprints exclude wall-clock time, which is machine-dependent and not a fair cross-mode "
+               "latency comparison."), "",
               "## Raw per-case results (repeat 0)", "",
               "| seed | task | family | mode | fault | applied | outcome | reason | correct | output | constraints "
               "| policy | dup | unexp | missing | unknown | fenced | bytes | ms |"

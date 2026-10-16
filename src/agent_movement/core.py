@@ -11,16 +11,17 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-from contextlib import contextmanager
 import json
 import re
 import secrets
 import sqlite3
 import time
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 SCHEMA_VERSION = "0.1.0-draft"
 ID = re.compile(r"[A-Za-z][A-Za-z0-9._:-]{0,127}\Z")
@@ -48,7 +49,7 @@ _DELIVERIES_V1 = """CREATE TABLE IF NOT EXISTS {name} (
 _STORE_SECRET = """CREATE TABLE IF NOT EXISTS store_secret (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         hmac_key BLOB NOT NULL,
-        created_at TEXT NOT NULL)"""
+        created_at TEXT NOT NULL)"""  # noqa: S105 - table DDL, not a secret
 _TABLES = (
     # Index 0 is formatted with a table name so a migration can build a copy first.
     # envelope_digest holds SQLiteStore.fingerprint(envelope), a keyed commitment.
@@ -237,7 +238,7 @@ def build_receipt(envelope: dict[str, Any]) -> dict[str, Any]:
 
 
 def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 @dataclass(frozen=True)
@@ -261,7 +262,7 @@ class Approval:
         if self.revoked or (self.expires_at is not None and
                             (self.expires_at.tzinfo is None or now >= self.expires_at)):
             return False
-        return (envelope["authority"]["approval_ref"] == self.ref
+        return bool(envelope["authority"]["approval_ref"] == self.ref
                 and envelope["logical_task_id"] == self.task_id
                 and envelope["origin"]["agent_id"] == self.origin_id
                 and envelope["destination"]["agent_id"] == self.destination_id
@@ -440,7 +441,7 @@ class SQLiteStore:
             time.sleep(0.02)
 
     @contextmanager
-    def _connection(self):
+    def _connection(self) -> Iterator[sqlite3.Connection]:
         db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
         try:
             db.execute("PRAGMA busy_timeout = 10000")
@@ -525,7 +526,8 @@ class SQLiteStore:
         with self._connection() as db:
             rows = db.execute("SELECT movement_id,task_id,event_type,info_digest,event_time "
                               "FROM audit_events ORDER BY seq").fetchall()
-        return [dict(zip(("movement_id", "task_id", "event_type", "info_digest", "event_time"), row)) for row in rows]
+        names = ("movement_id", "task_id", "event_type", "info_digest", "event_time")
+        return [dict(zip(names, row, strict=True)) for row in rows]
 
     # -- runtime approval revocation (issue #38) ---------------------------------------
     # Revocation audit events are not tied to a movement: their movement_id is "". Like every
@@ -583,7 +585,7 @@ class SQLiteStore:
         with self._connection() as db:
             rows = db.execute(f"SELECT {','.join(names)} FROM approval_revocations "
                               "ORDER BY recorded_at, approval_ref").fetchall()
-        return [dict(zip(names, row)) for row in rows]
+        return [dict(zip(names, row, strict=True)) for row in rows]
 
 
 class HandoffReceiver:
@@ -607,7 +609,7 @@ class HandoffReceiver:
 
     def receive(self, message: Any) -> dict[str, Any]:
         envelope = validate_envelope(message)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if envelope["destination"]["agent_id"] != self.name or not any(
                 a.allows(envelope, now) for a in self.approvals):
             self.store.denied(envelope)
@@ -657,7 +659,7 @@ class HandoffReceiver:
 class EffectGateway:
     """No real side effects: only simulated commits to a fenced SQLite table.
 
-    Fencing works only because THIS gateway checks epoch in the SAME transaction
+    Fencing works only because THIS gateway checks the fencing epoch in the SAME transaction
     as a simulated commit. It offers no guarantee for real-world external tools.
 
     The same transaction rechecks runtime approval revocation (issue #38): a commit for a

@@ -21,19 +21,28 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from google.protobuf.json_format import MessageToDict
-
 from a2a.client import A2ACardResolver, ClientCallContext, ClientConfig, ClientFactory
 from a2a.client.service_parameters import ServiceParametersFactory, with_a2a_extensions
 from a2a.helpers import new_data_part
 from a2a.types import AgentCard, GetTaskRequest, Message, Role, SendMessageRequest, TaskState
 from a2a.utils.constants import TransportProtocol
 from a2a.utils.errors import A2AError
+from google.protobuf.json_format import MessageToDict
 
+from .a2a_profile import (
+    CLIENT_CONTEXT_BOUND,
+    CLIENT_CONTEXT_REJECTED,
+    EXTENSION_URI,
+    EXTENSION_URIS,
+    LEGACY_EXTENSION_URI,
+    RECEIPT_ARTIFACT_NAME,
+    TASK_MEDIA_TYPE,
+    ProfileError,
+    envelope_to_a2a,
+    skill_id,
+    verify_receipt,
+)
 from .core import ContractError
-from .a2a_profile import (CLIENT_CONTEXT_BOUND, CLIENT_CONTEXT_REJECTED, EXTENSION_URI,
-                          EXTENSION_URIS, LEGACY_EXTENSION_URI, RECEIPT_ARTIFACT_NAME,
-                          TASK_MEDIA_TYPE, ProfileError, envelope_to_a2a, skill_id, verify_receipt)
 
 BINDINGS = {"JSONRPC": TransportProtocol.JSONRPC, "HTTP+JSON": TransportProtocol.HTTP_JSON}
 

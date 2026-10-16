@@ -11,29 +11,37 @@ keys pinned with ``--revocation-authority FILE``; without one, every notice is r
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from .core import (Approval, Conflict, ContractError, HandoffReceiver, PolicyDenied, RevocationRejected,
-                   SQLiteStore, parse_json)
+from .core import (
+    Approval,
+    Conflict,
+    ContractError,
+    HandoffReceiver,
+    PolicyDenied,
+    RevocationRejected,
+    SQLiteStore,
+    parse_json,
+)
 
 HANDOFF_PATH, REVOCATION_PATH = "/v0/handoffs", "/v0/revocations"
 
 
 class LocalServer(ThreadingHTTPServer):
     daemon_threads = True
+    receiver: Any  # attached after binding by peer_http.make_peer_server and peer_demo
 
 
 def _record(event: Any, *args: Any) -> None:
     """Receipt emission must never change the HTTP outcome of a handoff."""
-    try:
+    with contextlib.suppress(Exception):
         event(*args)
-    except Exception:
-        pass
 
 
 def make_server(receiver: HandoffReceiver, port: int = 0,
@@ -95,7 +103,7 @@ def make_server(receiver: HandoffReceiver, port: int = 0,
                 self.respond(403, {"error": "approval_denied"})
             except Conflict:
                 self.respond(409, {"error": "idempotency_conflict"})
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # Never drop the connection without an answer (e.g. sqlite "database is locked").
                 self.respond(500, {"error": "internal_error"})
             else:
@@ -115,7 +123,7 @@ def make_server(receiver: HandoffReceiver, port: int = 0,
                     self.respond(404, {"error": "unknown_approval"})
                 else:
                     self.respond(401, {"error": "unauthenticated"})
-            except Exception:
+            except Exception:  # noqa: BLE001 - answer 500, never drop the connection
                 self.respond(500, {"error": "internal_error"})
             else:
                 if receipts is not None and not result["replayed"]:
@@ -156,7 +164,7 @@ def main() -> None:
     options = parser.parse_args()
     approval = Approval(options.approval, options.task_id, options.origin_id,
                         options.receiver_id, options.kind,
-                        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10))
+                        expires_at=datetime.now(UTC) + timedelta(minutes=10))
     receipts = None
     if options.receipts_log is not None:
         from .live_receipts import ReceiptEmitter

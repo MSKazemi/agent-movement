@@ -31,12 +31,26 @@ To use a different interpreter, override `PYTHON`, e.g. `make check PYTHON=pytho
 | `make sources` | Runs `tools/sources_index.py check`. It extracts every external URL from `README.md` and `docs/**/*.md` and requires each one to be listed in the generated *URL index by document* section of [`sources.md`](sources.md), with its document key(s) and an access date. It fails on unindexed URLs, on index rows that no document cites any more, and on rows without a valid date. Corpus files, generated files, code spans, templates, loopback/example hosts and links to this repository are not indexed (see the module docstring and `EXCLUDE_GLOBS`). |
 | `make sources-index` | Runs `tools/sources_index.py generate`. It rewrites only the section between `<!-- sources-index:start -->` and `<!-- sources-index:end -->` in `sources.md`; the hand-written text above it is kept. Access dates already in the index (including hand-edited ones) are kept. `generate --refresh-dates` recomputes the automatic dates and still keeps rows whose *Date basis* is not automatic (e.g. `manual`). |
 | `make build` | Rebuilds both corpora **in place**, exactly as documented in each README: `merge` from `raw/`, then `apply-audit`; for papers, then `append` each later round and apply its audit file. |
-| `make` / `make all` | Runs `check`, `verify-determinism`, `verify-analysis`, `check-ids`, `check-tests-registry`, `sources`, `test` and `bib`. |
+| `make lint` / `make typecheck` | Static checks of the `agent_movement` package; see [Static checks](#static-checks). |
+| `make` / `make all` | Runs `check`, `verify-determinism`, `verify-analysis`, `check-ids`, `check-tests-registry`, `sources`, `test`, `bib`, `lint` and `typecheck`. |
 | `make help` | Lists the targets. |
 
 Run `make all` before every commit that touches `docs/news-corpus/`, `docs/paper-corpus/` or `tools/`. When a document gains or loses an external link, run `make sources-index`, check the access dates of the new rows in `sources.md` (edit a cell and set its *Date basis* to `manual` if the derived date is wrong), and commit `sources.md` with the document. If `verify-determinism` fails, either the committed files were edited by hand or a tool change altered the output. Run `make build`, review `git diff`, and commit the regenerated files together with the change that caused them.
 
 CI does no network link checking, so every gate is deterministic and runs offline.
+
+## Static checks
+
+`make lint` runs [ruff](https://docs.astral.sh/ruff/) and `make typecheck` runs [mypy](https://mypy.readthedocs.io/) in strict mode on `src/agent_movement`, `tools/mobilitybench_freeze.py` and `tests/test_mobilitybench_v02.py`. Both tools are pinned in the `lint` dependency group of `pyproject.toml`, which also holds their configuration and the reason for every ignored rule. mypy checks the code against the real a2a-sdk, cryptography and LangGraph APIs, so it needs every optional extra:
+
+```bash
+python -m pip install -e '.[a2a,ed25519,hpke,relocation,signing]' --group lint   # pip >= 25.1
+make lint typecheck
+```
+
+Without the tools (or, for `typecheck`, the extras) each target prints a skip message, so `make all` still works in a stdlib-only checkout. `STATIC_REQUIRED=1` turns a skip into a failure. CI runs both targets that way in `.github/workflows/static-checks.yml`, a separate workflow, so `corpus.yml` stays stdlib-only. Fix a finding in the code. If a rule does not fit, add a per-rule or per-file ignore with its reason to `pyproject.toml`, or a `# noqa: <rule>` with a short reason on that line.
+
+`.gitleaks.toml` keeps the full default gitleaks rule set and allowlists three known false positives of its `generic-api-key` rule: corpus citation keys, the MobilityBench ground-truth digests and one synthetic idempotency-key label. Each allowlist matches only when both the file path and the matched text fit. Check with `gitleaks dir . --no-banner` in a clean checkout (it also scans an untracked `.venv`).
 
 ## Editing records
 
@@ -256,6 +270,7 @@ The code cannot check the operator's claim: a false `confirmed_done` loses the e
 |---|---|---|
 | [`corpus.yml`](../.github/workflows/corpus.yml) | push and pull request to `main` | `gates`: `make check verify-determinism verify-analysis`, `make check-ids`, `make check-tests-registry`, `make sources` (every external URL indexed in `docs/sources.md`), then `make test` on Python 3.15. `bibliography`: `make bib BIB_STRICT=1`. |
 | [`python-smoke.yml`](../.github/workflows/python-smoke.yml) | push or pull request touching `src/`, `tests/`, `tools/`, `pyproject.toml` or the workflow | `core` (Python 3.11, 3.13, 3.15; no extras): pytest, `demo`, `peer_demo`, the smoke suite (once with timing, then twice with `--no-timing`, compared with `cmp`), MobilityBench v0.1, MobilityBench v0.2 (`freeze --suite v0.2 --check`, `verify`, the smoke subset with a report, then two `--no-timing` smoke runs compared with `cmp`), the fail-closed checks above (including the receipt exit codes without `signing`) and the `agent-movement` CLI with its exit-2 hints (including `demo --receipts` without `signing`). `extras` (Python 3.11, 3.13; all extras plus a pinned, checksum-verified `gitleaks`): pytest, every demo including `peer_demo --delivery hpke` and `relocation_demo --two-store`, the nine receipt fixtures with `--trust`, every CLI subcommand, `tools/cli_reference.py --check`, `demo --receipts` with its bundle verified (0) and a tampered copy rejected (1), the operator reconciliation walkthrough, and the v0.1 and v0.2 smoke subsets with B2 and B3 scored (each fails unless `cross_framework_reconstruct` is the only unavailable mode). Both upload their result files as artifacts for 7 days. |
+| [`static-checks.yml`](../.github/workflows/static-checks.yml) | push or pull request touching `src/`, the checked tool and test file, `pyproject.toml`, the `Makefile` or the workflow | `lint-typecheck` (Python 3.13, every extra plus the `lint` group): `make lint typecheck STATIC_REQUIRED=1`, see [Static checks](#static-checks). |
 | [`a2a-interop.yml`](../.github/workflows/a2a-interop.yml) | push or pull request touching the A2A modules, `interop/`, the A2A tests or `pyproject.toml`; manual | Optional, `continue-on-error`: `js-interop` (an `@a2a-js/sdk` client against the Python server, `tests/test_a2a_js_interop.py`) and `conformance` (the A2A TCK and Inspector at pinned commits). See [interop and conformance](a2a-adapter.md#interop-and-conformance-run-locally). |
 | [`docs-links.yml`](../.github/workflows/docs-links.yml) | push to `main` and every pull request | `relative-links`: lychee in offline mode over all Markdown files |
 

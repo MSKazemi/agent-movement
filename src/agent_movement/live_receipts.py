@@ -32,14 +32,23 @@ from __future__ import annotations
 import json
 import secrets
 import threading
-from datetime import datetime, timedelta, timezone
+from collections.abc import Callable, Iterable
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from .core import ID, Conflict, EffectGateway, PolicyDenied, SQLiteStore
 from .jcs import canonicalize, jcs_digest
-from .receipts import (RECEIPT_SCHEMA, TRUST_SCHEMA, Ed25519Signer, ReceiptError, _require_crypto,
-                       commitment, format_time, validate_body)
+from .receipts import (
+    RECEIPT_SCHEMA,
+    TRUST_SCHEMA,
+    Ed25519Signer,
+    ReceiptError,
+    _require_crypto,
+    commitment,
+    format_time,
+    validate_body,
+)
 
 LIVE_DOMAIN = "spiffe://synthetic.test/live"
 BUNDLE_NAME = "live-run"
@@ -54,7 +63,7 @@ def live_principal(name: str, role: str = "agent") -> str:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def notice_subject_ref(notice: Any) -> str:
@@ -112,7 +121,7 @@ class ReceiptEmitter:
                 wire = self._signer.seal(body)
                 with self.log_path.open("ab") as log:
                     log.write(canonicalize(wire) + b"\n")
-            except Exception:  # best-effort: a lost receipt is a gap, never a changed outcome
+            except Exception:  # noqa: BLE001 - best-effort: a lost receipt is a gap, never a changed outcome
                 self.failures += 1
                 return False
             self._seq, self._prev = seq, wire["body_digest"]
@@ -188,7 +197,8 @@ class ReceiptEmitter:
         """Receiver side, for a policy denial. At most one signed response per movement."""
         return self._emit(("response", envelope["movement_id"]), self._response(envelope, "rejected"))
 
-    def _response(self, envelope: dict[str, Any], decision: str):
+    def _response(self, envelope: dict[str, Any],
+                  decision: str) -> Callable[[str, int, str | None, str], dict[str, Any]]:
         def build(receipt_id: str, seq: int, prev: str | None, issued_at: str) -> dict[str, Any]:
             return self._body(
                 f"movement.{decision}", receipt_id, seq, prev, issued_at,
@@ -251,7 +261,8 @@ class RecordingEffectGateway(EffectGateway):
         self.receipts = receipts
 
     def commit(self, task_id: str, agent_id: str, epoch: int, effect_id: str, payload: str) -> bool:
-        record = dict(task_id=task_id, effect_id=effect_id, agent_id=agent_id, epoch=epoch, payload=payload)
+        record: dict[str, Any] = {"task_id": task_id, "effect_id": effect_id, "agent_id": agent_id,
+                                  "epoch": epoch, "payload": payload}
         try:
             committed = super().commit(task_id, agent_id, epoch, effect_id, payload)
         except (PolicyDenied, Conflict):

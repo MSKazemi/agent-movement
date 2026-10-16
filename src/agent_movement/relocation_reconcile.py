@@ -106,7 +106,7 @@ def _example(options: argparse.Namespace) -> dict[str, Any]:
     owner = obs["owner"]
     worker, incarnation = owner["execution_id"].rsplit(".", 1)
     authority, q = shlex.quote(run.path), shlex.quote
-    store = f" --store {q(run.stores[worker])}" if options.two_store else ""
+    store = f" --store {q(run.stores[worker])}" if isinstance(run, TwoStoreRun) else ""
     truth = rec.out_of_band_check(obs, EFFECT_ID)
     decision = "confirmed_done" if truth == "done" else "confirmed_absent"
     return {
@@ -116,10 +116,10 @@ def _example(options: argparse.Namespace) -> dict[str, Any]:
                                         "true_decision": decision},
         "next": [
             f"{PROG} list --authority {authority}",
-            f"{PROG} decide --authority {authority} --task {TASK} --effect {EFFECT_ID} --decision {decision} "
-            f"--operator ops-alice --reason 'checked the external system' --epoch {owner['epoch']}",
-            f"{PROG} resume --authority {authority} --task {TASK} --worker {worker} "
-            f"--incarnation {incarnation} --epoch {owner['epoch']}{store}",
+            (f"{PROG} decide --authority {authority} --task {TASK} --effect {EFFECT_ID} --decision {decision} "
+             f"--operator ops-alice --reason 'checked the external system' --epoch {owner['epoch']}"),
+            (f"{PROG} resume --authority {authority} --task {TASK} --worker {worker} "
+             f"--incarnation {incarnation} --epoch {owner['epoch']}{store}"),
             f"{PROG} log --authority {authority}",
         ],
     }

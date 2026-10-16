@@ -20,15 +20,27 @@ import json
 import sys
 import tempfile
 import time
+from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any
 
-from .core import (ID, SCHEMA_VERSION, Approval, Conflict, ContractError,
-                   EffectGateway, HandoffReceiver, PolicyDenied, SQLiteStore,
-                   canonical, digest, parse_json)
+from .core import (
+    ID,
+    SCHEMA_VERSION,
+    Approval,
+    Conflict,
+    ContractError,
+    EffectGateway,
+    HandoffReceiver,
+    PolicyDenied,
+    SQLiteStore,
+    canonical,
+    digest,
+    parse_json,
+)
 from .trust import HmacKey, issue_revocation
 
 # v0.2: per-case isolation, fixture-declared expectations, attack-exercising gap cases.
@@ -65,7 +77,7 @@ class Case:
     contract_version: str = SCHEMA_VERSION
 
 
-def envelope(suffix: str, text: str = FIXTURE_TEXT) -> dict:
+def envelope(suffix: str, text: str = FIXTURE_TEXT) -> dict[str, Any]:
     """Only synthetic text; IDs are reproducible claims, not credentials."""
     return {
         "schema_version": SCHEMA_VERSION,
@@ -83,7 +95,7 @@ def envelope(suffix: str, text: str = FIXTURE_TEXT) -> dict:
 
 
 def exception_outcome(fn: Callable[[], object],
-                      kind: type[Exception] | tuple[type[Exception], ...]) -> tuple[str, dict]:
+                      kind: type[Exception] | tuple[type[Exception], ...]) -> tuple[str, dict[str, Any]]:
     """Capture only error *classes*: never save sensitive exception messages."""
     try:
         fn()
@@ -143,7 +155,8 @@ def verdict_for(case: dict[str, Any], observed: str) -> str:
     """Observed vs declared. A known gap that now shows its closed observation is
     `gap_closed`: reported separately, not a failure, and the case must be rewritten."""
     if observed == case["expected"]:
-        return case["expectation"]
+        expectation: str = case["expectation"]
+        return expectation
     if case["expectation"] == "known_gap" and observed == case["closed_observation"]:
         return "gap_closed"
     return "fail"
@@ -165,7 +178,8 @@ def _receiver(workdir: Path, approval: Approval = APPROVAL) -> HandoffReceiver:
     return HandoffReceiver("agent-b", _store(workdir), [approval])
 
 
-def _denied(receiver: HandoffReceiver, message: dict, kind: type[Exception]) -> tuple[str, dict]:
+def _denied(receiver: HandoffReceiver, message: dict[str, Any],
+            kind: type[Exception]) -> tuple[str, dict[str, Any]]:
     return exception_outcome(lambda: receiver.receive(message), kind)
 
 
@@ -206,7 +220,7 @@ def case_revoked_grant_blocks_new_handoff(workdir: Path) -> tuple[str, Evidence]
 
 
 def case_expired_grant_blocks_new_handoff(workdir: Path) -> tuple[str, Evidence]:
-    expired = replace(APPROVAL, expires_at=datetime.now(timezone.utc) - timedelta(minutes=1))
+    expired = replace(APPROVAL, expires_at=datetime.now(UTC) - timedelta(minutes=1))
     return _denied(_receiver(workdir, expired), envelope("expired"), PolicyDenied)
 
 
@@ -389,7 +403,7 @@ def _run_case(case: dict[str, Any], timing: bool) -> Case:
                 for k, v in evidence.items()
             ):
                 raise TypeError("invalid evidence schema")
-        except Exception as exc:  # Observed research failure, not silent success.
+        except Exception as exc:  # noqa: BLE001 - observed research failure, not silent success
             observed, evidence = "unexpected_exception", {"exception_type": type(exc).__name__}
         elapsed = round((time.perf_counter_ns() - t0) / 1_000_000, 3) if timing else None
     return Case(case["scenario"], list(case["question_ids"]), case["baseline"], case["expected"],

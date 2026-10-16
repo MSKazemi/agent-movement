@@ -21,25 +21,28 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from .core import SCHEMA_VERSION, EffectGateway, PolicyDenied, SQLiteStore
 from .trust import HmacKey, issue_revocation, seal
 
 
-def handoff(url: str, message: dict, receipts: Any = None, destination_principal: str | None = None) -> tuple[int, dict]:
+def handoff(url: str, message: dict[str, Any], receipts: Any = None,
+            destination_principal: str | None = None) -> tuple[int, dict[str, Any]]:
     if receipts is not None:  # sign the dispatch before any byte is sent
         receipts.dispatched(message, destination_principal)
     return post(url, message)
 
 
-def post(url: str, message: Any) -> tuple[int, dict]:
+def post(url: str, message: Any) -> tuple[int, dict[str, Any]]:
     data = json.dumps(message, ensure_ascii=False).encode("utf-8")
-    request = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    # The demo only ever posts to the http://127.0.0.1 receiver it started itself.
+    request = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})  # noqa: S310
     try:
-        with urllib.request.urlopen(request, timeout=5) as response:
+        with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310
             return response.status, json.load(response)
     except urllib.error.HTTPError as exc:
         with exc:  # HTTPError wraps an open response; close it
@@ -52,7 +55,7 @@ class _Receipts:
     def __init__(self, outdir: Path, root: Path):
         from .live_receipts import ReceiptEmitter
         self.outdir = outdir
-        self.started = datetime.now(timezone.utc).replace(microsecond=0)
+        self.started = datetime.now(UTC).replace(microsecond=0)
         self.receiver_log = root / "receipts-agent-b.jsonl"
         self.sender = ReceiptEmitter(root / "receipts-agent-a.jsonl", name="agent-a")
         self.tool = ReceiptEmitter(root / "receipts-effect-gateway.jsonl", name="effect-gateway", role="tool")
@@ -81,8 +84,8 @@ def _write_private(path: Path, obj: Any) -> None:
         json.dump(obj, handle)
 
 
-def revocation_scenario(base: str, message: dict, effects: EffectGateway, authority: HmacKey,
-                        sender: Any = None, to: str | None = None) -> tuple[dict[str, Any], dict]:
+def revocation_scenario(base: str, message: dict[str, Any], effects: EffectGateway, authority: HmacKey,
+                        sender: Any = None, to: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     """Runtime revocation of ``demo-approval`` between two simulated effects of ``demo-task``."""
     epoch = effects.claim("demo-task", "agent-b")  # the delegated task's executor on agent-b
     before = effects.commit("demo-task", "agent-b", epoch, "demo-effect-1", "synthetic")
@@ -126,8 +129,8 @@ def main(argv: Sequence[str] = ()) -> None:
                              "OUTDIR/trust-anchors.json (out-of-band anchors); needs the 'signing' extra")
     options = parser.parse_args(list(argv))
     if options.receipts is not None:
-        from .receipts import HAVE_ED25519
         from .live_receipts import BUNDLE_NAME
+        from .receipts import HAVE_ED25519
         if not HAVE_ED25519:
             parser.exit(2, 'error: --receipts needs the optional extra: python -m pip install -e ".[signing]"\n')
         existing = options.receipts / BUNDLE_NAME
