@@ -12,8 +12,10 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 from collections.abc import Callable, Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -61,7 +63,7 @@ def _interpret_request(raw: bytes, allowed: Mapping[str, Callable[[], str]]) -> 
         outcome = handler()  # trusted process, not the attacker interpreter
     except PolicyDenied:
         return "denied"
-    except Exception:
+    except Exception:  # noqa: BLE001 - callback failures must not escape into an untrusted broker reply
         # Do not disguise implementation errors as successful policy denials.
         return "backend_error"
     return outcome if outcome in ("committed", "replayed") else "backend_error"
@@ -85,8 +87,9 @@ def run_guarded_agent(
         raise ValueError("attacker script is not a file")
     request_read, request_write = os.pipe()
     response_read, response_write = os.pipe()
+    workdir = tempfile.gettempdir()  # Avoid running in a package dir that shadows stdlib modules.
     env = {"PATH": os.path.dirname(sys.executable), "LANG": "C.UTF-8",
-           "PYTHONUNBUFFERED": "1", "HOME": str(script.parent),
+           "PYTHONUNBUFFERED": "1", "HOME": workdir,
            "AMV_BROKER_REQ_FD": str(request_write),
            "AMV_BROKER_RESP_FD": str(response_read),
            "AMV_PROBE_PORT": str(probe_port), "AMV_PROBE_OP": operation,
@@ -100,7 +103,7 @@ def run_guarded_agent(
     try:
         child = subprocess.Popen(
             [sys.executable, "-m", "agent_movement.egress_sandbox", str(script)],
-            cwd=script.parent, env=env, stdin=subprocess.DEVNULL,
+            cwd=workdir, env=env, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             pass_fds=(request_write, response_read), close_fds=True,
             start_new_session=True,
@@ -119,10 +122,8 @@ def run_guarded_agent(
         with os.fdopen(response_write, "wb", buffering=0) as outgoing:
             message = json.dumps({"status": state["status"]}, sort_keys=True).encode() + b"\n"
             assert len(message) <= _MAX_RESPONSE
-            try:
+            with suppress(BrokenPipeError):
                 outgoing.write(message)
-            except BrokenPipeError:
-                pass
 
     thread = threading.Thread(target=broker, daemon=True)
     thread.start()
