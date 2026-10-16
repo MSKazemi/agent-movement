@@ -11,7 +11,8 @@ import argparse
 import json
 import sqlite3
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -141,10 +142,20 @@ class IndependentTool:
                     signed_receipt TEXT NOT NULL);
             """)
 
-    def _db(self) -> sqlite3.Connection:
+    @contextmanager
+    def _db(self) -> Iterator[sqlite3.Connection]:
         db = sqlite3.connect(self.db_path, timeout=10, isolation_level=None)
-        db.execute("PRAGMA busy_timeout=10000")
-        return db
+        try:
+            db.execute("PRAGMA busy_timeout=10000")
+            yield db
+            if db.in_transaction:
+                db.commit()
+        except BaseException:
+            if db.in_transaction:
+                db.rollback()
+            raise
+        finally:
+            db.close()
 
     def _grant(self, signed: Any, now: int, db: sqlite3.Connection) -> dict[str, Any]:
         g = _shape(verified("grant", signed, self.issuer), {
@@ -356,9 +367,10 @@ class IndependentTool:
         payload = signed.get("payload", {}) if isinstance(signed, dict) else {}
         if not isinstance(payload, dict):
             payload = {}
-        task = payload.get("task_id")
-        effect = payload.get("effect_id")
-        # Never log client-controlled raw payloads or arbitrary strings.
+        # No unverified caller fields are retained on denials: an attacker could put
+        # sensitive synthetic text in an identifier even when the signature is wrong.
+        task = payload.get("task_id") if decision != "denied" else None
+        effect = payload.get("effect_id") if decision != "denied" else None
         task = task if isinstance(task, str) and len(task) <= 128 and task.isascii() else None
         effect = effect if isinstance(effect, str) and len(effect) <= 128 and effect.isascii() else None
         db.execute("INSERT INTO decisions(channel,decision,reason,task_id,effect_id,signed_receipt)"
