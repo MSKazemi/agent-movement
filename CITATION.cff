@@ -6,6 +6,8 @@ authors:
   - family-names: "Seyedkazemi Ardebili"
     given-names: "Mohsen"
     website: "https://mskazemi.github.io"
+version: "0.2.0"
+date-released: "2026-10-16"
 repository-code: "https://github.com/MSKazemi/agent-movement"
 url: "https://github.com/MSKazemi/agent-movement"
 # The first paragraph of the abstract is the positioning statement; tests/test_positioning.py
