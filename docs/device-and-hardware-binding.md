@@ -1,6 +1,6 @@
 # Hardware/device binding and agent mobility: security research
 
-**Status:** Research proposal; not implemented, audited or certified. **Date:** 2026-10-16.  
+**Status:** Research proposal; one [software-only synthetic experiment](device-binding-experiment.md) now runs, but no real hardware binding, attestation, audit or production certification has been implemented. **Date:** 2026-10-16.  
 **Related:** [security and trust](security-and-trust.md), [how movement works](how-it-works.md), [open questions](open-questions.md), [forensics](agent-forensics-and-fingerprints.md).
 
 ## Decision
