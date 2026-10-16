@@ -9,6 +9,14 @@ Metadata first, payload last:
 3. delivery   ``POST /v0/deliveries``  -> origin-signed task text, sent only after 1 and 2
    verified on the sender side.
 
+Delivery confidentiality (issue #19): when the receiver's card carries a CA-signed X25519
+``enc_key``, the task text, salt and a fresh response key are sealed with RFC 9180 HPKE to
+that key, bound to the preflight transcript (``trust.delivery_info``), and the origin signs
+the ciphertext. The receiver verifies the signature, then opens the ciphertext, and returns
+its signed receipt encrypted under the response key. An on-path relay that owns the real
+endpoint address then sees only ciphertext. Without an ``enc_key`` (the stdlib-only mode)
+deliveries are plaintext: **no confidentiality**.
+
 Authority (grant liveness/revocation) is checked at preflight, again at delivery and again
 *inside the SQLite transaction* that records the simulated external effect, so a revocation
 that commits first always wins. LOCAL/SYNTHETIC ONLY: no TLS, no channel binding, no real
@@ -32,11 +40,12 @@ from typing import Any, Callable, Iterable
 
 from .core import (MAX_TEXT, SCHEMA_VERSION, Conflict, ContractError, PolicyDenied, SQLiteStore,
                    _fields, _id, canonical, digest, parse_json, validate_envelope)
-from .trust import (CLASSIFICATIONS, PEER_SCHEMA_VERSION, TASK_KINDS, DisclosureBlocked,
-                    TrustDenied, TrustStore, Unauthenticated, Unauthorized, UnsupportedSchema,
-                    b64d, b64e, check_grant_live, check_grant_scope, commitment, endpoint,
-                    safe_id, seal, sealed_parts, unseal, verify_card, verify_grant,
-                    verify_revocation)
+from .trust import (CLASSIFICATIONS, HPKE_SUITE, MAX_SEALED_B64, PEER_SCHEMA_VERSION, TASK_KINDS,
+                    DisclosureBlocked, HpkeKey, TrustDenied, TrustStore, Unauthenticated,
+                    Unauthorized, UnsupportedSchema, VerifiedCard, b64d, b64e, check_grant_live,
+                    check_grant_scope, commitment, delivery_info, endpoint, hpke_available,
+                    open_response, safe_id, seal, seal_response, sealed_parts, unseal, verify_card,
+                    verify_grant, verify_revocation)
 
 LOG = logging.getLogger("agent_movement.peer")
 CARD_PATH, PREFLIGHT_PATH, DELIVERY_PATH, REVOCATION_PATH = (
@@ -44,7 +53,9 @@ CARD_PATH, PREFLIGHT_PATH, DELIVERY_PATH, REVOCATION_PATH = (
 PREFLIGHT_FIELDS = {"type", "schema_version", "movement_id", "logical_task_id", "origin_card",
                     "destination", "task", "grant", "client_nonce", "issued_at", "execution",
                     "observability"}
-DELIVERY_FIELDS = {"type", "schema_version", "admission_id", "task", "salt"}
+DELIVERY_FIELDS = {"type", "schema_version", "admission_id", "task", "salt"}  # plaintext mode
+SEALED_DELIVERY_FIELDS = {"type", "schema_version", "admission_id", "enc"}   # HPKE mode
+SEALED_PLAINTEXT_FIELDS = {"task", "salt", "response_key"}  # inside the HPKE ciphertext
 TRACE_FIELDS = ("seq", "at", "stage", "outcome", "reason", "movement_id", "peer",
                 "claimed_peer", "admission_id")
 _NONCE = re.compile(r"[A-Za-z0-9_-]{22,64}\Z")
@@ -231,14 +242,21 @@ class PeerReceiver:
     def __init__(self, card: dict[str, Any], key: Any, trust: TrustStore, store: SQLiteStore,
                  capabilities: Iterable[str], *, admission_ttl: int = 60, max_clock_skew: int = 120,
                  clock: Callable[[], float] = time.time,
-                 before_effect_commit: Callable[[dict[str, Any]], None] | None = None):
+                 before_effect_commit: Callable[[dict[str, Any]], None] | None = None,
+                 enc_key: HpkeKey | None = None):
         own = verify_card(card, trust, _now(clock))
         if own.key.kid != key.kid:
             raise ContractError("receiver card does not name the receiver key")
+        # The private HPKE key must be exactly the one the card advertises, and vice versa:
+        # a card that offers encryption with no key to open it (or the reverse) is misconfigured.
+        if (own.enc_key is None) != (enc_key is None) or (
+                own.enc_key is not None and not own.enc_key.matches(enc_key)):
+            raise ContractError("receiver card enc_key does not match the receiver encryption key")
         allow = frozenset(capabilities)
         if not allow or not allow <= TASK_KINDS:
             raise ContractError("capability allowlist must be a non-empty subset of known task kinds")
         self.card, self.key, self.trust, self.store = card, key, trust, store
+        self.enc_key, self.card_digest = enc_key, own.digest
         self.agent_id, self.endpoint, self.capabilities = own.agent_id, own.endpoint, allow
         self.admission_ttl, self.max_clock_skew, self.clock = admission_ttl, max_clock_skew, clock
         self.before_effect_commit = before_effect_commit
@@ -317,6 +335,7 @@ class PeerReceiver:
                   "origin_card": p["origin_card"], "grant": p["grant"], "kind": task["kind"],
                   "classification": task["classification"], "commitment": task["commitment"],
                   "idempotency_key": execution["idempotency_key"], "trace_id": trace["trace_id"],
+                  "client_nonce": p["client_nonce"], "preflight_digest": digest(sealed),
                   "expires_at": expires_at}
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -335,9 +354,41 @@ class PeerReceiver:
         ctx.admission_id = admission_id
         admission = {"type": "admission", "admission_id": admission_id, "movement_id": movement_id,
                      "destination": {"agent_id": self.agent_id, "endpoint": self.endpoint},
-                     "client_nonce": p["client_nonce"], "preflight_digest": digest(sealed),
+                     "client_nonce": p["client_nonce"], "preflight_digest": record["preflight_digest"],
                      "expires_at": expires_at}
         return 200, seal("admission", admission, self.key), "admitted"
+
+    def delivery_info(self, record: dict[str, Any], admission_id: str) -> bytes:
+        """The HPKE ``info`` for an admitted movement, rebuilt from receiver-side state only."""
+        return delivery_info(card_digest=self.card_digest, enc_kid=self.enc_key.kid,
+                             movement_id=record["movement_id"], origin_id=record["origin_id"],
+                             audience=self.agent_id, endpoint_url=self.endpoint,
+                             client_nonce=record["client_nonce"], admission_id=admission_id,
+                             preflight_digest=record["preflight_digest"])
+
+    def _open_delivery(self, p: dict[str, Any],
+                       record: dict[str, Any]) -> tuple[Any, Any, bytes, bytes]:
+        """Open an HPKE-sealed delivery. Called only after the origin signature verified.
+
+        Returns (task, salt, response_key, info). Every failure raises before any decrypted
+        byte is returned, parsed, logged or persisted.
+        """
+        if self.enc_key is None:
+            raise ContractError("this receiver does not accept sealed deliveries")
+        env = _fields(p["enc"], {"suite", "kid", "ct"}, "sealed delivery")
+        if env["suite"] != HPKE_SUITE or env["kid"] != self.enc_key.kid:
+            raise Unauthenticated("wrong_enc_key")
+        info = self.delivery_info(record, p["admission_id"])
+        try:
+            ciphertext = b64d(env["ct"], "delivery ciphertext", MAX_SEALED_B64)
+        except ContractError as exc:
+            raise Unauthenticated("delivery_decrypt_failed") from exc
+        inner = _fields(parse_json(self.enc_key.open(ciphertext, info)), SEALED_PLAINTEXT_FIELDS,
+                        "sealed delivery plaintext")
+        response_key = b64d(inner["response_key"], "response key")
+        if len(response_key) != 32:
+            raise ContractError("invalid response key")
+        return inner["task"], inner["salt"], response_key, info
 
     # -- phase 3: payload delivery ------------------------------------------------------
     def _deliver(self, body: bytes, ctx: TraceContext) -> tuple[int, dict[str, Any], str]:
@@ -345,7 +396,8 @@ class PeerReceiver:
         p = sealed_parts(sealed, "delivery")["payload"]
         if p.get("schema_version") != PEER_SCHEMA_VERSION:
             raise UnsupportedSchema("unsupported peer schema")
-        _fields(p, DELIVERY_FIELDS, "delivery")
+        encrypted = "enc" in p
+        _fields(p, SEALED_DELIVERY_FIELDS if encrypted else DELIVERY_FIELDS, "delivery")
         if p["type"] != "delivery" or not isinstance(p["admission_id"], str) \
                 or not _ADMISSION.fullmatch(p["admission_id"]):
             raise ContractError("invalid delivery")
@@ -359,12 +411,20 @@ class PeerReceiver:
         ctx.claimed_peer = record["origin_id"]
         now = _now(self.clock)
         origin = verify_card(record["origin_card"], self.trust, now)  # card may have expired
-        unseal("delivery", sealed, origin.key)  # same peer that was admitted
+        unseal("delivery", sealed, origin.key)  # same peer that was admitted; covers the ciphertext
         ctx.peer = origin.agent_id
         if now >= record["expires_at"]:
             raise Unauthorized("admission_expired")
-        task = _fields(p["task"], {"kind", "text"}, "task")
-        if task["kind"] != record["kind"] or commitment(b64d(p["salt"], "salt"), task) != record["commitment"]:
+        if encrypted:
+            task, salt, response_key, info = self._open_delivery(p, record)
+        elif self.enc_key is not None:
+            # The text already crossed the wire in clear; refuse to act on it all the same, so a
+            # misconfigured or downgraded sender never gets an effect out of a plaintext delivery.
+            raise Unauthorized("plaintext_delivery_refused")
+        else:
+            task, salt = p["task"], p["salt"]
+        task = _fields(task, {"kind", "text"}, "task")
+        if task["kind"] != record["kind"] or commitment(b64d(salt, "salt"), task) != record["commitment"]:
             raise Unauthorized("commitment_mismatch")
         grant = verify_grant(record["grant"], self.trust)
         with self.store._connection() as db:
@@ -388,7 +448,10 @@ class PeerReceiver:
         response = {"type": "receipt", "admission_id": p["admission_id"],
                     "movement_id": record["movement_id"], "receipt": receipt,
                     "effect": "committed" if committed else "replayed"}
-        return 200, seal("receipt", response, self.key), "effect_committed" if committed else "effect_replayed"
+        signed = seal("receipt", response, self.key)
+        if encrypted:  # the receipt carries the result and content digests: encrypt it too
+            signed = seal_response(response_key, info, signed)
+        return 200, signed, "effect_committed" if committed else "effect_replayed"
 
     def _revoke(self, body: bytes, ctx: TraceContext) -> tuple[int, dict[str, Any], str]:
         notice = verify_revocation(parse_json(body), self.trust)  # signed by the grant issuer
@@ -455,14 +518,38 @@ class RecordingTransport:
 # ------------------------------------------------------------------- client
 
 
+@dataclass(frozen=True)
+class DeliverySeal:
+    """Sender-side HPKE context for one admitted delivery: recipient key, transcript and the
+    single-use key the receiver must encrypt its receipt under."""
+
+    key: HpkeKey
+    info: bytes = field(repr=False)
+    response_key: bytes = field(repr=False)
+
+    def seal(self, plaintext: bytes) -> dict[str, str]:
+        ciphertext = self.key.seal(plaintext, self.info)
+        return {"suite": HPKE_SUITE, "kid": self.key.kid, "ct": b64e(ciphertext)}
+
+    def open_response(self, obj: Any) -> Any:
+        return parse_json(open_response(self.response_key, self.info, obj))
+
+
 class PeerClient:
-    """Origin side. Never transmits task text before discovery and preflight verify."""
+    """Origin side. Never transmits task text before discovery and preflight verify.
+
+    If the destination card advertises an ``enc_key`` the delivery is always HPKE-sealed to
+    it (never downgraded). ``require_confidentiality=True`` additionally refuses destinations
+    whose card offers no ``enc_key``; otherwise such deliveries go out in plaintext and the
+    client trace labels them ``plaintext_no_confidentiality``.
+    """
 
     def __init__(self, card: dict[str, Any], key: Any, trust: TrustStore, transport: Any, *,
                  never_send: Iterable[str | bytes] = (), clock: Callable[[], float] = time.time,
-                 schema_version: str = PEER_SCHEMA_VERSION):
+                 schema_version: str = PEER_SCHEMA_VERSION, require_confidentiality: bool = False):
         self.card, self.key, self.trust, self.transport = card, key, trust, transport
         self.clock, self.schema_version = clock, schema_version
+        self.require_confidentiality = require_confidentiality
         forms = [s.encode("utf-8") if isinstance(s, str) else s for s in never_send]
         self._never_send = tuple(x for x in [*forms, *key.secret_forms()] if x)
         self.trace: list[dict[str, Any]] = []
@@ -502,8 +589,25 @@ class PeerClient:
             raise self._abort("discovery", "unsupported_schema", False)
         if kind not in card.capabilities:
             raise self._abort("discovery", "capability_not_advertised", False)
+        if card.enc_key is not None and not hpke_available():
+            raise self._abort("discovery", "encryption_unavailable", False)  # never downgrade
+        if card.enc_key is None and self.require_confidentiality:
+            raise self._abort("discovery", "no_confidentiality_key", False)
         self._event("discovery", "verified", "card_verified", False)
         return card
+
+    def delivery_seal(self, card: VerifiedCard, admission: dict[str, Any],
+                      preflight: dict[str, Any]) -> DeliverySeal | None:
+        """HPKE context for delivering against ``admission``; None if the card has no enc_key."""
+        if card.enc_key is None:
+            return None
+        info = delivery_info(card_digest=card.digest, enc_kid=card.enc_key.kid,
+                             movement_id=admission["movement_id"],
+                             origin_id=preflight["payload"]["origin_card"]["payload"]["agent_id"],
+                             audience=card.agent_id, endpoint_url=card.endpoint,
+                             client_nonce=preflight["payload"]["client_nonce"],
+                             admission_id=admission["admission_id"], preflight_digest=digest(preflight))
+        return DeliverySeal(card.enc_key, info, secrets.token_bytes(32))
 
     def build_preflight(self, *, url: str, destination_id: str, movement_id: str, task_id: str,
                         kind: str, text: str, grant: dict[str, Any], idempotency_key: str,
@@ -521,9 +625,17 @@ class PeerClient:
         sealed = seal("preflight", payload, self.key)
         return canonical(sealed).encode("utf-8"), {"sealed": sealed, "salt": salt, "task": task}
 
-    def build_delivery(self, admission_id: str, task: dict[str, Any], salt: bytes) -> bytes:
-        payload = {"type": "delivery", "schema_version": self.schema_version,
-                   "admission_id": admission_id, "task": task, "salt": b64e(salt)}
+    def build_delivery(self, admission_id: str, task: dict[str, Any], salt: bytes,
+                       sealed_to: DeliverySeal | None = None) -> bytes:
+        """Signed delivery. With ``sealed_to`` the task, salt and response key travel only
+        inside the HPKE ciphertext, and the origin signature covers that ciphertext."""
+        payload: dict[str, Any] = {"type": "delivery", "schema_version": self.schema_version,
+                                   "admission_id": admission_id}
+        if sealed_to is None:
+            payload.update(task=task, salt=b64e(salt))
+        else:
+            inner = {"task": task, "salt": b64e(salt), "response_key": b64e(sealed_to.response_key)}
+            payload["enc"] = sealed_to.seal(canonical(inner).encode("utf-8"))
         return canonical(seal("delivery", payload, self.key)).encode("utf-8")
 
     def handoff(self, *, url: str, destination_id: str, movement_id: str, task_id: str, kind: str,
@@ -554,12 +666,21 @@ class PeerClient:
         if type(admission.get("expires_at")) is not int or _now(self.clock) >= admission["expires_at"]:
             raise self._abort("preflight", "admission_expired", False)
         self._event("preflight", "verified", "admission_verified", False)
-        status, raw = self._send(url, DELIVERY_PATH,
-                                 self.build_delivery(admission["admission_id"], secret["task"], secret["salt"]))
+        try:
+            sealed_to = self.delivery_seal(card, admission, secret["sealed"])
+            body = self.build_delivery(admission["admission_id"], secret["task"], secret["salt"], sealed_to)
+        except (ContractError, ValueError, TypeError) as exc:
+            raise self._abort("delivery", "encryption_failed", False) from exc
+        self._event("delivery", "sending", "hpke_sealed" if sealed_to else "plaintext_no_confidentiality",
+                    False)
+        status, raw = self._send(url, DELIVERY_PATH, body)
         if status != 200:
             raise self._abort("delivery", _error_code(raw, status), True, status)
         try:
-            receipt = unseal("receipt", parse_json(raw), card.key)
+            response = parse_json(raw)
+            if sealed_to is not None:
+                response = sealed_to.open_response(response)
+            receipt = unseal("receipt", response, card.key)
         except (TrustDenied, ContractError) as exc:
             raise self._abort("delivery", "unverified_receipt", True) from exc
         if receipt.get("admission_id") != admission["admission_id"]:
