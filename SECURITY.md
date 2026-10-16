@@ -30,8 +30,6 @@ Report it privately through GitHub's private vulnerability reporting: open
 **<https://github.com/MSKazemi/agent-movement/security/advisories/new>**
 (or the **Security** tab → **Report a vulnerability**).
 
-> **Status (checked 2026-10-16):** private vulnerability reporting is **not yet enabled** on this repository, so the link above does not accept reports yet. The repository owner must enable it under *Settings → Code security → Private vulnerability reporting*. Until it is enabled, open a public issue that only asks for a private reporting channel and contains **no** details of the vulnerability.
-
 Please include:
 
 - the commit SHA you tested;

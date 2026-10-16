@@ -7,8 +7,11 @@ Run ``python -m agent_movement.a2a_demo`` after ``pip install -e '.[a2a]'``.
 3. Runs the origin client (``agent_movement.a2a_client``) as separate processes:
    a completed delegation (JSON-RPC, streaming), an exact retry (HTTP+JSON,
    blocking) that is answered from the receiver's idempotency ledger, a denied
-   approval (task REJECTED), an unadvertised capability and an unknown schema
-   version (both refused by the A2A server before any task exists).
+   approval (task REJECTED), a request through the deprecated URN alias with a
+   client-supplied contextId (profile 0.1 behaviour, still accepted), and three
+   requests the A2A server refuses before any task exists: an unadvertised
+   capability, an unknown schema version, and a client-supplied contextId under
+   the current profile URI (this server keeps the default: server-generated).
 4. Joins client-side A2A task IDs with the receiver-side audit tables.
 
 This proves DELEGATION of one allowlisted pure task, NOT agent migration.
@@ -28,6 +31,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from .a2a_profile import EXTENSION_URI, LEGACY_EXTENSION_URI
 from .core import SCHEMA_VERSION
 
 EXTRA_HINT = "optional A2A extra not installed; run: python -m pip install -e '.[a2a]'"
@@ -71,14 +75,32 @@ def receiver_tables(db: Path) -> dict[str, list[dict[str, Any]]]:
     return {"audit_events": audit, "a2a_correlations": corr}
 
 
-def check(results: dict[str, dict[str, Any]], tables: dict[str, list[dict[str, Any]]]) -> list[str]:
+def check(results: dict[str, dict[str, Any]], tables: dict[str, list[dict[str, Any]]],
+          card: dict[str, Any] | None = None) -> list[str]:
     failures = []
     first, retry, denied = results["first"], results["retry"], results["denied"]
     unknown_cap, unknown_schema = results["unknown_capability"], results["unknown_schema"]
+    legacy, client_ctx = results["legacy_alias"], results["client_context_refused"]
+    if card is not None:
+        extensions = [(e.get("uri"), e.get("required", False))
+                      for e in card.get("capabilities", {}).get("extensions", [])]
+        if extensions != [(EXTENSION_URI, True), (LEGACY_EXTENSION_URI, False)]:
+            failures.append("agent card does not advertise the resolvable profile URI (plus the deprecated alias)")
     if first.get("final_state") != "TASK_STATE_COMPLETED" or first["receipt"]["artifact"]["value"] != 5:
         failures.append("first delegation did not complete with the expected artifact")
     elif first["receipt"]["replayed"]:
         failures.append("first delegation unexpectedly replayed")
+    for name in ("first", "retry", "denied"):
+        r = results[name]
+        if r.get("context_id_source") != "server" or r.get("a2a_context_id") in (None, "", "demo-task"):
+            failures.append(f"{name}: contextId was not server-generated")
+    if retry.get("a2a_context_id") == first.get("a2a_context_id"):
+        failures.append("retry reused the first task's server-generated contextId")
+    if legacy.get("final_state") != "TASK_STATE_COMPLETED" or legacy.get("a2a_context_id") != "demo-task" \
+            or legacy.get("extension_uri") != LEGACY_EXTENSION_URI:
+        failures.append("deprecated URN alias with a bound client contextId was not accepted")
+    if client_ctx.get("error", {}).get("type") != "InvalidParamsError":
+        failures.append("client-supplied contextId was not refused by a server that did not opt in")
     if first.get("observed_states", [])[-1:] != ["TASK_STATE_COMPLETED"] or \
             "TASK_STATE_WORKING" not in first.get("observed_states", []):
         failures.append("streamed lifecycle did not show WORKING then COMPLETED")
@@ -94,18 +116,21 @@ def check(results: dict[str, dict[str, Any]], tables: dict[str, list[dict[str, A
     if unknown_schema.get("error", {}).get("type") != "InvalidParamsError":
         failures.append("unknown schema version was not refused by the A2A server")
     by_task = {row["a2a_task_id"]: row for row in tables["a2a_correlations"] if row["a2a_task_id"]}
-    for name, outcome in (("first", "completed"), ("retry", "replayed"), ("denied", "approval_denied")):
+    for name, outcome in (("first", "completed"), ("retry", "replayed"), ("denied", "approval_denied"),
+                          ("legacy_alias", "completed")):
         row = by_task.get(results[name].get("a2a_task_id"))
-        if row is None or row["outcome"] != outcome:
-            failures.append(f"receiver audit has no '{outcome}' row for the {name} A2A task ID")
-    completed = [e for e in tables["audit_events"] if e["event_type"] == "handoff.completed"]
+        if row is None or row["outcome"] != outcome or row["a2a_context_id"] != results[name].get("a2a_context_id"):
+            failures.append(f"receiver audit has no '{outcome}' row for the {name} A2A task and context IDs")
+    completed = [e for e in tables["audit_events"]
+                 if e["event_type"] == "handoff.completed" and e["movement_id"] == "a2a-demo-movement"]
     if len(completed) != 1 or completed[0]["info_digest"] != first.get("receipt", {}).get("artifact_digest"):
         failures.append("core audit 'handoff.completed' digest does not match the A2A artifact")
     rejected = [r for r in tables["a2a_correlations"] if r["outcome"].startswith("rejected.")]
-    if len(rejected) != 2 or any(r["a2a_task_id"] for r in rejected):
+    if len(rejected) != 3 or any(r["a2a_task_id"] for r in rejected):
         failures.append("pre-task rejections must be audited without creating A2A tasks")
     rejected_ids = {r["a2a_message_id"] for r in rejected}
-    if rejected_ids != {unknown_cap.get("a2a_message_id"), unknown_schema.get("a2a_message_id")}:
+    if rejected_ids != {unknown_cap.get("a2a_message_id"), unknown_schema.get("a2a_message_id"),
+                        client_ctx.get("a2a_message_id")}:
         failures.append("pre-task rejections are not correlated by A2A message ID")
     if any("synthetic agent movement" in json.dumps(t) for t in tables.values()):
         failures.append("raw task text leaked into receiver audit tables")
@@ -142,6 +167,13 @@ def main() -> None:
                 "unknown_schema": run_client(root, url, "unknown-schema", demo_envelope(
                     movement_id="a2a-demo-v9", execution={"idempotency_key": "a2a-v9-operation"}),
                     "--schema-version-override", "9.0"),
+                "legacy_alias": run_client(root, url, "legacy-alias", demo_envelope(
+                    movement_id="a2a-demo-legacy", execution={"idempotency_key": "a2a-legacy-operation"}),
+                    "--legacy-extension-uri", "--client-context-id"),
+                "client_context_refused": run_client(root, url, "client-context", demo_envelope(
+                    movement_id="a2a-demo-client-context",
+                    execution={"idempotency_key": "a2a-client-context-operation"}),
+                    "--client-context-id", "--skip-card-check"),
             }
         finally:
             server.terminate()
@@ -160,7 +192,7 @@ def main() -> None:
                            for e in card.get("capabilities", {}).get("extensions", [])],
             "security_schemes": card.get("securitySchemes", {}),
         }
-        failures = check(results, tables)
+        failures = check(results, tables, card)
         print(json.dumps({"agent_card": card_summary, "results": results, "receiver": tables,
                           "proves": "delegation (not migration)", "authentication": "none (experimental)",
                           "failures": failures}, indent=2, sort_keys=True))
