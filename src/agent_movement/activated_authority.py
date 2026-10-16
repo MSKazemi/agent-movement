@@ -18,7 +18,7 @@ from typing import Any
 from .continuity_runtime import ContinuityRuntime
 from .core import Conflict, ContractError, PolicyDenied, SQLiteStore, _id, digest
 from .guarded_authority import GuardedAuthority
-from .trust import TrustStore, Unauthenticated, Unauthorized, unseal
+from .trust import TrustStore, Unauthorized, unseal
 
 _ACTIVATION_FIELDS = frozenset({
     "type", "task_id", "movement_id", "destination_id", "epoch",
@@ -73,29 +73,6 @@ class ActivatedGuardedAuthority(GuardedAuthority):
             if not isinstance(payload["payload_sha256"], str) or len(payload["payload_sha256"]) != 64:
                 raise ContractError("invalid payload digest")
         return payload
-
-    def _assert_live_proof(self, proof: dict[str, Any], row: dict[str, Any], now: int) -> None:
-        if proof["task_id"] != row["task_id"] or proof["movement_id"] != row["movement_id"]:
-            raise Unauthorized("activation_wrong_task_or_movement")
-        if proof["destination_id"] != row["destination_id"] or proof["policy_epoch"] != row["policy_epoch"]:
-            raise Unauthorized("activation_wrong_audience_or_policy")
-        if now >= proof["expires_at"]:
-            raise Unauthorized("expired_signed_activation_or_effect")
-        if proof.get("grant_digest", digest(json.loads(row["grant_json"]))) != digest(
-            json.loads(row["grant_json"])
-        ):
-            raise Unauthorized("signed_grant_changed")
-        owner = self._owner(row["task_id"])
-        if owner != (row["destination_id"], proof["epoch"]):
-            raise Unauthorized("stale_signed_destination_epoch")
-
-    def _owner(self, task_id: str) -> tuple[str, int] | None:
-        """Only for informational fallback; authoritative checks use the txn."""
-        with self.store._connection() as db:
-            result = db.execute(
-                "SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)
-            ).fetchone()
-        return (str(result[0]), int(result[1])) if result else None
 
     @staticmethod
     def _txn_owner(db: sqlite3.Connection, task_id: str) -> tuple[str, int] | None:
