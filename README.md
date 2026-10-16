@@ -125,7 +125,7 @@ python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
 python -m pytest -q          # all tests: agent_movement + corpus tooling
 ~~~
 
-The local smoke suite currently models 20 cases. **Seventeen checks reproduce their expected narrow behavior; three are marked known gaps, not security successes.** This is not A2A, trusted peer identity, portable live state or a production system. See the experiment protocol for limits and next steps.
+The local smoke suite models 20 cases. Each case declares its expected verdict in a packaged fixture and runs in its own temporary database, and `--no-timing` makes two runs byte-identical. On 2026-10-16, **17 cases reproduced their expected narrow behavior and 3 reproduced known gaps, which are not security successes.** The three gap cases attack the core path: a forged origin claim, an effect commit after revocation, and a forged unsigned receipt. The peer-authentication and signed-receipt modules close them on separate paths only. This is not A2A, trusted peer identity, portable live state or a production system. See the experiment protocol for limits and next steps.
 
 [MobilityBench v0.1](docs/mobilitybench-v0.1.md) extends this with 18 frozen, digest-verified synthetic tasks across three workload families: document work, constrained coding and simulated tools. It compares keep-on-origin, restart-on-destination and the PR #6 local delegate under seeded faults. The A2A, checkpoint-relocation and cross-framework baselines are reported as **unavailable**. Run it with `python -m agent_movement.mobilitybench run --suite v0.1 --out results.jsonl`, then `report --in results.jsonl`. The suite is deterministic and LLM-free, so it supports no general statistical claims.
 
