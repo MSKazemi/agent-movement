@@ -48,6 +48,7 @@ class GuardedAuthority:
         origin_verifiers: Mapping[str, Any], cancel_verifier: Any,
         incident_verifier: Any, budget_limit: int = 2,
         clock: Callable[[], float] = time.time,
+        require_activation: bool = False,
     ) -> None:
         if not isinstance(store, SQLiteStore) or not isinstance(continuity, ContinuityRuntime):
             raise ContractError("trusted store and continuity authority required")
@@ -67,8 +68,11 @@ class GuardedAuthority:
         self.origin_verifiers = dict(origin_verifiers)
         self.cancel_verifier = cancel_verifier
         self.incident_verifier = incident_verifier
+        if type(require_activation) is not bool:
+            raise ContractError("operator activation policy must be boolean")
         self.budget_limit = budget_limit
         self.clock = clock
+        self.require_activation = require_activation
         # Also ensures that receiver-grant revocations are in this authority store.
         PeerLedger(store)
         with store._connection() as db:
@@ -88,6 +92,14 @@ class GuardedAuthority:
                     budget_used INTEGER NOT NULL DEFAULT 0,
                     cancelled INTEGER NOT NULL DEFAULT 0,
                     unknown_effect INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS guarded_activations (
+                    task_id TEXT PRIMARY KEY REFERENCES guarded_tasks(task_id),
+                    activation_id TEXT,
+                    activation_digest TEXT,
+                    epoch INTEGER
                 )
             """)
 
@@ -196,6 +208,8 @@ class GuardedAuthority:
                  p["destination_id"], p["kind"], p["classification"], canonical(signed_grant),
                  p["policy_epoch"], "prepared", self.budget_limit),
             )
+            if self.require_activation:
+                db.execute("INSERT INTO guarded_activations(task_id) VALUES(?)", (p["task_id"],))
             db.commit()
 
     def transfer(self, task_id: str, movement_id: str) -> int:
@@ -219,7 +233,13 @@ class GuardedAuthority:
             )
             if modified.rowcount != 1:
                 raise Conflict("concurrent transfer or stale epoch")
-            db.execute("UPDATE guarded_tasks SET status='transferred' WHERE task_id=?", (task_id,))
+            awaiting_activation = db.execute(
+                "SELECT 1 FROM guarded_activations WHERE task_id=?", (task_id,)
+            ).fetchone() is not None
+            db.execute(
+                "UPDATE guarded_tasks SET status=? WHERE task_id=?",
+                ("fenced" if awaiting_activation else "transferred", task_id),
+            )
             db.commit()
             return next_epoch
 
@@ -245,6 +265,10 @@ class GuardedAuthority:
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = self._row(db, task_id)
+            if db.execute(
+                "SELECT 1 FROM guarded_activations WHERE task_id=?", (task_id,)
+            ).fetchone():
+                raise PolicyDenied("activated task requires signed effect authorization")
             if row["movement_id"] != movement_id or row["status"] != "transferred":
                 raise PolicyDenied("movement not yet authorized to execute")
             if agent_id != row["destination_id"]:
