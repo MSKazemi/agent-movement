@@ -55,7 +55,7 @@ These gaps are open. None of the controls above closes them.
 - **ASI03:** the CA and keys are synthetic, and the default peer mode uses a shared HMAC key. There is no OAuth token exchange (RFC 8693) and no workload identity (SPIFFE).
 - **ASI04:** there is no hash-pinned lockfile, no SBOM and no package-signature check. The A2A Agent Card is unsigned and the A2A path is unauthenticated. MCP tool metadata is not vetted.
 - **ASI06:** the checkpoint digest proves integrity, not benign content, so content poisoned before export arrives intact. The relocation manifest is not signed, and there is no long-term memory or retrieval store to protect.
-- **ASI07:** there is no TLS or channel binding. `tests/test_peer.py::PeerAuthTests::test_limitation_on_path_relay_sees_payload_without_channel_security` documents that an on-path relay can read the delivery. The A2A adapter declares no security scheme.
+- **ASI07:** there is no TLS or channel binding. With the optional `[hpke]` extra, the peer delivery and its receipt are sealed to the receiver's signed card key, and `tests/test_peer.py::PeerAuthHpkeTests::test_on_path_relay_sees_only_ciphertext_with_hpke` shows that an on-path relay owning the receiver's address captures only ciphertext of the task and the receipt. In the stdlib-only plaintext mode the same test (`PeerAuthTests`) shows that the relay reads the delivery. In both modes the relay sees the preflight metadata and can drop or delay messages ([peer authentication, limitations](peer-authentication.md#limitations-documented-not-solved)). The A2A adapter declares no security scheme.
 - **ASI08:** only a single hop between two agents is tested. There are no multi-hop propagation tests and no circuit breakers.
 - **ASI09:** there is no human approval UI, no confirmation step for sensitive actions and no work on explainability.
 - **ASI10:** there is no behavioural monitoring, drift detection or kill switch outside the local store, and no limit on self-replication or child creation.
@@ -75,7 +75,23 @@ These gaps are open. None of the controls above closes them.
 
 ## Recommended assurance tests
 
-Unauthenticated A2A endpoint; forged Agent Card; expired and wrong-audience delegation; revoked grant; replayed task ID; tool output injection; mismatched artifact digest; destination crash at each lifecycle transition; network partition; state-version incompatibility; trace redaction.
+These tests are maintained in the single [test registry](../data/test-registry.csv) (`data/test-registry.csv`), which records each case's threat, status (`implemented`, `partial` or `planned`) and implementing tests; the status is kept only there. They had no IDs before the registry, so each now has a `SEC-nn` ID. Where a test duplicates a case from another list, the registry keeps one canonical row and lists the `SEC-nn` ID in its `aliases` column:
+
+| SEC ID | Recommended assurance test | Registry row |
+| --- | --- | --- |
+| SEC-01 | Unauthenticated A2A endpoint | SEC-01 |
+| SEC-02 | Forged Agent Card | COM-T002 |
+| SEC-03 | Expired and wrong-audience delegation | COM-T003, COM-T004 |
+| SEC-04 | Revoked grant | COM-T005 |
+| SEC-05 | Replayed task ID | SEC-05 |
+| SEC-06 | Tool output injection | COM-T022 |
+| SEC-07 | Mismatched artifact digest | COM-T028 |
+| SEC-08 | Destination crash at each lifecycle transition | T15 |
+| SEC-09 | Network partition | COM-T018 |
+| SEC-10 | State-version incompatibility | T10 |
+| SEC-11 | Trace redaction | T11 |
+
+The `threat_asi` column of the registry uses the ASI IDs of the mapping table above: a row carries an ASI ID when one of its tests is named in that ASI's row, or, for a row without tests, when the case matches the ASI's agent-movement threat.
 
 ## Normative sources
 

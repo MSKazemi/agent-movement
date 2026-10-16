@@ -38,6 +38,10 @@ jobs:
         if: hashFiles('tests/**') != ''
         run: make test PYTHON=python
 
+      # Stdlib only; parses tests/ with ast, so it needs no optional extra.
+      - name: Check the test registry (registered tests exist; docs cite known IDs)
+        run: make check-tests-registry
+
   bibliography:
     name: biber validation
     runs-on: ubuntu-latest

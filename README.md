@@ -88,7 +88,7 @@ Suggested reading order:
 8. [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
 9. [Security, privacy, and threat model](docs/security-and-trust.md) · [Prompt injection across agent boundaries (taxonomy, evidence, proposed experiment)](docs/cross-agent-prompt-injection.md)
 10. **[Can agents move unnoticed or cause harm? Defensive threat model](docs/unnoticed-and-unauthorized-agent-movement.md)** — permission boundaries, hidden delegation, lateral movement, independent detection, revocation and kill switches; [15 proposed synthetic defense tests](data/unnoticed-agent-movement-defense-tests.csv)
-11. [Agent communication governance and enforceable policy proposal](docs/agent-communication-and-policy.md) · [28 planned conformance cases](data/agent-communication-conformance-cases.csv)
+11. [Agent communication governance and enforceable policy proposal](docs/agent-communication-and-policy.md) · [28 conformance cases](data/agent-communication-conformance-cases.csv) · [Test registry: documented cases linked to implemented tests](data/test-registry.csv)
 12. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
 13. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
 14. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
