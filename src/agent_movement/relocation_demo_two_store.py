@@ -17,16 +17,29 @@ import base64
 import json
 import sqlite3
 import sys
+from collections.abc import Callable
 from contextlib import closing
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
+from . import relocation_bundle as bundles
 from .core import EffectGateway, SQLiteStore, canonical
-from .relocation import (BUNDLE_EXPORTED_STATE, BUNDLE_UNSUPPORTED_STATE, PINNED_RUNTIME, Coordinator,
-                         Faults, Worker, bundle_name, build_bundle, bundles, init_authority,
-                         init_worker_store, local_profile, observe, runtime_versions)
-from .relocation_demo import (DENIED, EFFECT_ID, ITEMS, TASK, Run, constraints, headline_ok,
-                              run_matrix, unchanged)
+from .relocation import (
+    BUNDLE_EXPORTED_STATE,
+    BUNDLE_UNSUPPORTED_STATE,
+    PINNED_RUNTIME,
+    Coordinator,
+    Faults,
+    Worker,
+    build_bundle,
+    bundle_name,
+    init_authority,
+    init_worker_store,
+    local_profile,
+    observe,
+    runtime_versions,
+)
+from .relocation_demo import DENIED, EFFECT_ID, ITEMS, TASK, Run, constraints, headline_ok, run_matrix, unchanged
 
 WORKERS = ("worker-a", "worker-b")
 
@@ -34,7 +47,7 @@ WORKERS = ("worker-a", "worker-b")
 class TwoStoreRun(Run):
     """One scenario with a coordinator file, one store per worker, and bundle directories."""
 
-    def __init__(self, root: str, name: str, tool: str = "gateway"):  # noqa: D107 - no Run.__init__
+    def __init__(self, root: str, name: str, tool: str = "gateway"):
         base = Path(root) / name
         base.mkdir(parents=True)
         self.base = base
@@ -60,7 +73,8 @@ class TwoStoreRun(Run):
     def store_rows(self, worker: str) -> int:
         """Harness ground truth: checkpoint rows for the task in one worker store."""
         with closing(sqlite3.connect(self.stores[worker])) as db:
-            return db.execute("SELECT COUNT(*) FROM checkpoints WHERE thread_id=?", (TASK,)).fetchone()[0]
+            count: int = db.execute("SELECT COUNT(*) FROM checkpoints WHERE thread_id=?", (TASK,)).fetchone()[0]
+            return count
 
     # --- actor actions -------------------------------------------------
     def start_a(self, supersteps: int = 3) -> dict[str, Any]:
@@ -68,29 +82,29 @@ class TwoStoreRun(Run):
         return self.act(f"A starts and runs {supersteps} supersteps", lambda: self.worker("worker-a").start(
             TASK, ITEMS, constraints(tool), max_supersteps=supersteps))
 
-    def export(self, movement: str = "move-1", to: str = "worker-b.1", crash: str | None = None):
+    def export(self, movement: str = "move-1", to: str = "worker-b.1", crash: str | None = None) -> dict[str, Any]:
         outbox = self.outbox["worker-a"]
         return self.act(f"A exports bundle {movement}", lambda: self.worker("worker-a", crash=crash).attach(
             TASK, 1).export_bundle(movement, to, outbox))
 
-    def copy(self, movement: str = "move-1", origin: str = "worker-a"):
+    def copy(self, movement: str = "move-1", origin: str = "worker-a") -> dict[str, Any]:
         source = Path(self.outbox[origin]) / bundle_name(movement)
         target = self.inbox_copy(movement)
         return self.act(f"copy {movement} bundle {origin} -> worker-b inbox",
                         lambda: bundles.copy(source, target))
 
     def accept(self, worker: str = "worker-b", incarnation: int = 1, movement: str = "move-1",
-               crash: str | None = None):
+               crash: str | None = None) -> dict[str, Any]:
         bundle = self.inbox_copy(movement)
         return self.act(f"{worker}.{incarnation} imports {movement}", lambda: self.worker(
             worker, incarnation, crash).accept(movement, bundle))
 
     def run(self, worker: str = "worker-b", incarnation: int = 1, epoch: int = 2,
-            supersteps: int | None = None, crash: str | None = None, check: bool = True):
+            supersteps: int | None = None, crash: str | None = None, check: bool = True) -> dict[str, Any]:
         return self.act(f"{worker}.{incarnation}@{epoch} runs", lambda: self.worker(
             worker, incarnation, crash).attach(TASK, epoch).run(supersteps, check_ownership=check))
 
-    def failover(self, movement: str, to: str, source: str = "worker-a"):
+    def failover(self, movement: str, to: str, source: str = "worker-a") -> dict[str, Any]:
         path, store, outbox = self.path, self.stores[source], self.outbox["coordinator"]
         return self.act(f"coordinator failover {movement} -> {to} from {source} store", lambda: Coordinator(
             path).failover(movement, TASK, to, local_profile(), source_store=store, outbox=outbox))
@@ -117,7 +131,7 @@ def _crashed(run: TwoStoreRun, result: dict[str, Any]) -> None:
         raise RuntimeError(f"fault did not fire: {run.steps}")
 
 
-def b_export_before_request(run: TwoStoreRun):
+def b_export_before_request(run: TwoStoreRun) -> tuple[str, dict[str, Any]]:
     run.start_a()
     _crashed(run, run.export(crash="origin.before_export"))
     run.failover("move-1", "worker-b.1")
@@ -127,7 +141,7 @@ def b_export_before_request(run: TwoStoreRun):
     return "failover: coordinator re-exports from A's store; B imports", run.observe()
 
 
-def b_export_after_request(run: TwoStoreRun):
+def b_export_after_request(run: TwoStoreRun) -> tuple[str, dict[str, Any]]:
     run.start_a()
     _crashed(run, run.export(crash="origin.after_export"))
     run.transfer()
@@ -137,7 +151,7 @@ def b_export_after_request(run: TwoStoreRun):
     return "coordinator continues recorded request; B imports A's bundle", run.observe()
 
 
-def b_import_before_commit(run: TwoStoreRun):
+def b_import_before_commit(run: TwoStoreRun) -> tuple[str, dict[str, Any]]:
     run.start_a()
     run.export()
     run.transfer()
@@ -145,11 +159,11 @@ def b_import_before_commit(run: TwoStoreRun):
     _crashed(run, run.accept(crash="import.before_commit"))
     left = run.store_rows("worker-b")
     run.recover_to_b2()
-    return (f"import rolled back (B store: {left} checkpoint rows); failover worker-b.2 (epoch 3) "
-            "re-imports", run.observe())
+    return (f"import rolled back (B store: {left} checkpoint rows); failover worker-b.2 (epoch 3) re-imports",
+            run.observe())
 
 
-def b_import_after_commit(run: TwoStoreRun):
+def b_import_after_commit(run: TwoStoreRun) -> tuple[str, dict[str, Any]]:
     run.start_a()
     run.export()
     run.transfer()
@@ -157,12 +171,12 @@ def b_import_after_commit(run: TwoStoreRun):
     _crashed(run, run.accept(crash="import.after_commit"))
     left = run.store_rows("worker-b")
     run.recover_to_b2()
-    return (f"import durable, not acked (B store: {left} checkpoint row); worker-b.2 re-import "
-            "is idempotent", run.observe())
+    return (f"import durable, not acked (B store: {left} checkpoint row); worker-b.2 re-import is idempotent",
+            run.observe())
 
 
 def _inject(run: TwoStoreRun, label: str, action: Callable[[], Any],
-            finish: Callable[[], None]) -> tuple[str, str, dict[str, Any], Any]:
+            finish: Callable[[], object]) -> tuple[str, str, dict[str, Any], Any]:
     before = run.observe()
     result = run.act(label, action)
     after = run.observe()
@@ -180,7 +194,7 @@ def _inject(run: TwoStoreRun, label: str, action: Callable[[], Any],
     return observed, f"{label} -> {result.get('error') or 'ok'}", run.observe(), result.get("report")
 
 
-def b_frozen_origin(run: TwoStoreRun):
+def b_frozen_origin(run: TwoStoreRun) -> tuple[str, str, dict[str, Any], Any]:
     run.start_a()
     run.export()
 
@@ -193,11 +207,13 @@ def b_frozen_origin(run: TwoStoreRun):
         TASK, 1).run(1, check_ownership=False), finish)
 
 
-def _tampered(note: str, tamper: Callable[[TwoStoreRun], None]):
+def _tampered(note: str, tamper: Callable[[TwoStoreRun], None]
+              ) -> Callable[[TwoStoreRun], tuple[str, str, dict[str, Any], Any]]:
     """Corrupt B's local copy after a legitimate transfer; B must refuse and import nothing."""
-    def scenario(run: TwoStoreRun):
+    def scenario(run: TwoStoreRun) -> tuple[str, str, dict[str, Any], Any]:
         run.start_a(2)
-        stale = run.act("A writes an earlier, unrecorded bundle for move-1", lambda: build_bundle(
+        # The lambda defers build_bundle() into run.act(), which records its outcome.
+        stale = run.act("A writes an earlier, unrecorded bundle for move-1", lambda: build_bundle(  # noqa: PLW0108
             run.stores["worker-a"], TASK, "move-1", "worker-a.1", 1, "worker-b.1", "cooperative")[1].decode())
         (run.base / "stale-move-1.bundle.json").write_text(stale["value"], encoding="utf-8")
         run.run("worker-a", 1, 1, supersteps=1)
@@ -245,15 +261,15 @@ def substitute_stale(run: TwoStoreRun) -> None:
     run.inbox_copy().write_bytes((run.base / "stale-move-1.bundle.json").read_bytes())
 
 
-def b_duplicate_import(run: TwoStoreRun):
+def b_duplicate_import(run: TwoStoreRun) -> tuple[str, str, dict[str, Any], Any]:
     run.start_a()
     run.relocate()
     run.run(supersteps=1)
     return _inject(run, "duplicate import of move-1 after B progressed", lambda: run.worker(
-        "worker-b").accept("move-1", run.inbox_copy()), lambda: run.run())
+        "worker-b").accept("move-1", run.inbox_copy()), run.run)
 
 
-def b_superseded_import(run: TwoStoreRun):
+def b_superseded_import(run: TwoStoreRun) -> tuple[str, str, dict[str, Any], Any]:
     run.start_a()
     run.export()
     run.transfer()
@@ -265,11 +281,11 @@ def b_superseded_import(run: TwoStoreRun):
         "worker-b").accept("move-1", run.inbox_copy()), lambda: run.run("worker-b", 2, 3))
 
 
-def b_partitioned_origin(run: TwoStoreRun):
+def b_partitioned_origin(run: TwoStoreRun) -> tuple[str, str, dict[str, Any], Any]:
     run.start_a()
     run.relocate()
     return _inject(run, "partitioned A steps in its own store", lambda: run.worker("worker-a").attach(
-        TASK, 1).run(1, check_ownership=False), lambda: run.run())
+        TASK, 1).run(1, check_ownership=False), run.run)
 
 
 MATRIX: list[dict[str, Any]] = [

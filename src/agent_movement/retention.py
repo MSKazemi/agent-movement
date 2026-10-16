@@ -25,11 +25,12 @@ import re
 import sqlite3
 import sys
 import time
+from collections.abc import Mapping, Sequence
 from contextlib import closing
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from .core import SQLiteStore, StoreSchemaError, canonical
 
@@ -121,7 +122,7 @@ def parse_duration(text: str) -> int:
 
 
 def _iso(epoch: float) -> str:
-    return datetime.fromtimestamp(epoch, timezone.utc).isoformat()
+    return datetime.fromtimestamp(epoch, UTC).isoformat()
 
 
 def _tables(db: sqlite3.Connection) -> list[str]:

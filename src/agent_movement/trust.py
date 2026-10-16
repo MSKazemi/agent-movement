@@ -32,10 +32,15 @@ import hashlib
 import hmac
 import re
 import secrets
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any
 
 from .core import ContractError, PolicyDenied, _fields, _id, canonical, digest
+
+if TYPE_CHECKING:  # the optional ``cryptography`` extra; imported lazily at runtime
+    from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
+    from cryptography.hazmat.primitives.hpke import Suite
 
 PEER_SCHEMA_VERSION = "0.1.0-peer-draft"
 HS256 = "HS256"
@@ -147,7 +152,7 @@ class HmacKey:
         self._secret = secret
 
     @classmethod
-    def generate(cls, kid: str) -> "HmacKey":
+    def generate(cls, kid: str) -> HmacKey:
         return cls(kid, secrets.token_bytes(32))
 
     def sign(self, data: bytes) -> bytes:
@@ -159,7 +164,7 @@ class HmacKey:
     def public_value(self) -> str:
         return ""  # nothing public: verifiers must be provisioned out of band
 
-    def verifier(self) -> "HmacKey":
+    def verifier(self) -> HmacKey:
         return self  # symmetric: the verifier necessarily holds signing power
 
     def secret_forms(self) -> tuple[bytes, ...]:
@@ -188,16 +193,16 @@ class Ed25519Key:
     def __init__(self, kid: str, private: Any = None, public: Any = None):
         _id(kid, "kid")
         self.kid = kid
-        self._private = private
-        self._public = public if public is not None else private.public_key()
+        self._private: ed25519.Ed25519PrivateKey | None = private
+        self._public: ed25519.Ed25519PublicKey = public if public is not None else private.public_key()
 
     @classmethod
-    def generate(cls, kid: str) -> "Ed25519Key":
+    def generate(cls, kid: str) -> Ed25519Key:
         from cryptography.hazmat.primitives.asymmetric import ed25519
         return cls(kid, private=ed25519.Ed25519PrivateKey.generate())
 
     @classmethod
-    def from_public(cls, kid: str, public_b64: str) -> "Ed25519Key":
+    def from_public(cls, kid: str, public_b64: str) -> Ed25519Key:
         from cryptography.hazmat.primitives.asymmetric import ed25519
         raw = b64d(public_b64, "public key")
         if len(raw) != 32:
@@ -205,7 +210,7 @@ class Ed25519Key:
         return cls(kid, public=ed25519.Ed25519PublicKey.from_public_bytes(raw))
 
     @classmethod
-    def from_private(cls, kid: str, private_b64: str) -> "Ed25519Key":
+    def from_private(cls, kid: str, private_b64: str) -> Ed25519Key:
         from cryptography.hazmat.primitives.asymmetric import ed25519
         raw = b64d(private_b64, "private key")
         if len(raw) != 32:
@@ -213,6 +218,8 @@ class Ed25519Key:
         return cls(kid, private=ed25519.Ed25519PrivateKey.from_private_bytes(raw))
 
     def _raw_private(self) -> bytes:
+        if self._private is None:  # callers check first; kept for the type checker
+            raise TypeError("public-only Ed25519 key has no private bytes")
         from cryptography.hazmat.primitives import serialization
         return self._private.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw,
                                            serialization.NoEncryption())
@@ -234,7 +241,7 @@ class Ed25519Key:
         from cryptography.hazmat.primitives import serialization
         return b64e(self._public.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw))
 
-    def verifier(self) -> "Ed25519Key":
+    def verifier(self) -> Ed25519Key:
         return Ed25519Key(self.kid, public=self._public)
 
     def secret_forms(self) -> tuple[bytes, ...]:
@@ -264,7 +271,7 @@ def hpke_available() -> bool:
     return True
 
 
-def _hpke_suite() -> Any:
+def _hpke_suite() -> Suite:
     from cryptography.hazmat.primitives.hpke import AEAD, KDF, KEM, Suite
     return Suite(KEM.X25519, KDF.HKDF_SHA256, AEAD.CHACHA20_POLY1305)
 
@@ -284,20 +291,20 @@ class HpkeKey:
             raise ContractError("invalid X25519 public key")
         self.kid = kid
         self._public = public
-        self._private = private
+        self._private: x25519.X25519PrivateKey | None = private
 
     @classmethod
-    def generate(cls, kid: str) -> "HpkeKey":
+    def generate(cls, kid: str) -> HpkeKey:
         from cryptography.hazmat.primitives.asymmetric import x25519
         private = x25519.X25519PrivateKey.generate()
         return cls(kid, private.public_key().public_bytes_raw(), private)
 
     @classmethod
-    def from_public(cls, kid: str, public_b64: str) -> "HpkeKey":
+    def from_public(cls, kid: str, public_b64: str) -> HpkeKey:
         return cls(kid, b64d(public_b64, "enc public key"))
 
     @classmethod
-    def from_private(cls, kid: str, private_b64: str) -> "HpkeKey":
+    def from_private(cls, kid: str, private_b64: str) -> HpkeKey:
         from cryptography.hazmat.primitives.asymmetric import x25519
         raw = b64d(private_b64, "enc private key")
         if len(raw) != 32:
@@ -465,7 +472,8 @@ def unseal(purpose: str, sealed: Any, key: Any, reason: str = "bad_signature") -
         raise Unauthenticated(reason) from exc
     if not key.verify(_signing_input(purpose, s["payload"]), signature):
         raise Unauthenticated(reason)
-    return s["payload"]
+    payload: dict[str, Any] = s["payload"]
+    return payload
 
 
 # ------------------------------------------------------------------ trust store
@@ -481,7 +489,7 @@ class TrustStore:
 
     @classmethod
     def build(cls, card_issuers: Iterable[Any], grant_issuers: Iterable[Any],
-              peer_keys: Iterable[HmacKey] = ()) -> "TrustStore":
+              peer_keys: Iterable[HmacKey] = ()) -> TrustStore:
         return cls({k.kid: k.verifier() for k in card_issuers},
                    {k.kid: k.verifier() for k in grant_issuers},
                    {k.kid: k for k in peer_keys})
@@ -492,7 +500,7 @@ class TrustStore:
                 "peer_keys": [k.export() for k in self.peer_keys.values()]}
 
     @classmethod
-    def from_dict(cls, data: Any) -> "TrustStore":
+    def from_dict(cls, data: Any) -> TrustStore:
         d = _fields(data, {"card_issuers", "grant_issuers", "peer_keys"}, "trust store")
         return cls.build([import_key(k) for k in d["card_issuers"]],
                          [import_key(k) for k in d["grant_issuers"]],
@@ -580,6 +588,7 @@ def verify_card(sealed: Any, trust: TrustStore, now: int) -> VerifiedCard:
             raise Unauthenticated("malformed_card") from exc
     if not nbf <= now < exp:
         raise Unauthenticated("card_expired")
+    key: Ed25519Key | HmacKey | None
     if k["alg"] == ED25519:
         if not ed25519_available():
             raise Unauthenticated("unsupported_key_alg")

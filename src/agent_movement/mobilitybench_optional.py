@@ -26,14 +26,28 @@ import socket
 import sqlite3
 import threading
 import time
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterator, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from .core import Conflict, ContractError, PolicyDenied, SQLiteStore
-from .mobilitybench_v01 import (TRANSFERABLE, AgentState, Attempt, Outcome, Pure, SimulatedCrash,
-                                delegate_tail, delegation_approvals, delegation_envelope,
-                                deliver_with_receipts, stale_origin_retry)
+from .mobilitybench_v01 import (
+    TRANSFERABLE,
+    AgentState,
+    Attempt,
+    Outcome,
+    Pure,
+    SimulatedCrash,
+    delegate_tail,
+    delegation_approvals,
+    delegation_envelope,
+    deliver_with_receipts,
+    stale_origin_retry,
+)
+
+if TYPE_CHECKING:  # annotation only; langchain-core comes with the relocation extra
+    from langchain_core.runnables import RunnableConfig
 
 # --------------------------------------------------------------------------- B2: A2A v1 delegate
 
@@ -79,8 +93,9 @@ def a2a_receipt(result: dict[str, Any]) -> dict[str, Any]:
     if "error" in result:  # A2A protocol error: refused before any task existed
         raise ContractError("A2A request rejected: " + result["error"]["type"])
     if result["final_state"] != "TASK_STATE_COMPLETED":
-        raise A2A_REJECTIONS.get(result.get("reason"), ContractError)("A2A task ended " + result["final_state"])
-    return result["receipt"]
+        raise A2A_REJECTIONS.get(result.get("reason") or "", ContractError)("A2A task ended " + result["final_state"])
+    receipt: dict[str, Any] = result["receipt"]
+    return receipt
 
 
 @contextmanager
@@ -127,13 +142,13 @@ class PlanState(TypedDict):
     sections: dict[str, str]
 
 
-def plan_channels(state: AgentState, cursor: int) -> dict[str, Any]:
+def plan_channels(state: AgentState, cursor: int) -> PlanState:
     return {"cursor": cursor, "files": dict(state.files), "inventory": dict(state.inventory),
             "original_files": dict(state.original_files), "out": list(state.out),
             "rules": [dict(r) for r in state.rules], "sections": dict(state.sections)}
 
 
-def restore_state(task: dict[str, Any], name: str, epoch: int, values: dict[str, Any]) -> AgentState:
+def restore_state(task: dict[str, Any], name: str, epoch: int, values: Mapping[str, Any]) -> AgentState:
     """Rebuild an executor's state from checkpoint channels; identity and epoch come from the executor."""
     state = AgentState(name, task, epoch)
     state.rules = [dict(r) for r in values["rules"]]
@@ -165,20 +180,21 @@ class PlanRuntime:
         from .relocation import FencedSqliteSaver
 
         self.att, self.execution_id, self.epoch = att, execution_id, epoch
-        self.config = {"configurable": {"thread_id": att.gw_task, "checkpoint_ns": ""}}
+        self.config: RunnableConfig = {"configurable": {"thread_id": att.gw_task, "checkpoint_ns": ""}}
         self.conn = sqlite3.connect(str(path), check_same_thread=False, timeout=10)
         self.conn.execute("PRAGMA busy_timeout = 10000")
         self.saver = FencedSqliteSaver(self.conn, att.gw_task, execution_id, epoch)
         plan_length = len(att.plan)
 
-        def step(values: PlanState) -> dict[str, Any]:
+        # LangGraph's node protocol names the parameter ``state``.
+        def step(state: PlanState) -> PlanState:
             if self.execution_id is None or self.epoch is None:
                 raise PolicyDenied("read-only view cannot execute plan steps")
-            index = values["cursor"]
-            state = restore_state(att.task, self.execution_id, self.epoch, values)
-            att.hear(state, index)  # live session events reach whoever executes this step
-            att.run_step(state, index)
-            return plan_channels(state, index + 1)
+            index = state["cursor"]
+            agent = restore_state(att.task, self.execution_id, self.epoch, state)
+            att.hear(agent, index)  # live session events reach whoever executes this step
+            att.run_step(agent, index)
+            return plan_channels(agent, index + 1)
 
         def route(values: PlanState) -> str:
             return "step" if values["cursor"] < plan_length else END
@@ -192,7 +208,7 @@ class PlanRuntime:
     def close(self) -> None:
         self.conn.close()
 
-    def advance(self, task_input: dict[str, Any] | None = None, limit: int | None = None) -> None:
+    def advance(self, task_input: PlanState | None = None, limit: int | None = None) -> None:
         """One plan step per superstep; every boundary is a durable, fenced checkpoint."""
         steps = 0
         while limit is None or steps < limit:
@@ -266,12 +282,14 @@ def accept_grant(att: Attempt, path: Path, grant: dict[str, Any], manifest: dict
             exported = view.saver.get_tuple({"configurable": {
                 "thread_id": att.gw_task, "checkpoint_ns": "",
                 "checkpoint_id": manifest["checkpoint"]["checkpoint_id"]}})
-            if exported is None or relocation.checkpoint_digest(exported.checkpoint) != manifest["checkpoint"]["digest"]:
+            if exported is None or (relocation.checkpoint_digest(exported.checkpoint)
+                                    != manifest["checkpoint"]["digest"]):
                 raise relocation.Incompatible("exported checkpoint is missing or altered",
                                               {"unavailable_state": list(CHANNELS)})
             if view.head().checkpoint["id"] != exported.checkpoint["id"]:
                 raise Conflict("head moved after transfer")
-    return coordinator.acknowledge(grant["movement_id"], "agent-b", row["to_epoch"])["replayed"]
+    replayed: bool = coordinator.acknowledge(grant["movement_id"], "agent-b", row["to_epoch"])["replayed"]
+    return replayed
 
 
 def run_checkpoint_relocate(att: Attempt) -> Outcome:

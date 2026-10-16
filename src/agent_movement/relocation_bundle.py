@@ -91,7 +91,7 @@ def read_payload(db: sqlite3.Connection, task_id: str, checkpoint_id: str) -> di
               for w in db.execute("SELECT task_id, task_path, idx, channel, type, value FROM writes "
                                   "WHERE thread_id=? AND checkpoint_ns='' AND checkpoint_id=? "
                                   "ORDER BY task_id, idx", (task_id, checkpoint_id))]
-    ledger = [dict(zip(LEDGER_FIELDS, r)) for r in db.execute(
+    ledger = [dict(zip(LEDGER_FIELDS, r, strict=True)) for r in db.execute(
         "SELECT effect_id, payload_digest, tool, status, execution_id, epoch, attempts "
         "FROM effect_intents WHERE task_id=? ORDER BY effect_id", (task_id,))]
     return {"checkpoint": checkpoint, "writes": writes, "effect_ledger": ledger}
@@ -205,7 +205,8 @@ def decode_checkpoint(payload: dict[str, Any], serde: Any) -> dict[str, Any]:
         raise BundleRejected("unsupported_serialization", "bundle uses a refused serializer type")
     blob = _unb64(row["checkpoint_b64"], "checkpoint")
     try:
-        return serde.loads_typed((row["type"], blob))
+        checkpoint: dict[str, Any] = serde.loads_typed((row["type"], blob))
+        return checkpoint
     except Exception as exc:  # any decoder failure is a refusal, never a partial import
         raise BundleRejected("checkpoint_undecodable", "checkpoint blob does not decode") from exc
 

@@ -41,11 +41,12 @@ import os
 import sqlite3
 import threading
 from collections import Counter
-from contextlib import closing, contextmanager
-from datetime import datetime, timezone
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import AbstractContextManager, closing, contextmanager
+from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
-from typing import Annotated, Any, Iterator, TypedDict
+from typing import TYPE_CHECKING, Annotated, Any, TypedDict
 
 try:
     from langgraph.checkpoint.sqlite import SqliteSaver
@@ -53,6 +54,10 @@ try:
 except ImportError as exc:  # pragma: no cover - only without the optional extra
     raise ImportError("agent_movement.relocation needs the optional extra: "
                       "python -m pip install -e '.[relocation]'") from exc
+
+if TYPE_CHECKING:  # annotation-only names from the pinned runtime (langchain-core comes with langgraph)
+    from langchain_core.runnables import RunnableConfig
+    from langgraph.checkpoint.base import ChannelVersions, Checkpoint, CheckpointMetadata
 
 from . import relocation_bundle as bundles
 from .core import Conflict, ContractError, EffectGateway, PolicyDenied, SQLiteStore, _id, canonical, digest
@@ -362,7 +367,7 @@ def _reconciliation_row(db: Any, schema: str, task_id: str, effect_id: str) -> d
                      "effect_reconciliations WHERE task_id=? AND effect_id=?", (task_id, effect_id)).fetchone()
     if row is None:
         return None
-    record = dict(zip(RECONCILIATION_FIELDS, row))
+    record = dict(zip(RECONCILIATION_FIELDS, row, strict=True))
     record["decision"] = canonical_load(record.pop("decision_json"))
     return record
 
@@ -373,7 +378,7 @@ def _reconciliation_event(db: Any, schema: str, task_id: str, effect_id: str, ev
     db.execute(f"INSERT INTO {_authority_schema(schema)}.reconciliation_events(task_id, effect_id, "
                "event_type, actor, epoch, detail_json, event_time) VALUES(?,?,?,?,?,?,?)",
                (task_id, effect_id, event_type, actor, epoch, canonical(detail),
-                datetime.now(timezone.utc).isoformat()))
+                datetime.now(UTC).isoformat()))
 
 
 def _park(db: Any, schema: str, task_id: str, effect_id: str, execution_id: str, epoch: int) -> None:
@@ -462,12 +467,13 @@ class FencedSqliteSaver(SqliteSaver):
             finally:
                 cur.close()
 
-    def _own_thread(self, config: dict[str, Any]) -> None:
+    def _own_thread(self, config: RunnableConfig) -> None:
         conf = config["configurable"]
         if str(conf["thread_id"]) != self.task_id or conf.get("checkpoint_ns", "") != "":
             raise ContractError("only the bound task's root namespace may be written")
 
-    def put(self, config, checkpoint, metadata, new_versions):  # type: ignore[override]
+    def put(self, config: RunnableConfig, checkpoint: Checkpoint, metadata: CheckpointMetadata,
+            new_versions: ChannelVersions) -> RunnableConfig:
         self._own_thread(config)
         self._local.putting = True
         try:
@@ -475,9 +481,10 @@ class FencedSqliteSaver(SqliteSaver):
         finally:
             self._local.putting = False
 
-    def put_writes(self, config, writes, task_id, task_path=""):  # type: ignore[override]
+    def put_writes(self, config: RunnableConfig, writes: Sequence[tuple[str, Any]], task_id: str,
+                   task_path: str = "") -> None:
         self._own_thread(config)
-        return super().put_writes(config, writes, task_id, task_path)
+        super().put_writes(config, writes, task_id, task_path)
 
 
 class EffectLedger:
@@ -493,7 +500,7 @@ class EffectLedger:
         self.path = store.path if isinstance(store, SQLiteStore) else str(store)
         self.authority = None if authority is None else str(authority)
 
-    def _connection(self):
+    def _connection(self) -> AbstractContextManager[tuple[sqlite3.Connection, str]]:
         return _state_connection(self.path, self.authority)
 
     def get(self, task_id: str, effect_id: str) -> dict[str, Any] | None:
@@ -502,7 +509,7 @@ class EffectLedger:
                              "FROM effect_intents WHERE task_id=? AND effect_id=?",
                              (task_id, effect_id)).fetchone()
         keys = ("payload_digest", "tool", "status", "execution_id", "epoch", "attempts")
-        return None if row is None else dict(zip(keys, row))
+        return None if row is None else dict(zip(keys, row, strict=True))
 
     def uncertain(self, task_id: str) -> list[str]:
         with self._connection() as (db, _schema):
@@ -524,7 +531,8 @@ class EffectLedger:
                 if row[0] != payload_digest:
                     raise Conflict("effect ID reused with a different payload")
                 db.commit()
-                return row[1]
+                status: str = row[1]
+                return status
             db.execute("INSERT INTO effect_intents(task_id,effect_id,payload_digest,tool,status,"
                        "execution_id,epoch) VALUES(?,?,?,?,'intent',?,?)",
                        (task_id, effect_id, payload_digest, tool, execution_id, epoch))
@@ -647,12 +655,12 @@ def initial_state(items: list[str], constraints: dict[str, Any]) -> dict[str, An
             "status": "running"}
 
 
-def effect_payload(task_id: str, state: dict[str, Any]) -> str:
+def effect_payload(task_id: str, state: Mapping[str, Any]) -> str:
     return canonical({"task_id": task_id, "word_total": state["word_total"],
                       "artifacts_digest": digest(state["artifacts"])})
 
 
-def build_graph(worker: Worker | None, saver: SqliteSaver):
+def build_graph(worker: Worker | None, saver: SqliteSaver) -> Any:
     """Deterministic, LLM-free graph. ``worker=None`` builds a read-only inspection graph."""
 
     def log(node: str, index: int | None = None) -> list[dict[str, Any]]:
@@ -664,19 +672,20 @@ def build_graph(worker: Worker | None, saver: SqliteSaver):
     def process_item(state: TaskState) -> dict[str, Any]:
         index = state["cursor"]
         text = state["items"][index]
-        artifact = {"index": index, "words": len(text.split()),
+        artifact: dict[str, Any] = {"index": index, "words": len(text.split()),
                     "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()}
         return {"cursor": index + 1, "word_total": state["word_total"] + artifact["words"],
                 "artifacts": [artifact], "step_log": log("process_item", index)}
 
     def effect_intent(state: TaskState) -> dict[str, Any]:
         assert worker is not None
+        task, epoch = worker._bound()
         steps = log("effect_intent")
         effect_id, tool = state["effect"]["effect_id"], state["constraints"]["effect_tool"]
-        payload_digest = digest(effect_payload(worker.task_id, state))
+        payload_digest = digest(effect_payload(task, state))
         worker.faults.hit("effect_intent.before")
-        worker.ledger.record_intent(worker.task_id, effect_id, payload_digest, tool,
-                                    worker.execution_id, worker.epoch)
+        worker.ledger.record_intent(task, effect_id, payload_digest, tool,
+                                    worker.execution_id, epoch)
         worker.faults.hit("effect_intent.after")
         return {"effect": {"effect_id": effect_id, "payload_digest": payload_digest,
                            "status": "intent_recorded"}, "step_log": steps}
@@ -684,7 +693,8 @@ def build_graph(worker: Worker | None, saver: SqliteSaver):
     def effect_commit(state: TaskState) -> dict[str, Any]:
         assert worker is not None
         steps = log("effect_commit")
-        task, effect = worker.task_id, dict(state["effect"])
+        task, epoch = worker._bound()
+        effect = dict(state["effect"])
         tool = state["constraints"]["effect_tool"]
         payload = effect_payload(task, state)
         while True:
@@ -694,7 +704,7 @@ def build_graph(worker: Worker | None, saver: SqliteSaver):
                 raise Conflict("effect commit without a matching durable intent")
             if tool == "opaque" and intent["status"] in ("attempt_started", "unknown"):
                 # Operator reconciliation (issue #30): apply a recorded decision, if any.
-                decided = worker.ledger.apply_decision(task, effect_id, worker.execution_id, worker.epoch)
+                decided = worker.ledger.apply_decision(task, effect_id, worker.execution_id, epoch)
                 if decided is not None:
                     intent = {**intent, "status": decided["status"]}
             if intent["status"] != "confirmed_absent":
@@ -702,7 +712,10 @@ def build_graph(worker: Worker | None, saver: SqliteSaver):
             if "retry_of" in effect:
                 raise Conflict("retry budget exhausted: the retry itself was confirmed absent")
             # The operator confirmed that the effect never happened: ONE retry under a new effect ID.
-            retry_id = worker.ledger.decision(task, effect_id)["retry_effect_id"]
+            record = worker.ledger.decision(task, effect_id)
+            if record is None:  # apply_decision() just read this decision
+                raise Conflict(f"no operator decision is recorded for parked effect {effect_id}")
+            retry_id = record["retry_effect_id"]
             effect = {**effect, "effect_id": retry_id, "retry_of": effect_id}
         if intent["status"] == "confirmed_done":
             return {"effect": {**effect, "status": "committed", "reconciled": "operator_confirmed_done"},
@@ -713,26 +726,26 @@ def build_graph(worker: Worker | None, saver: SqliteSaver):
         if intent["status"] in ("attempt_started", "unknown"):
             # A previous execution started the external call; its outcome is uncertain.
             if tool == "opaque":
-                worker.ledger.mark(task, effect_id, "unknown", worker.execution_id, worker.epoch)
+                worker.ledger.mark(task, effect_id, "unknown", worker.execution_id, epoch)
                 return {"effect": {**effect, "status": "unknown"}, "status": "reconcile_required",
                         "step_log": steps}
             if worker.gateway.reconcile(task, effect_id) == "committed":
                 worker.ledger.mark(task, effect_id, "reconciled_committed",
-                                   worker.execution_id, worker.epoch)
+                                   worker.execution_id, epoch)
                 return {"effect": {**effect, "status": "committed", "reconciled": "found_committed"},
                         "step_log": steps}
             # No commit record in the system of record: retrying with the SAME effect ID is
             # safe only because this simulated gateway deduplicates by effect ID.
             reconciled = True
-        worker.ledger.mark(task, effect_id, "attempt_started", worker.execution_id, worker.epoch)
+        worker.ledger.mark(task, effect_id, "attempt_started", worker.execution_id, epoch)
         worker.faults.hit("effect_commit.before")
         if tool == "gateway":
-            worker.gateway.commit(task, worker.execution_id, worker.epoch, effect_id, payload)
+            worker.gateway.commit(task, worker.execution_id, epoch, effect_id, payload)
         else:
-            worker.opaque.invoke(task, effect_id, worker.execution_id, worker.epoch, payload)
+            worker.opaque.invoke(task, effect_id, worker.execution_id, epoch, payload)
         worker.faults.hit("effect_commit.after")
         worker.ledger.mark(task, effect_id, "reconciled_committed" if reconciled else "committed",
-                           worker.execution_id, worker.epoch)
+                           worker.execution_id, epoch)
         result = {**effect, "status": "committed"}
         if reconciled:
             result["reconciled"] = "retried_same_effect_id"
@@ -779,7 +792,7 @@ def _runtime(path: str, task_id: str, worker: Worker | None = None,
         conn.close()
 
 
-def checkpoint_digest(checkpoint: dict[str, Any]) -> str:
+def checkpoint_digest(checkpoint: Mapping[str, Any]) -> str:
     try:
         return digest({"id": checkpoint["id"], "channel_values": checkpoint["channel_values"],
                        "channel_versions": checkpoint["channel_versions"],
@@ -798,7 +811,7 @@ def build_manifest(path: str | Path, task_id: str, movement_id: str, from_execut
     if mode not in ("cooperative", "failover"):
         raise ContractError("invalid relocation mode")
     with _runtime(str(path), task_id) as (graph, saver):
-        config = {"configurable": {"thread_id": task_id, "checkpoint_ns": ""}}
+        config: RunnableConfig = {"configurable": {"thread_id": task_id, "checkpoint_ns": ""}}
         head = saver.get_tuple(config)
         if head is None:
             raise Conflict("no durable checkpoint for task")
@@ -806,7 +819,7 @@ def build_manifest(path: str | Path, task_id: str, movement_id: str, from_execut
     # Pending writes = successful node outputs of a superstep whose checkpoint never
     # committed (the executor crashed). LangGraph re-applies them on resume, so a
     # failover may carry them; a cooperative export must sit on a clean boundary.
-    pending = sorted({f"{task}:{channel}" for task, channel, _value in head.pending_writes})
+    pending = sorted({f"{task}:{channel}" for task, channel, _value in head.pending_writes or ()})
     if pending and mode == "cooperative":
         raise Conflict("unsafe boundary: checkpoint has pending writes")
     # snapshot.next omits tasks whose outputs are already durable pending writes,
@@ -847,6 +860,8 @@ def build_bundle(state_path: str | Path, task_id: str, movement_id: str, from_ex
     with _runtime(str(state_path), task_id) as (_graph, saver):
         head = saver.get_tuple({"configurable": {"thread_id": task_id, "checkpoint_ns": "",
                                                  "checkpoint_id": checkpoint_id}})
+    if head is None:  # build_manifest() just read this checkpoint
+        raise Conflict("no durable checkpoint for task")
     with closing(sqlite3.connect(str(state_path), timeout=10)) as db:
         payload = bundles.read_payload(db, task_id, checkpoint_id)
     manifest = {**manifest, "transport": "bundle",
@@ -910,7 +925,7 @@ class Coordinator:
                          f"FROM {schema}.relocations WHERE movement_id=?", (movement_id,)).fetchone()
         keys = ("task_id", "mode", "from_execution", "from_epoch", "to_execution", "to_epoch",
                 "checkpoint_id", "manifest_json", "manifest_digest", "status", "report_json", "transport")
-        return None if row is None else dict(zip(keys, row))
+        return None if row is None else dict(zip(keys, row, strict=True))
 
     def get(self, movement_id: str) -> dict[str, Any] | None:
         with self.store._connection() as db:
@@ -1070,7 +1085,7 @@ class Coordinator:
             rows = db.execute(query + " ORDER BY task_id, effect_id", args).fetchall()
         records = []
         for row in rows:
-            record = dict(zip(RECONCILIATION_FIELDS, row))
+            record = dict(zip(RECONCILIATION_FIELDS, row, strict=True))
             record["decision"] = canonical_load(record.pop("decision_json"))
             records.append(record)
         return records
@@ -1085,7 +1100,7 @@ class Coordinator:
             rows = db.execute(query + " ORDER BY seq", args).fetchall()
         events = []
         for row in rows:
-            event = dict(zip(EVENT_FIELDS, row))
+            event = dict(zip(EVENT_FIELDS, row, strict=True))
             event["detail"] = canonical_load(event.pop("detail_json"))
             events.append(event)
         return events
@@ -1210,7 +1225,16 @@ class Worker:
             db.commit()
 
     def owns(self) -> bool:
+        if self.task_id is None:  # an unattached worker owns nothing
+            return False
         return owner_of(self.store, self.task_id) == (self.execution_id, self.epoch)
+
+    def _bound(self) -> tuple[str, int]:
+        """(task_id, epoch) of an attached execution. Graph nodes and the export/import steps
+        run only after start(), attach() or accept() bound them, so this never raises there."""
+        if self.task_id is None or self.epoch is None:
+            raise ContractError("worker is not attached to a task")
+        return self.task_id, self.epoch
 
     def _config(self) -> dict[str, Any]:
         return {"configurable": {"thread_id": self.task_id, "execution_id": self.execution_id,
@@ -1280,8 +1304,9 @@ class Worker:
             raise ContractError("a worker with its own store exports with export_bundle()")
         if not self.owns():
             raise PolicyDenied("only the current owner may export")
-        manifest = build_manifest(self.path, self.task_id, movement_id, self.execution_id,
-                                  self.epoch, to_execution, "cooperative")
+        task_id, epoch = self._bound()
+        manifest = build_manifest(self.path, task_id, movement_id, self.execution_id,
+                                  epoch, to_execution, "cooperative")
         if manifest["uncertain_effects"]:
             raise Conflict("unsafe boundary: an effect outcome is uncertain; reconcile first")
         self.faults.hit("origin.before_export")
@@ -1300,8 +1325,9 @@ class Worker:
             raise ContractError("export_bundle() needs a worker with its own store")
         if not self.owns():
             raise PolicyDenied("only the current owner may export")
-        manifest, path = export_bundle(self.state_path, outbox, self.task_id, movement_id,
-                                       self.execution_id, self.epoch, to_execution, "cooperative")
+        task_id, epoch = self._bound()
+        manifest, path = export_bundle(self.state_path, outbox, task_id, movement_id,
+                                       self.execution_id, epoch, to_execution, "cooperative")
         if manifest["uncertain_effects"]:
             Path(path).unlink(missing_ok=True)
             raise Conflict("unsafe boundary: an effect outcome is uncertain; reconcile first")
@@ -1337,7 +1363,8 @@ class Worker:
             head = saver.get_tuple({"configurable": {"thread_id": self.task_id, "checkpoint_ns": ""}})
             if row["status"] == "acknowledged":
                 # Duplicate grant: never rewind to the transfer checkpoint.
-                return {"accepted": True, "replayed": True, "head_checkpoint_id": head.checkpoint["id"]}
+                return {"accepted": True, "replayed": True,
+                        "head_checkpoint_id": None if head is None else head.checkpoint["id"]}
             report = compatibility(manifest, self.profile)
             if not report["compatible"]:
                 raise Incompatible("receiver cannot resume this checkpoint", report)
@@ -1364,7 +1391,7 @@ class Worker:
         """Fail closed: nothing was imported; name everything the receiver cannot resume."""
         report = {"compatible": False, "decision": "refuse_fail_closed", "reason": reason,
                   "mismatches": [], "lost_state": [],
-                  "unavailable_state": sorted(manifest["channels"]) + ["effect_ledger"],
+                  "unavailable_state": [*sorted(manifest["channels"]), "effect_ledger"],
                   "always_unsupported": sorted(BUNDLE_UNSUPPORTED_STATE),
                   "corrupt_sections": [], "corrupt_channels": [], **extra}
         return Incompatible(message, report)
@@ -1374,7 +1401,8 @@ class Worker:
         if self.authority is None:
             raise ContractError("bundle movements need a receiver with its own store")
         checkpoint_id = manifest["checkpoint"]["checkpoint_id"]
-        with _runtime(self.state_path, self.task_id, self, self.authority) as (_graph, saver):
+        task_id, epoch = self._bound()
+        with _runtime(self.state_path, task_id, self, self.authority) as (_graph, saver):
             if row["status"] == "acknowledged":
                 # Duplicate grant or import: never rewind, never re-read the bundle.
                 head = saver.get_tuple({"configurable": {"thread_id": self.task_id, "checkpoint_ns": ""}})
@@ -1426,7 +1454,7 @@ class Worker:
                     checkpoint_digest(head.checkpoint) != manifest["checkpoint"]["digest"]:
                 raise Conflict("imported checkpoint is not the head of the receiver store")
         self.faults.hit("receiver.after_accept")
-        ack = coordinator.acknowledge(movement_id, self.execution_id, self.epoch)
+        ack = coordinator.acknowledge(movement_id, self.execution_id, epoch)
         self.faults.hit("ack.after")
         return {"accepted": True, "replayed": False, "checkpoint_id": checkpoint_id,
                 "step": manifest["checkpoint"]["step"], "bundle_sha256": bundle_sha,
@@ -1437,7 +1465,8 @@ class Worker:
         """ONE fenced transaction in this worker's store: all rows and the import record, or nothing."""
         with _state_connection(self.state_path, self.authority) as (db, schema):
             db.execute("BEGIN IMMEDIATE")
-            _fence(db, self.task_id, self.execution_id, self.epoch, schema)
+            task_id, epoch = self._bound()
+            _fence(db, task_id, self.execution_id, epoch, schema)
             prior = db.execute("SELECT manifest_digest, bundle_sha256 FROM bundle_imports WHERE movement_id=?",
                                (movement_id,)).fetchone()
             if prior is not None:
@@ -1449,7 +1478,7 @@ class Worker:
                                     "checkpoint_ns=''", (self.task_id,)).fetchone()[0]
             if local_head is not None and local_head > row["checkpoint_id"]:
                 raise Conflict("receiver store already holds a newer checkpoint; refusing to rewind")
-            counts = bundles.insert_payload(db, self.task_id, payload)
+            counts = bundles.insert_payload(db, task_id, payload)
             db.execute("INSERT INTO bundle_imports(movement_id, task_id, checkpoint_id, manifest_digest, "
                        "bundle_sha256, execution_id, epoch) VALUES(?,?,?,?,?,?,?)",
                        (movement_id, self.task_id, row["checkpoint_id"], row["manifest_digest"], bundle_sha,
@@ -1481,7 +1510,7 @@ def _store_view(path: str, task_id: str) -> dict[str, Any]:
 
 
 def observe(path: str | Path, task_id: str, effect_id: str = "publish-report",
-            stores: dict[str, str | Path] | None = None) -> dict[str, Any]:
+            stores: Mapping[str, str | Path] | None = None) -> dict[str, Any]:
     """Ground truth for the experiment harness (reads only).
 
     ``stores`` (two-store mode) maps worker_id -> that worker's own store. The head,
@@ -1502,6 +1531,7 @@ def observe(path: str | Path, task_id: str, effect_id: str = "publish-report",
         opaque_calls = db.execute("SELECT effect_id, COUNT(*) FROM opaque_effects WHERE task_id=? "
                                   "GROUP BY effect_id ORDER BY effect_id", (task_id,)).fetchall()
     owner = owner_of(store, task_id)
+    head_view: dict[str, Any] | None
     if stores is None:
         views = {"": _store_view(str(path), task_id)}
         head_view = views[""]
@@ -1510,7 +1540,7 @@ def observe(path: str | Path, task_id: str, effect_id: str = "publish-report",
         views = {worker: _store_view(str(p), task_id) for worker, p in sorted(stores.items())}
         owner_worker = None if owner is None else owner[0].rsplit(".", 1)[0]
         head_view = views.get(owner_worker) if owner_worker else None
-        ledger_path = str(stores[owner_worker]) if head_view is not None else None
+        ledger_path = str(stores[owner_worker]) if owner_worker and head_view is not None else None
     run_counts: Counter[tuple[str, str]] = Counter()
     item_counts: Counter[int] = Counter()
     lineage_by_id: dict[str, dict[str, Any]] = {}
@@ -1534,7 +1564,7 @@ def observe(path: str | Path, task_id: str, effect_id: str = "publish-report",
         "process_item_runs": sum(v.get("process_item", 0) for v in node_runs.values()),
         "item_reexecutions": sum(count - 1 for count in item_counts.values()),
         "relocations": [dict(zip(("movement_id", "mode", "from_execution", "from_epoch",
-                                   "to_execution", "to_epoch", "status"), r)) for r in relocations],
+                                   "to_execution", "to_epoch", "status"), r, strict=True)) for r in relocations],
         "head_checkpoint_id": None if head is None else head.checkpoint["id"],
         "values": None if head is None else head.checkpoint["channel_values"],
         "lineage": [lineage_by_id[k] for k in sorted(lineage_by_id)],

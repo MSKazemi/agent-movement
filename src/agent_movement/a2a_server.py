@@ -21,34 +21,59 @@ import asyncio
 import contextlib
 import json
 import socket
-from datetime import datetime, timedelta, timezone
+from collections.abc import AsyncGenerator, AsyncIterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from a2a.helpers import new_data_part, new_task
+from a2a.server.agent_execution import AgentExecutor, RequestContext
+from a2a.server.events import Event, EventQueue
+from a2a.server.request_handlers import DefaultRequestHandlerV2
+from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes, create_rest_routes
+from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
+from a2a.types import (
+    AgentCapabilities,
+    AgentCard,
+    AgentExtension,
+    AgentInterface,
+    AgentSkill,
+    ContentTypeNotSupportedError,
+    ExtensionSupportRequiredError,
+    InvalidParamsError,
+    Message,
+    Role,
+    SendMessageRequest,
+    Task,
+    TaskNotFoundError,
+    TaskState,
+    UnsupportedOperationError,
+)
+from a2a.utils.constants import PROTOCOL_VERSION_CURRENT, TransportProtocol
+from a2a.utils.input_mode_validator import validate_input_modes
 from google.protobuf.json_format import MessageToDict
 from starlette.applications import Starlette
 from starlette.routing import Mount
 
-from a2a.helpers import new_data_part, new_task
-from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.server.events import EventQueue
-from a2a.server.request_handlers import DefaultRequestHandlerV2
-from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes, create_rest_routes
-from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
-from a2a.types import (AgentCapabilities, AgentCard, AgentExtension, AgentInterface, AgentSkill,
-                       ContentTypeNotSupportedError, ExtensionSupportRequiredError,
-                       InvalidParamsError, Message, Role, SendMessageRequest, TaskNotFoundError,
-                       TaskState, UnsupportedOperationError)
-from a2a.utils.constants import PROTOCOL_VERSION_CURRENT, TransportProtocol
-from a2a.utils.input_mode_validator import validate_input_modes
-
-from .a2a_profile import (CLIENT_CONTEXT_BOUND, CLIENT_CONTEXT_POLICIES, CLIENT_CONTEXT_REJECTED,
-                          EXTENSION_URI, EXTENSION_URIS, KINDS, LEGACY_EXTENSION_URI,
-                          PROFILE_VERSION, RECEIPT_MEDIA_TYPE, TASK_MEDIA_TYPE, A2ACorrelationLog,
-                          a2a_to_envelope, check_context_id, context_policy, receipt_to_artifact,
-                          skill_id)
-from .core import (SCHEMA_VERSION, Approval, Conflict, ContractError, HandoffReceiver, PolicyDenied,
-                   SQLiteStore)
+from .a2a_profile import (
+    CLIENT_CONTEXT_BOUND,
+    CLIENT_CONTEXT_POLICIES,
+    CLIENT_CONTEXT_REJECTED,
+    EXTENSION_URI,
+    EXTENSION_URIS,
+    KINDS,
+    LEGACY_EXTENSION_URI,
+    PROFILE_VERSION,
+    RECEIPT_MEDIA_TYPE,
+    TASK_MEDIA_TYPE,
+    A2ACorrelationLog,
+    a2a_to_envelope,
+    check_context_id,
+    context_policy,
+    receipt_to_artifact,
+    skill_id,
+)
+from .core import SCHEMA_VERSION, Approval, Conflict, ContractError, HandoffReceiver, PolicyDenied, SQLiteStore
 
 JSONRPC_PATH = "/a2a/jsonrpc"
 REST_PREFIX = "/a2a/rest"
@@ -157,7 +182,7 @@ def decode_handoff(message: Message, request_metadata: Any = None, bound_task_id
 class HandoffRequestHandler(DefaultRequestHandlerV2):
     """SDK request handler with profile admission before any task is created."""
 
-    def __init__(self, *, executor: "HandoffExecutor", agent_card: AgentCard,
+    def __init__(self, *, executor: HandoffExecutor, agent_card: AgentCard,
                  kinds: list[str], log: A2ACorrelationLog,
                  client_context_id: str = CLIENT_CONTEXT_REJECTED):
         super().__init__(agent_executor=executor, task_store=InMemoryTaskStore(),
@@ -205,11 +230,13 @@ class HandoffRequestHandler(DefaultRequestHandlerV2):
                                     outcome="rejected." + type(exc).__name__)
             raise
 
-    async def on_message_send(self, params: SendMessageRequest, context: Any):
+    async def on_message_send(self, params: SendMessageRequest, context: Any) -> Message | Task:
         await self._admit(params, context)
-        return await super().on_message_send(params, context)
+        result: Message | Task = await super().on_message_send(params, context)
+        return result
 
-    async def on_message_send_stream(self, params: SendMessageRequest, context: Any):
+    async def on_message_send_stream(self, params: SendMessageRequest,
+                                     context: Any) -> AsyncGenerator[Event, None]:
         await self._admit(params, context)
         async for event in super().on_message_send_stream(params, context):
             yield event
@@ -225,6 +252,7 @@ class HandoffExecutor(AgentExecutor):
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         task_id, context_id = context.task_id or "", context.context_id or ""
         message = context.message
+        assert message is not None  # the SDK attaches the request message to every send
         # No history is stored on the task: the A2A task store keeps IDs and results only.
         await event_queue.enqueue_event(new_task(task_id, context_id, TaskState.TASK_STATE_SUBMITTED))
         updater = TaskUpdater(event_queue, task_id, context_id)
@@ -276,7 +304,7 @@ def build_app(*, db: Path, base_url: str, receiver_id: str, approvals: list[Appr
                                     client_context_id=client_context_id)
 
     @contextlib.asynccontextmanager
-    async def lifespan(_app: Starlette):
+    async def lifespan(_app: Starlette) -> AsyncIterator[None]:
         yield
         await handler.aclose()
 
@@ -310,7 +338,7 @@ def main() -> None:
                              "(default: contextId is server-generated and a client one is rejected)")
     options = parser.parse_args()
     approval = Approval(options.approval, options.task_id, options.origin_id, options.receiver_id,
-                        options.kind, expires_at=datetime.now(timezone.utc) + timedelta(minutes=10))
+                        options.kind, expires_at=datetime.now(UTC) + timedelta(minutes=10))
     # Intentionally impossible to bind a public interface through this CLI.
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(("127.0.0.1", options.port))
@@ -323,10 +351,8 @@ def main() -> None:
                                        else CLIENT_CONTEXT_REJECTED))
     print(json.dumps({"port": port, "agent": options.receiver_id, "url": base_url}), flush=True)
     server = uvicorn.Server(uvicorn.Config(app, log_level="warning", access_log=False))
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         server.run(sockets=[sock])
-    except KeyboardInterrupt:
-        pass
 
 
 if __name__ == "__main__":

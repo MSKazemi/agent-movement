@@ -25,7 +25,7 @@ from __future__ import annotations
 import hashlib
 import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -272,7 +272,7 @@ class A2ACorrelationLog:
             outcome,
             None if envelope is None else self.store.fingerprint(envelope),
             None if artifact_digest is None else self.store.keyed_digest(artifact_digest),
-            datetime.now(timezone.utc).isoformat(),
+            datetime.now(UTC).isoformat(),
         )
         db = self._connect()
         try:
@@ -291,13 +291,32 @@ class A2ACorrelationLog:
             found = db.execute(f"SELECT {','.join(names)} FROM a2a_correlations ORDER BY seq").fetchall()
         finally:
             db.close()
-        return [dict(zip(names, row)) for row in found]
+        return [dict(zip(names, row, strict=True)) for row in found]
 
 
 __all__ = [
-    "A2ACorrelationLog", "CLIENT_CONTEXT_BOUND", "CLIENT_CONTEXT_POLICIES", "CLIENT_CONTEXT_REJECTED",
-    "EXTENSION_URI", "EXTENSION_URIS", "KINDS", "LEGACY_EXTENSION_URI", "PROFILE_VERSION",
-    "ProfileError", "RECEIPT_ARTIFACT_NAME", "RECEIPT_MEDIA_TYPE", "REPOSITORY_URL", "SCHEMA_VERSION",
-    "SPEC_PATH", "TASK_MEDIA_TYPE", "a2a_to_envelope", "check_context_id", "context_policy",
-    "envelope_to_a2a", "receipt_to_artifact", "safe_token", "skill_id", "verify_receipt",
+    "CLIENT_CONTEXT_BOUND",
+    "CLIENT_CONTEXT_POLICIES",
+    "CLIENT_CONTEXT_REJECTED",
+    "EXTENSION_URI",
+    "EXTENSION_URIS",
+    "KINDS",
+    "LEGACY_EXTENSION_URI",
+    "PROFILE_VERSION",
+    "RECEIPT_ARTIFACT_NAME",
+    "RECEIPT_MEDIA_TYPE",
+    "REPOSITORY_URL",
+    "SCHEMA_VERSION",
+    "SPEC_PATH",
+    "TASK_MEDIA_TYPE",
+    "A2ACorrelationLog",
+    "ProfileError",
+    "a2a_to_envelope",
+    "check_context_id",
+    "context_policy",
+    "envelope_to_a2a",
+    "receipt_to_artifact",
+    "safe_token",
+    "skill_id",
+    "verify_receipt",
 ]

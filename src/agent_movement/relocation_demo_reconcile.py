@@ -18,11 +18,11 @@ and a crash is ``os._exit`` at the named point. Synthetic data only; no model ca
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from .relocation import RETRY_SUFFIX, Coordinator
-from .relocation_demo import (EFFECT_ID, EXPECTED_WORDS, ITEMS, TASK, Run, _injected, completed, constraints,
-                              evidence)
+from .relocation_demo import EFFECT_ID, EXPECTED_WORDS, ITEMS, TASK, Run, _injected, completed, constraints, evidence
 from .relocation_demo_two_store import TwoStoreRun
 
 OPERATOR = "ops-alice"
@@ -86,9 +86,9 @@ def resume(run: Run, incarnation: int = 2, epoch: int = 3, crash: str | None = N
 
 # --- scenarios ----------------------------------------------------------------------
 
-def resolution(point: str, decision: str):
+def resolution(point: str, decision: str) -> Callable[[Run], tuple[str, dict[str, Any]]]:
     """Park, let the operator decide (truthfully or not), resume; judged on the end state."""
-    def scenario(run: Run):
+    def scenario(run: Run) -> tuple[str, dict[str, Any]]:
         truth = out_of_band_check(park(run, point), EFFECT_ID)
         decide(run, decision)
         resume(run)
@@ -96,7 +96,7 @@ def resolution(point: str, decision: str):
     return scenario
 
 
-def r_stale_epoch(run: Run):
+def r_stale_epoch(run: Run) -> tuple[str, str, dict[str, Any]]:
     park(run, "effect_commit.after")
 
     def finish() -> None:
@@ -106,7 +106,7 @@ def r_stale_epoch(run: Run):
                      reconcile_action(run, "confirmed_done", epoch=2), "denied", finish)
 
 
-def r_duplicate(run: Run):
+def r_duplicate(run: Run) -> tuple[str, str, dict[str, Any]]:
     park(run, "effect_commit.after")
     decide(run, "confirmed_done")
     resume(run)
@@ -114,7 +114,7 @@ def r_duplicate(run: Run):
                      reconcile_action(run, "confirmed_done"), "deduplicated", lambda: None)
 
 
-def r_conflicting(run: Run):
+def r_conflicting(run: Run) -> tuple[str, str, dict[str, Any]]:
     park(run, "effect_commit.after")
     decide(run, "confirmed_done")
     return _injected(run, "ops-bob records confirmed_absent",
@@ -122,7 +122,7 @@ def r_conflicting(run: Run):
                      lambda: resume(run))
 
 
-def r_not_parked(run: Run):
+def r_not_parked(run: Run) -> tuple[str, str, dict[str, Any]]:
     run.start_a()
     run.relocate()
     run.run()
@@ -130,7 +130,7 @@ def r_not_parked(run: Run):
                      reconcile_action(run, "confirmed_absent", epoch=2), "denied", lambda: None)
 
 
-def r_retry_budget(run: Run):
+def r_retry_budget(run: Run) -> tuple[str, str, dict[str, Any]]:
     park(run, "effect_commit.before")
     decide(run, "confirmed_absent")
     if not resume(run, crash="effect_commit.after")["crashed"]:
@@ -189,7 +189,7 @@ def judge_resolution(row: dict[str, Any], truth: str, obs: dict[str, Any]) -> st
     decision = row["decision"]
     correct = (decision == "confirmed_done") == (truth == "done")
     expected_calls = 1 if correct else (0 if decision == "confirmed_done" else 2)
-    record = next((r for r in obs["reconciliations"] if r["effect_id"] == EFFECT_ID), {})
+    record: dict[str, Any] = next((r for r in obs["reconciliations"] if r["effect_id"] == EFFECT_ID), {})
     retried = obs["opaque_calls_by_effect"].get(RETRY_ID, 0)
     ok = (task_finished(values) and not obs["gateway_commits"]
           and obs["opaque_invocations"] == expected_calls
@@ -231,8 +231,8 @@ def run_matrix(root: str, two_store: bool = False) -> list[dict[str, Any]]:
 
 
 def markdown(rows: list[dict[str, Any]]) -> str:
-    lines = ["| ID | Extends | Injected fault / operator decision | Expected | Observed | Recovery / handling | "
-             "Opaque calls by effect ID | Original effect ledger | Final |",
+    lines = [("| ID | Extends | Injected fault / operator decision | Expected | Observed | Recovery / handling | "
+              "Opaque calls by effect ID | Original effect ledger | Final |"),
              "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
     for r in rows:
         e = r["evidence"]

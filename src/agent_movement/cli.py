@@ -26,10 +26,11 @@ import importlib.util
 import inspect
 import platform
 import sys
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from importlib import metadata
-from typing import Any, Callable, Iterator, Sequence
+from typing import Any
 
 PROG = "agent-movement"
 DISTRIBUTION = "agent-movement-lab"
@@ -157,7 +158,8 @@ def _resolve(command: Command, args: list[str]) -> tuple[str, str, list[str]]:
 
 def _load(target: str) -> Callable[..., Any]:
     module_name, _, attr = target.partition(":")
-    return getattr(importlib.import_module(module_name), attr)
+    func: Callable[..., Any] = getattr(importlib.import_module(module_name), attr)
+    return func
 
 
 @contextmanager

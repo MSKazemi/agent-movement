@@ -23,14 +23,25 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from .core import canonical
-from .peer import (DELIVERY_PATH, HandoffAborted, HttpTransport, PeerClient, RecordingTransport,
-                   TRACE_FIELDS)
+from .peer import DELIVERY_PATH, TRACE_FIELDS, HandoffAborted, HttpTransport, PeerClient, RecordingTransport
 from .peer_http import make_peer_server
-from .trust import (ED25519, HS256, HpkeKey, TrustStore, ed25519_available, generate_key,
-                    hpke_available, issue_card, issue_grant, issue_revocation)
+from .trust import (
+    ED25519,
+    HS256,
+    HpkeKey,
+    TrustStore,
+    ed25519_available,
+    generate_key,
+    hpke_available,
+    issue_card,
+    issue_grant,
+    issue_revocation,
+)
 
 TASK_CANARY = "CANARY-TASK-demo-5a7b"
 PROVIDER_CANARY = "CANARY-PROVIDER-TOKEN-demo-not-real"
@@ -39,14 +50,14 @@ PROVIDER_CANARY = "CANARY-PROVIDER-TOKEN-demo-not-real"
 def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+        return int(s.getsockname()[1])
 
 
 class _Static:
-    def __init__(self, card: dict) -> None:
+    def __init__(self, card: dict[str, Any]) -> None:
         self.card = card
 
-    def handle(self, method: str, path: str, body: bytes) -> tuple[int, dict]:
+    def handle(self, method: str, path: str, body: bytes) -> tuple[int, dict[str, Any]]:
         return (200, self.card) if method == "GET" else (403, {"error": "forbidden"})
 
 
@@ -68,7 +79,7 @@ def main(argv: list[str] | None = None) -> None:
     keys = {n: generate_key(alg, f"{n}-key") for n in ("agent-a", "agent-b", "agent-c")}
     rogue_ca, rogue_a = generate_key(alg, "test-ca"), generate_key(alg, "agent-a-key")
     trust = TrustStore.build([ca], [users], keys.values() if alg == HS256 else ())
-    window = {"not_before": now - 60, "expires_at": now + 900}
+    window: dict[str, Any] = {"not_before": now - 60, "expires_at": now + 900}
     b_url = f"http://127.0.0.1:{_free_port()}"
     cards = {"agent-a": issue_card(ca, agent_id="agent-a", endpoint_url="local://agent-a",
                                    capabilities=["word_count"], agent_key=keys["agent-a"], **window),
@@ -77,8 +88,8 @@ def main(argv: list[str] | None = None) -> None:
              "agent-c": issue_card(ca, agent_id="agent-c", endpoint_url="local://agent-c",
                                    capabilities=["word_count"], agent_key=keys["agent-c"], **window)}
 
-    def grant(grant_id: str, **kw: object) -> dict:
-        fields = {"grant_id": grant_id, "subject": "user-synthetic-1", "actor": "agent-a",
+    def grant(grant_id: str, **kw: object) -> dict[str, Any]:
+        fields: dict[str, Any] = {"grant_id": grant_id, "subject": "user-synthetic-1", "actor": "agent-a",
                   "audience": "agent-b", "task_id": "demo-task", "capabilities": ["word_count"],
                   "not_before": now - 60, "expires_at": now + 600, **kw}
         return issue_grant(users, **fields)
@@ -105,13 +116,14 @@ def main(argv: list[str] | None = None) -> None:
             json.loads(process.stdout.readline())  # receiver is listening
 
             def run(name: str, *, agent: str = "agent-a", key: object = None, url: str = b_url,
-                    g: dict | None = None, schema: str | None = None, before: object = None) -> None:
+                    g: dict[str, Any] | None = None, schema: str | None = None,
+                    before: Callable[[str, str, bytes | None], None] | None = None) -> None:
                 wire = RecordingTransport(HttpTransport(), on_request=before)
-                extra = {"schema_version": schema} if schema else {}
+                extra: dict[str, Any] = {"schema_version": schema} if schema else {}
                 client = PeerClient(cards[agent], key or keys[agent], trust, wire,
                                     never_send=[PROVIDER_CANARY],
                                     require_confidentiality=delivery == "hpke", **extra)
-                outcome = {"scenario": name}
+                outcome: dict[str, Any] = {"scenario": name}
                 try:
                     receipt = client.handoff(url=url, destination_id="agent-b", movement_id=f"mv-{name}",
                                              task_id="demo-task", kind="word_count",
@@ -157,7 +169,7 @@ def main(argv: list[str] | None = None) -> None:
                 process.wait()
         with sqlite3.connect(db) as conn:
             rows = conn.execute(f"SELECT {','.join(TRACE_FIELDS)} FROM peer_trace ORDER BY seq").fetchall()
-        traces = [dict(zip(TRACE_FIELDS, row)) for row in rows]
+        traces = [dict(zip(TRACE_FIELDS, row, strict=True)) for row in rows]
         stored = b"".join(p.read_bytes() for p in Path(root).iterdir() if p.name.startswith("receiver.sqlite"))
 
     confidentiality = "hpke" if delivery == "hpke" else "none (plaintext delivery, no confidentiality)"

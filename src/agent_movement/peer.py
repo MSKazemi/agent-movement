@@ -34,18 +34,57 @@ import sqlite3
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Iterable
+from datetime import UTC, datetime
+from typing import Any, Protocol
 
-from .core import (MAX_TEXT, SCHEMA_VERSION, Conflict, ContractError, PolicyDenied, SQLiteStore,
-                   _fields, _id, canonical, digest, parse_json, validate_envelope)
-from .trust import (CLASSIFICATIONS, HPKE_SUITE, MAX_SEALED_B64, PEER_SCHEMA_VERSION, TASK_KINDS,
-                    DisclosureBlocked, HpkeKey, TrustDenied, TrustStore, Unauthenticated,
-                    Unauthorized, UnsupportedSchema, VerifiedCard, b64d, b64e, check_grant_live,
-                    check_grant_scope, commitment, delivery_info, endpoint, hpke_available,
-                    open_response, safe_id, seal, seal_response, sealed_parts, unseal, verify_card,
-                    verify_grant, verify_revocation)
+from .core import (
+    MAX_TEXT,
+    SCHEMA_VERSION,
+    Conflict,
+    ContractError,
+    PolicyDenied,
+    SQLiteStore,
+    _fields,
+    _id,
+    canonical,
+    digest,
+    parse_json,
+    validate_envelope,
+)
+from .trust import (
+    CLASSIFICATIONS,
+    HPKE_SUITE,
+    MAX_SEALED_B64,
+    PEER_SCHEMA_VERSION,
+    TASK_KINDS,
+    DisclosureBlocked,
+    HpkeKey,
+    TrustDenied,
+    TrustStore,
+    Unauthenticated,
+    Unauthorized,
+    UnsupportedSchema,
+    VerifiedCard,
+    b64d,
+    b64e,
+    check_grant_live,
+    check_grant_scope,
+    commitment,
+    delivery_info,
+    endpoint,
+    hpke_available,
+    open_response,
+    safe_id,
+    seal,
+    seal_response,
+    sealed_parts,
+    unseal,
+    verify_card,
+    verify_grant,
+    verify_revocation,
+)
 
 LOG = logging.getLogger("agent_movement.peer")
 CARD_PATH, PREFLIGHT_PATH, DELIVERY_PATH, REVOCATION_PATH = (
@@ -183,7 +222,7 @@ class PeerLedger:
         with self.store._connection() as db:
             rows = (db.execute(query + " ORDER BY grant_id, use_number").fetchall() if grant_id is None
                     else db.execute(query + " WHERE grant_id=? ORDER BY use_number", (grant_id,)).fetchall())
-        return [dict(zip(names, row)) for row in rows]
+        return [dict(zip(names, row, strict=True)) for row in rows]
 
     @staticmethod
     def is_revoked(db: sqlite3.Connection, grant_id: str) -> bool:
@@ -203,8 +242,8 @@ class PeerLedger:
             db.commit()
             return True
 
-    def trace(self, stage: str, outcome: str, reason: str, ctx: "TraceContext") -> None:
-        event = {"at": datetime.now(timezone.utc).isoformat(), "stage": stage, "outcome": outcome,
+    def trace(self, stage: str, outcome: str, reason: str, ctx: TraceContext) -> None:
+        event = {"at": datetime.now(UTC).isoformat(), "stage": stage, "outcome": outcome,
                  "reason": reason, "movement_id": ctx.movement_id, "peer": ctx.peer,
                  "claimed_peer": ctx.claimed_peer, "admission_id": ctx.admission_id}
         with self.store._connection() as db:
@@ -216,18 +255,19 @@ class PeerLedger:
     def traces(self) -> list[dict[str, Any]]:
         with self.store._connection() as db:
             rows = db.execute(f"SELECT {','.join(TRACE_FIELDS)} FROM peer_trace ORDER BY seq").fetchall()
-        return [dict(zip(TRACE_FIELDS, row)) for row in rows]
+        return [dict(zip(TRACE_FIELDS, row, strict=True)) for row in rows]
 
     def authority_log(self) -> list[dict[str, Any]]:
         with self.store._connection() as db:
             rows = db.execute("SELECT seq,event,grant_id,ref FROM authority_log ORDER BY seq").fetchall()
-        return [dict(zip(("seq", "event", "grant_id", "ref"), row)) for row in rows]
+        return [dict(zip(("seq", "event", "grant_id", "ref"), row, strict=True)) for row in rows]
 
     def effects(self) -> list[dict[str, Any]]:
         with self.store._connection() as db:
             rows = db.execute("SELECT task_id,effect_id,grant_id,agent_id,log_seq FROM authorized_effects "
                               "ORDER BY log_seq").fetchall()
-        return [dict(zip(("task_id", "effect_id", "grant_id", "agent_id", "log_seq"), row)) for row in rows]
+        names = ("task_id", "effect_id", "grant_id", "agent_id", "log_seq")
+        return [dict(zip(names, row, strict=True)) for row in rows]
 
 
 class AuthorizedEffectGateway:
@@ -446,6 +486,8 @@ class PeerReceiver:
 
     def delivery_info(self, record: dict[str, Any], admission_id: str) -> bytes:
         """The HPKE ``info`` for an admitted movement, rebuilt from receiver-side state only."""
+        if self.enc_key is None:
+            raise ContractError("this receiver does not accept sealed deliveries")
         return delivery_info(card_digest=self.card_digest, enc_kid=self.enc_key.kid,
                              movement_id=record["movement_id"], origin_id=record["origin_id"],
                              audience=self.agent_id, endpoint_url=self.endpoint,
@@ -564,6 +606,12 @@ class InProcessTransport:
         return status, json.dumps(obj, sort_keys=True).encode("utf-8")
 
 
+class Transport(Protocol):
+    """What PeerClient needs from a transport: one request, returning (status, body bytes)."""
+
+    def request(self, method: str, url: str, path: str, body: bytes | None) -> tuple[int, bytes]: ...
+
+
 class HttpTransport:
     """Loopback-only HTTP client transport."""
 
@@ -571,9 +619,9 @@ class HttpTransport:
         if not url.startswith("http://127.0.0.1:"):
             raise ContractError("HTTP transport is loopback-only")
         headers = {"Content-Type": "application/json"} if body is not None else {}
-        request = urllib.request.Request(url + path, data=body, headers=headers, method=method)
+        request = urllib.request.Request(url + path, data=body, headers=headers, method=method)  # noqa: S310 (checked above)
         try:
-            with urllib.request.urlopen(request, timeout=5) as response:
+            with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310
                 return response.status, response.read()
         except urllib.error.HTTPError as exc:
             return exc.code, exc.read()
@@ -583,7 +631,7 @@ class HttpTransport:
 class RecordingTransport:
     """Captures every byte exchanged so tests can prove what was (not) transmitted."""
 
-    inner: Any
+    inner: Transport
     on_request: Callable[[str, str, bytes | None], None] | None = None
     exchanges: list[dict[str, Any]] = field(default_factory=list)
 
@@ -631,7 +679,7 @@ class PeerClient:
     client trace labels them ``plaintext_no_confidentiality``.
     """
 
-    def __init__(self, card: dict[str, Any], key: Any, trust: TrustStore, transport: Any, *,
+    def __init__(self, card: dict[str, Any], key: Any, trust: TrustStore, transport: Transport, *,
                  never_send: Iterable[str | bytes] = (), clock: Callable[[], float] = time.time,
                  schema_version: str = PEER_SCHEMA_VERSION, require_confidentiality: bool = False):
         self.card, self.key, self.trust, self.transport = card, key, trust, transport
