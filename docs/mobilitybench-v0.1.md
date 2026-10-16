@@ -268,4 +268,5 @@ v0.1 therefore measures a single hop. It cannot say how constraints, evidence or
 
 - **v0.2:** score B3 once issue #9 lands, with crash points inside the plan (not only at the movement point) and partitions. Score B2 once issue #7 lands.
 - **Multi-hop track (planned):** chains of 0-8 transfers with annotated invariants; see [Planned: multi-hop track](#planned-multi-hop-track).
+- **Cost terms:** the proposed [economic evaluation methodology](economic-evaluation.md) maps each cost term to a field in the per-attempt record, or marks it unmeasured (human review time, incident severity, wire bytes).
 - **Later:** an LLM executor behind the same interface, with pinned model versions in `run_version.model`, real repeated sampling, and pre-registered sample sizes and intervals. Also blinded human rubric scoring for document tasks, and external task contributions.
