@@ -100,7 +100,7 @@ Suggested reading order:
 20. [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
 21. [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
 22. [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
-23. [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md)
+23. [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
 
 Further research notes:
 

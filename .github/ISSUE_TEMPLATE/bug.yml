@@ -1,0 +1,73 @@
+name: Bug report
+description: Something in agent_movement, the corpus tools, a gate or CI does not work as documented.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Security vulnerabilities do not belong here**: follow [SECURITY.md](https://github.com/MSKazemi/agent-movement/blob/main/SECURITY.md).
+        Use synthetic data only. Never paste real secrets, tokens, private keys or personal data.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands you ran, from a fresh environment if possible.
+      placeholder: |
+        python -m pip install -e . "pytest>=9.1"
+        python -m agent_movement.demo
+      render: sh
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Relevant output, traceback or failing test. Remove anything sensitive.
+      render: text
+  - type: input
+    id: commit
+    attributes:
+      label: Commit SHA
+      description: Output of `git rev-parse HEAD`.
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version and OS
+      placeholder: CPython 3.13.15 on Ubuntu 24.04
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - agent_movement core (demo, http, fencing)
+        - A2A adapter (a2a extra)
+        - Peer authentication (ed25519 extra)
+        - Checkpoint relocation (relocation extra)
+        - Movement receipts (signing extra)
+        - MobilityBench
+        - Corpus tools or Makefile gates
+        - CI workflows
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: extras
+    attributes:
+      label: Installed optional extras
+      options:
+        - label: a2a
+        - label: ed25519
+        - label: relocation
+        - label: signing

@@ -1,0 +1,66 @@
+name: Research claim correction
+description: A statement in the documents, corpora or data tables is wrong, outdated or unsupported.
+title: "correction: "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Corrections need evidence. Please link a **primary source** (specification, standard, paper DOI or arXiv ID, or official documentation) and say when you checked it.
+        See the evidence standards in [CONTRIBUTING.md](https://github.com/MSKazemi/agent-movement/blob/main/CONTRIBUTING.md#evidence-and-citation-standards).
+  - type: input
+    id: location
+    attributes:
+      label: Where is the claim?
+      description: File path and section, data row, or corpus ID (AMN-NNN / AMP-NNN).
+      placeholder: docs/standards-tracker.md, "A2A" row
+    validations:
+      required: true
+  - type: textarea
+    id: claim
+    attributes:
+      label: Current claim
+      description: Quote the text as it is now.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: Proposed correction
+      description: What it should say instead.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Primary source links, the exact version or section, and what each source shows.
+    validations:
+      required: true
+  - type: input
+    id: checked
+    attributes:
+      label: Date you checked the sources
+      placeholder: YYYY-MM-DD
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of problem
+      options:
+        - Factual error
+        - Outdated (upstream changed)
+        - Missing or wrong citation
+        - Hypothesis or proposal presented as fact
+        - Overgeneralization
+        - Corpus record error (summary, metadata or coding)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit SHA you read
+      description: Optional. Output of `git rev-parse HEAD`, or the SHA in the permalink you used.
