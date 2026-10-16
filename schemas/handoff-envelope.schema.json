@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/MSKazemi/agent-movement/blob/main/schemas/handoff-envelope.schema.json",
+  "title": "Agent-movement handoff envelope 0.2.0-draft",
+  "description": "Canonical handoff envelope of the agent-movement project (issue #33). A project proposal, not a published or interoperable wire standard. The owning document is docs/how-it-works.md, which also lists every divergence from the implemented strict profile in src/agent_movement/core.py (that profile still sends schema_version 0.1.0-draft). Uses only the keyword subset that tools/schema_subset.py validates.",
+  "type": "object",
+  "required": ["schema_version", "movement_id", "logical_task_id", "operation", "origin", "destination", "task", "context", "authority", "execution", "observability"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "0.2.0-draft"},
+    "movement_id": {"$ref": "#/$defs/id", "description": "One attempted source-to-destination transfer; new for every attempt."},
+    "parent_movement_id": {"$ref": "#/$defs/nullable_id", "description": "Lineage link to the movement this one continues, or null."},
+    "logical_task_id": {"$ref": "#/$defs/id", "description": "Stable logical task identity across movements and executions."},
+    "operation": {"enum": ["delegate", "relocate"]},
+    "origin": {
+      "type": "object",
+      "required": ["agent_id"],
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": {"$ref": "#/$defs/id", "description": "A claim for correlation, not an authenticated identity."},
+        "execution_id": {"$ref": "#/$defs/id", "description": "The origin's concrete execution (formerly run_id)."}
+      }
+    },
+    "destination": {
+      "type": "object",
+      "required": ["agent_id"],
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": {"$ref": "#/$defs/id", "description": "A claim for correlation, not an authenticated identity."},
+        "endpoint_id": {"$ref": "#/$defs/id", "description": "Allowlisted endpoint registration, not a URL."}
+      }
+    },
+    "task": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"$ref": "#/$defs/id", "description": "Requested action from a receiver-side allowlist."},
+        "text": {"type": "string", "description": "Inline input; the implemented profile bounds it to 2048 UTF-8 bytes."},
+        "goal": {"type": "string", "minLength": 1, "description": "Human-readable goal; never a credential or private reasoning."},
+        "deadline": {"$ref": "#/$defs/nullable_timestamp"}
+      }
+    },
+    "context": {
+      "type": "object",
+      "required": ["classification"],
+      "additionalProperties": false,
+      "properties": {
+        "classification": {"enum": ["synthetic", "public", "internal", "confidential"]},
+        "purpose": {"$ref": "#/$defs/id"},
+        "artifact_refs": {"type": "array", "items": {"$ref": "#/$defs/artifact_ref"}}
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "checkpoint_format": {"$ref": "#/$defs/nullable_id"},
+        "runtime_version": {"$ref": "#/$defs/nullable_id"}
+      }
+    },
+    "authority": {
+      "type": "object",
+      "required": ["approval_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "approval_ref": {"$ref": "#/$defs/id", "description": "Reference to the approval record that authorizes this transfer."},
+        "grant_ref": {"$ref": "#/$defs/id", "description": "Opaque reference to a scoped, short-lived delegation grant; never a bearer token."},
+        "expires_at": {"$ref": "#/$defs/timestamp", "description": "Expiry of the authority carried by this envelope."},
+        "delegation_depth": {"type": "integer", "minimum": 0}
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": ["idempotency_key"],
+      "additionalProperties": false,
+      "properties": {
+        "idempotency_key": {"$ref": "#/$defs/id"},
+        "checkpoint_ref": {"$ref": "#/$defs/nullable_id"},
+        "fencing_epoch": {"type": ["integer", "null"], "minimum": 1, "description": "Monotonic coordinator epoch (glossary decision T13)."},
+        "max_runtime_seconds": {"type": "integer", "minimum": 1},
+        "max_network_bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "observability": {
+      "type": "object",
+      "required": ["trace_id"],
+      "additionalProperties": false,
+      "properties": {
+        "trace_id": {"$ref": "#/$defs/id"},
+        "traceparent": {"type": "string", "pattern": "^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$"}
+      }
+    },
+    "message": {
+      "type": "object",
+      "description": "Communication-policy extension (docs/agent-communication-and-policy.md).",
+      "required": ["message_id"],
+      "additionalProperties": false,
+      "properties": {
+        "message_id": {"$ref": "#/$defs/id"},
+        "parent_message_id": {"$ref": "#/$defs/nullable_id"},
+        "expires_at": {"$ref": "#/$defs/timestamp", "description": "Delivery TTL of this message, separate from authority.expires_at."}
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "required": ["envelope_digest"],
+      "additionalProperties": false,
+      "properties": {
+        "envelope_digest": {"$ref": "#/$defs/sha256", "description": "SHA-256 of agent_movement.core.canonical(envelope without the integrity member)."},
+        "signature_ref": {"$ref": "#/$defs/id"}
+      }
+    }
+  },
+  "if": {"required": ["operation"], "properties": {"operation": {"const": "relocate"}}},
+  "then": {
+    "properties": {
+      "origin": {"required": ["agent_id", "execution_id"]},
+      "requirements": {
+        "required": ["checkpoint_format", "runtime_version"],
+        "properties": {
+          "checkpoint_format": {"$ref": "#/$defs/id"},
+          "runtime_version": {"$ref": "#/$defs/id"}
+        }
+      },
+      "execution": {
+        "required": ["idempotency_key", "checkpoint_ref", "fencing_epoch"],
+        "properties": {
+          "checkpoint_ref": {"$ref": "#/$defs/id"},
+          "fencing_epoch": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "required": ["requirements"]
+  },
+  "$defs": {
+    "id": {
+      "description": "Opaque identifier; the same syntax as agent_movement.core.ID.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+    },
+    "nullable_id": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z][A-Za-z0-9._:-]{0,127}$"
+    },
+    "timestamp": {
+      "description": "RFC 3339 date-time with an explicit offset.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "nullable_timestamp": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact_ref": {
+      "type": "object",
+      "required": ["ref", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "ref": {"$ref": "#/$defs/id", "description": "Opaque reference resolved under a separate ACL; never a pre-authenticated URL."},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "size_bytes": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

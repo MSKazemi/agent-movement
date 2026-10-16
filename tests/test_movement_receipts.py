@@ -2,6 +2,7 @@ import copy
 import filecmp
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -11,7 +12,7 @@ from datetime import timedelta
 from pathlib import Path
 from unittest import mock
 
-from agent_movement import receipts
+from agent_movement import receipt_fixtures, receipts
 from agent_movement.core import Approval, HandoffReceiver, SQLiteStore, digest
 from agent_movement.jcs import CanonicalizationError, canonicalize, jcs_digest
 from agent_movement.receipts import (HAVE_ED25519, ReceiptError, ReplayGuard, contains_token_like, parse_time,
@@ -22,6 +23,14 @@ FIXTURES = Path(__file__).parent / "fixtures" / "movement-receipts"
 TRUST = FIXTURES / "trust.json"
 NOW = parse_time("2026-10-16T00:00:00Z")
 EXPECTED = json.loads((FIXTURES / "expected.json").read_text())
+# Issue #21: the verifier exit code of every committed bundle, with and without the signing extra.
+FIXTURE_EXIT_CODES = {"01-valid-delegation": 0, "02-tampered-receipts": 1, "03-replayed-receipts": 1,
+                      "04-forged-identity": 1, "05-missing-claims": 0, "06-conflicting-accounts": 1,
+                      "07-fork-lineage": 0, "08-privacy-canaries": 1, "09-clock-skew": 0}
+# Without the extra, signatures are UNCHECKED (exit 3) and only signature-free checks can reject.
+CORE_ONLY_EXIT_CODES = {"01-valid-delegation": 3, "02-tampered-receipts": 1, "03-replayed-receipts": 1,
+                        "04-forged-identity": 1, "05-missing-claims": 3, "06-conflicting-accounts": 3,
+                        "07-fork-lineage": 3, "08-privacy-canaries": 1, "09-clock-skew": 3}
 needs_ed25519 = unittest.skipUnless(HAVE_ED25519, 'optional extra not installed: pip install -e ".[signing]"')
 
 
@@ -37,6 +46,16 @@ def write_bundle(root, receipt_wires=(), tool_wires=(), telemetry=()):
         if items:
             (root / name).write_bytes(b"".join(canonicalize(x) + b"\n" for x in items))
     return root
+
+
+def assert_no_canary_leaks(case, report, canaries):
+    """No planted canary, nor any marker derived from its seed, reaches the text or JSON report."""
+    rendered = json.dumps(report) + render_text(report)
+    markers = set(re.findall(receipt_fixtures.CANARY_PREFIX + "[a-p]{8}", " ".join(canaries.values())))
+    case.assertEqual(len(markers), 9)  # every planted canary carries its own seed-derived marker
+    for needle in (*markers, *canaries.values(), "CANARY", "canary", "Bearer", "eyJ", "prompt text",
+                   "session=", "session:", "api_key=", "api_key:"):
+        case.assertNotIn(needle, rendered)
 
 
 def cli(*args):
@@ -101,14 +120,28 @@ class SchemaAndPrivacyTests(unittest.TestCase):
         self.assertFalse(contains_token_like(self.body()))
 
     def test_privacy_fixture_never_leaks(self):
-        report = verify_bundle(FIXTURES / "08-privacy-canaries", TRUST, NOW)
-        rendered = json.dumps(report) + render_text(report)
-        for needle in ("canary", "Bearer", "eyJhbGci", "prompt text", "session=", "api_key="):
-            self.assertNotIn(needle, rendered)
+        bundle = FIXTURES / "08-privacy-canaries"
+        report = verify_bundle(bundle, TRUST, NOW)
+        canaries = receipt_fixtures.privacy_canaries()
+        committed = "".join(p.read_text() for p in bundle.iterdir())
+        for value in canaries.values():
+            self.assertIn(value, committed)  # the committed canaries are exactly the seed-derived ones
+        assert_no_canary_leaks(self, report, canaries)
         self.assertEqual(report["telemetry"]["redactions"], 6)
         self.assertEqual(report["receipt_verdicts"]["MALFORMED"], 2)
-        for raw in (FIXTURES / "08-privacy-canaries" / "receipts.jsonl").read_text().splitlines()[:2]:
-            self.assertNotIn("canary", raw)  # the valid receipts themselves are clean
+        for raw in (bundle / "receipts.jsonl").read_text().splitlines()[:2]:
+            self.assertNotIn("canary", raw.lower())  # the valid receipts themselves are clean
+
+    def test_canaries_trip_redaction_by_shape_not_by_credential_format(self):
+        canaries = receipt_fixtures.privacy_canaries()
+        for name in ("jwt_shaped", "bearer_value", "api_key_assignment", "span_name"):
+            self.assertTrue(receipts.TOKEN_LIKE.search(canaries[name]), name)
+        for name, value in canaries.items():
+            # Letters-only markers: no digits, no provider prefix, low entropy.
+            self.assertNotRegex(value, r"\d", name)
+            self.assertNotRegex(value, r"(?:AKIA|gh[pousr]_|xox[abprs]-|sk-|sk_|glpat-|AIza|hf_)", name)
+        other = receipt_fixtures.privacy_canaries("another-seed")
+        self.assertTrue(set(other.values()).isdisjoint(canaries.values()))
 
     def test_runtime_canaries_redacted_from_cli_output(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -158,6 +191,12 @@ class WithoutSignatureSupportTests(unittest.TestCase):
         self.assertEqual(report["exit_code"], 3)
         self.assertEqual(report["timeline_status"]["VERIFIABLE"], 0)
         self.assertTrue(report["signature_checking"].startswith("UNAVAILABLE"))
+
+    def test_every_fixture_exit_code_without_the_extra(self):
+        self.assertEqual(sorted(CORE_ONLY_EXIT_CODES), sorted(FIXTURE_EXIT_CODES))
+        for name, code in CORE_ONLY_EXIT_CODES.items():
+            with self.subTest(bundle=name):
+                self.assertEqual(self.verify(name)["exit_code"], code)
 
     def test_digest_tampering_and_exact_replay_still_detected(self):
         tampered = {r["ref"]: r["verdict"] for r in self.verify("02-tampered-receipts")["receipts"]}
@@ -220,22 +259,64 @@ class FixtureSetTests(unittest.TestCase):
         self.assertEqual(report["movements"]["mov-missing-1"]["trace_ids"]["value"], [])
 
     def test_cli_exit_codes_and_outputs(self):
-        ok = cli("verify", str(FIXTURES / "01-valid-delegation"), "--now", "2026-10-16T00:00:00Z")
+        trust = ("--trust", str(TRUST))
+        ok = cli("verify", str(FIXTURES / "01-valid-delegation"), *trust, "--now", "2026-10-16T00:00:00Z")
         self.assertEqual(ok.returncode, 0, ok.stderr)
         self.assertIn("5 VALID", ok.stdout)
-        bad = cli("verify", str(FIXTURES / "02-tampered-receipts"), "--json")
+        self.assertNotIn("FIXTURE MODE", ok.stdout + ok.stderr)
+        bad = cli("verify", str(FIXTURES / "02-tampered-receipts"), *trust, "--json")
         self.assertEqual(bad.returncode, 1)
         self.assertEqual(json.loads(bad.stdout)["receipt_verdicts"]["TAMPERED"], 2)
-        whole = cli("verify", str(FIXTURES))
+        self.assertEqual(json.loads(bad.stdout)["trust_anchor_mode"], "explicit")
+        whole = cli("verify", str(FIXTURES), *trust)
         self.assertEqual(whole.returncode, 1)
         self.assertEqual(sum(x.startswith("bundle ") for x in whole.stdout.splitlines()), len(EXPECTED))
-        timeline = cli("timeline", str(FIXTURES / "09-clock-skew"))
+        timeline = cli("timeline", str(FIXTURES / "09-clock-skew"), *trust)
         self.assertEqual([e["order"] for e in json.loads(timeline.stdout)], [1, 2, 3])
         with tempfile.TemporaryDirectory() as tmp:
             shutil.copy(FIXTURES / "01-valid-delegation" / "receipts.jsonl", tmp)
             missing = cli("verify", tmp)
             self.assertEqual(missing.returncode, 2)
             self.assertIn("no trust anchors", missing.stderr)
+
+    def test_cli_requires_out_of_band_trust_anchors(self):
+        for command in ("verify", "timeline"):
+            with self.subTest(command=command):
+                # The committed fixture set ships a trust.json beside every bundle; it is never picked up.
+                result = cli(command, str(FIXTURES / "01-valid-delegation"), "--now", "2026-10-16T00:00:00Z")
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stdout, "")
+                self.assertIn("pass --trust FILE", result.stderr)
+                self.assertIn("never used implicitly", result.stderr)
+        both = cli("verify", str(FIXTURES / "01-valid-delegation"), "--trust", str(TRUST), "--fixture-trust")
+        self.assertEqual(both.returncode, 2)
+        with self.assertRaisesRegex(ReceiptError, "no trust anchors"):
+            verify_bundle(FIXTURES / "01-valid-delegation", None, NOW)
+
+    def test_cli_fixture_matrix_exit_codes(self):
+        self.assertEqual(FIXTURE_EXIT_CODES, {name: spec["exit_code"] for name, spec in EXPECTED.items()})
+        for name, code in FIXTURE_EXIT_CODES.items():
+            with self.subTest(bundle=name):
+                result = cli("verify", str(FIXTURES / name), "--trust", str(TRUST), "--now", "2026-10-16T00:00:00Z")
+                self.assertEqual(result.returncode, code, result.stderr)
+                self.assertEqual(result.stderr, "")
+        # Fixture mode gives the same codes for the synthetic set, but always says so.
+        fixture = cli("verify", str(FIXTURES), "--fixture-trust", "--json", "--now", "2026-10-16T00:00:00Z")
+        self.assertEqual(fixture.returncode, 1)
+        self.assertEqual({r["bundle"]: r["exit_code"] for r in json.loads(fixture.stdout)}, FIXTURE_EXIT_CODES)
+        self.assertEqual({r["trust_anchor_mode"] for r in json.loads(fixture.stdout)}, {"fixture"})
+        self.assertIn("WARNING: fixture mode", fixture.stderr)
+        self.assertIn("prove nothing", fixture.stderr)
+
+    def test_runtime_canaries_from_other_seeds_never_leak(self):
+        for seed in ("runtime-seed-1", "runtime-seed-2", "runtime-seed-3"):
+            with self.subTest(seed=seed), tempfile.TemporaryDirectory() as tmp:
+                receipt_fixtures.scenario_privacy(seed).write(Path(tmp))
+                report = verify_bundle(Path(tmp) / "08-privacy-canaries", TRUST, NOW)
+                self.assertEqual((report["exit_code"], report["telemetry"]["redactions"]), (1, 6))
+                self.assertEqual({k: v for k, v in report["receipt_verdicts"].items() if v},
+                                 {"VALID": 2, "MALFORMED": 2})
+                assert_no_canary_leaks(self, report, receipt_fixtures.privacy_canaries(seed))
 
 
 @needs_ed25519
@@ -331,16 +412,33 @@ class AdversarialTests(unittest.TestCase):
         report, _ = self.verdicts([self.wires[0], self.fx.seal("agent-a", second)], name="shared-trace")
         self.assertEqual(sorted(report["movements"]), ["mov-valid-1", "mov-valid-2"])
 
-    def test_bundle_supplied_trust_anchor_is_a_documented_limit(self):
+    def test_bundle_supplied_trust_anchor_fails_closed(self):
         attacker = self.fx.Ed25519Signer("synthetic-attacker-key", b"\x02" * 32)
         body = copy.deepcopy(self.wires[1]["receipt"])
         body["issuer"]["key_id"] = attacker.key_id
         bundle = write_bundle(self.root / "evil", [attacker.seal(body)])
         doc = json.loads(TRUST.read_text())
         doc["keys"].append({**doc["keys"][1], "key_id": attacker.key_id, "public_key": attacker.public_key})
-        (bundle / "trust.json").write_text(json.dumps(doc))
-        self.assertEqual(verify_bundle(bundle, None, NOW)["receipt_verdicts"]["VALID"], 1)  # anchors from evidence!
-        self.assertEqual(verify_bundle(bundle, TRUST, NOW)["receipt_verdicts"]["UNTRUSTED"], 1)
+        planted = bundle / "trust.json"
+        planted.write_text(json.dumps(doc))
+        # Default: the planted anchors are never read; the verifier refuses to run.
+        with self.assertRaisesRegex(ReceiptError, "no trust anchors"):
+            verify_bundle(bundle, None, NOW)
+        # Pointing --trust at the evidence itself is refused as well.
+        with self.assertRaisesRegex(ReceiptError, "inside the evidence bundle"):
+            verify_bundle(bundle, planted, NOW)
+        for args in ((), ("--trust", str(planted))):
+            result = cli("verify", str(bundle), *args)
+            self.assertEqual((result.returncode, result.stdout), (2, ""), result.stderr)
+        # Out-of-band anchors: the attacker key is untrusted and the run fails.
+        report = verify_bundle(bundle, TRUST, NOW)
+        self.assertEqual((report["receipt_verdicts"]["UNTRUSTED"], report["exit_code"]), (1, 1))
+        # Explicit fixture mode reproduces the old behaviour, which is why it is fixture-only and loud.
+        fixture = verify_bundle(bundle, now=NOW, fixture_trust=True)
+        self.assertEqual((fixture["receipt_verdicts"]["VALID"], fixture["trust_anchor_mode"]), (1, "fixture"))
+        self.assertIn("FIXTURE MODE", render_text(fixture))
+        warned = cli("verify", str(bundle), "--fixture-trust")
+        self.assertIn("WARNING: fixture mode", warned.stderr)
 
     def test_signer_refuses_credential_like_values(self):
         body = copy.deepcopy(self.wires[2]["receipt"])

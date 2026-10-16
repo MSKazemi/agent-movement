@@ -41,7 +41,7 @@ flowchart TD
 
 **P2 — Cross-host interoperability (future).** Linux laptop ↔ remote sandbox using TLS, scoped artifact store, verified endpoint, ACL and cancellation. Benchmark over Ethernet, Wi-Fi and emulated slow/partitioned WAN.
 
-**P3 — Crash-safe compatible relocation (future).** Single chosen workflow runtime, versioned app checkpoint, lease epoch and fence, durable inbox/outbox, simulated side effects, fault injection. Explicitly distinguish pause/restart from live migration.
+**P3 — Crash-safe compatible relocation (future).** Single chosen workflow runtime, versioned app checkpoint, fencing epoch (`fencing_epoch`) and fence, durable inbox/outbox, simulated side effects, fault injection. Explicitly distinguish pause/restart from live migration.
 
 **P4 — Multi-runtime and non-cloud edges (future).** Second framework adapter with compatibility loss report, device gateway and benchmark cases for constrained links. Do not claim universal feature portability.
 
@@ -57,7 +57,7 @@ flowchart TD
 | T06 | Same idempotency key sent twice | Single logical dispatch record; no duplicate simulated effect |
 | T07 | Connectivity lost after acceptance | Origin queries outcome; may report UNKNOWN |
 | T08 | Relocation without origin fence | **Refuse** resume |
-| T09 | Stale destination lease epoch | Action rejected |
+| T09 | Stale destination fencing epoch | Action rejected |
 | T10 | Checkpoint/runtime version mismatch | **Refuse** restore or negotiated new delegation |
 | T11 | Token and private text intentionally seeded in sample context | Neither crosses boundary nor appears in trace |
 | T12 | Simulated robot sends unsafe actuator command | Local gateway denies |
