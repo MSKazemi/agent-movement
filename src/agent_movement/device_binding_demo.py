@@ -51,7 +51,7 @@ def _execute_in_process(snapshot: dict[str, str], key: LocalSoftwareKey,
     decoded = json.loads(result.stdout)
     if not isinstance(decoded, dict):
         raise RuntimeError("worker returned a non-object response")
-    return cast("dict[str, Any]", decoded)
+    return cast(dict[str, Any], decoded)
 
 
 def _denial(fn: Any) -> str:
