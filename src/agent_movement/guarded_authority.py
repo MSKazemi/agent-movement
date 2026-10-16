@@ -9,6 +9,7 @@ task are rejected by core.EffectGateway. This is not an OS sandbox or external P
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import sqlite3
 import time
@@ -33,7 +34,17 @@ _INTENT_FIELDS = frozenset({
     "expected_epoch", "kind", "classification", "policy_epoch", "grant_digest",
 })
 _NOTICE_FIELDS = frozenset({"type", "task_id", "movement_id"})
-_STATES = frozenset({"prepared", "transferred"})
+_STATES = frozenset({"prepared", "fenced", "active"})
+_ACTIVATION_FIELDS = frozenset({
+    "type", "task_id", "movement_id", "destination_id", "owner_epoch",
+    "kind", "scope", "grant_digest", "policy_epoch", "activation_id",
+    "nonce", "issued_at", "expires_at",
+})
+_EFFECT_FIELDS = frozenset({
+    "type", "task_id", "movement_id", "destination_id", "owner_epoch",
+    "activation_id", "effect_id", "payload_sha256", "nonce", "issued_at", "expires_at",
+})
+_MAX_PROOF_LIFETIME = 120  # seconds; signed, single-task synthetic evidence only
 
 
 class GuardedAuthority:
@@ -45,8 +56,8 @@ class GuardedAuthority:
 
     def __init__(
         self, store: SQLiteStore, continuity: ContinuityRuntime, trust: TrustStore, *,
-        origin_verifiers: Mapping[str, Any], cancel_verifier: Any,
-        incident_verifier: Any, budget_limit: int = 2,
+        origin_verifiers: Mapping[str, Any], destination_verifiers: Mapping[str, Any],
+        cancel_verifier: Any, incident_verifier: Any, budget_limit: int = 2,
         clock: Callable[[], float] = time.time,
     ) -> None:
         if not isinstance(store, SQLiteStore) or not isinstance(continuity, ContinuityRuntime):
@@ -55,8 +66,13 @@ class GuardedAuthority:
             raise ContractError("all authority checks must use the same SQLite store")
         if continuity.grant_trust is not trust:
             raise ContractError("grant trust roots must agree")
-        if not origin_verifiers or not callable(clock):
-            raise ContractError("trusted origin verifiers and clock required")
+        if not origin_verifiers or not destination_verifiers or not callable(clock):
+            raise ContractError("trusted origin/destination verifiers and clock required")
+        if set(destination_verifiers) != {continuity.recipient_id}:
+            raise ContractError("destination signer must be independently pinned")
+        for key in destination_verifiers.values():
+            if not hasattr(key, "verify") or not hasattr(key, "kid"):
+                raise ContractError("destination identity verifier required")
         if not (type(budget_limit) is int and 1 <= budget_limit <= 100):
             raise ContractError("invalid operator-provisioned effect budget")
         if not (hasattr(cancel_verifier, "verify") and hasattr(incident_verifier, "verify")):
@@ -65,6 +81,7 @@ class GuardedAuthority:
         self.continuity = continuity
         self.trust = trust
         self.origin_verifiers = dict(origin_verifiers)
+        self.destination_verifiers = dict(destination_verifiers)
         self.cancel_verifier = cancel_verifier
         self.incident_verifier = incident_verifier
         self.budget_limit = budget_limit
@@ -89,6 +106,17 @@ class GuardedAuthority:
                     cancelled INTEGER NOT NULL DEFAULT 0,
                     unknown_effect INTEGER NOT NULL DEFAULT 0
                 )
+            """)
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS guarded_activations(
+                    task_id TEXT PRIMARY KEY,
+                    movement_id TEXT NOT NULL,
+                    destination_id TEXT NOT NULL,
+                    owner_epoch INTEGER NOT NULL,
+                    activation_id TEXT NOT NULL UNIQUE,
+                    nonce TEXT NOT NULL UNIQUE,
+                    receipt_digest TEXT NOT NULL,
+                    expires_at INTEGER NOT NULL)
             """)
 
     def _now(self) -> int:
@@ -219,13 +247,120 @@ class GuardedAuthority:
             )
             if modified.rowcount != 1:
                 raise Conflict("concurrent transfer or stale epoch")
-            db.execute("UPDATE guarded_tasks SET status='transferred' WHERE task_id=?", (task_id,))
+            db.execute("UPDATE guarded_tasks SET status='fenced' WHERE task_id=?", (task_id,))
             db.commit()
             return next_epoch
 
+
+    @staticmethod
+    def _proof_window(p: dict[str, Any], now: int) -> None:
+        """Check a bounded signed window against trusted clock, rejecting bool-as-int."""
+        start, end = p["issued_at"], p["expires_at"]
+        if (type(start) is not int or type(end) is not int or start < 0
+                or end <= start or end - start > _MAX_PROOF_LIFETIME
+                or start > now or now >= end):
+            raise Unauthorized("guarded_signature_expired_or_not_current")
+
+    def _destination_proof(
+        self, token: Any, purpose: str, row: dict[str, Any],
+        *, now: int, fields: frozenset[str],
+    ) -> dict[str, Any]:
+        key = self.destination_verifiers.get(row["destination_id"])
+        if key is None:
+            raise Unauthorized("guarded_destination_untrusted")
+        p = unseal(purpose, token, key)
+        if set(p) != fields or p["type"] != purpose:
+            raise ContractError("invalid signed destination proof")
+        for name in ("task_id", "movement_id", "destination_id", "activation_id", "nonce"):
+            _id(p[name], name)
+        if (p["task_id"] != row["task_id"] or p["movement_id"] != row["movement_id"]
+                or p["destination_id"] != row["destination_id"]):
+            raise Unauthorized("guarded_destination_proof_binding_mismatch")
+        if type(p["owner_epoch"]) is not int or p["owner_epoch"] != row["origin_epoch"] + 1:
+            raise Unauthorized("guarded_destination_epoch_mismatch")
+        self._proof_window(p, now)
+        return p
+
+    def activate(self, signed_ack: Any) -> bool:
+        """FENCED -> ACTIVE only on verified, fresh destination readiness.
+
+        The receipt is verified using a pinned destination identity, not the
+        caller's destination_id. Identical replay is idempotent but cannot
+        revive a revoked, cancelled, expired or otherwise held task.
+        """
+        wrapped = sealed_parts(signed_ack, "guarded-activation")
+        claimed = wrapped["payload"]
+        if not isinstance(claimed.get("task_id"), str):
+            raise ContractError("missing activation task")
+        task_id = _id(claimed["task_id"], "task_id")
+        with self.store._connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = self._row(db, task_id)
+            if row["status"] not in {"fenced", "active"}:
+                raise PolicyDenied("destination not fenced for activation")
+            now = self._now()
+            grant = self._check(db, row, now)
+            owner = db.execute("SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)).fetchone()
+            if owner != (row["destination_id"], row["origin_epoch"] + 1):
+                raise PolicyDenied("destination ownership changed before activation")
+            p = self._destination_proof(
+                signed_ack, "guarded-activation", row, now=now, fields=_ACTIVATION_FIELDS,
+            )
+            if (p["kind"] != row["kind"] or p["scope"] != row["kind"]
+                    or p["policy_epoch"] != row["policy_epoch"]
+                    or p["grant_digest"] != digest(json.loads(row["grant_json"]))
+                    or p["expires_at"] > grant["expires_at"]):
+                raise Unauthorized("guarded_activation_authority_mismatch")
+            _id(p["activation_id"], "activation_id")
+            token_digest = digest(signed_ack)
+            existing = db.execute(
+                "SELECT activation_id,nonce,receipt_digest,expires_at FROM guarded_activations WHERE task_id=?",
+                (task_id,),
+            ).fetchone()
+            if existing is not None:
+                if (row["status"] != "active" or existing !=
+                        (p["activation_id"], p["nonce"], token_digest, p["expires_at"])):
+                    raise Conflict("activation replay changed identity or payload")
+                db.commit()
+                return False
+            if row["status"] != "fenced":
+                raise Conflict("active phase without matching activation")
+            try:
+                db.execute(
+                    "INSERT INTO guarded_activations VALUES(?,?,?,?,?,?,?,?)",
+                    (task_id, row["movement_id"], row["destination_id"], p["owner_epoch"],
+                     p["activation_id"], p["nonce"], token_digest, p["expires_at"]),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise Conflict("activation ID or nonce already used") from exc
+            db.execute("UPDATE guarded_tasks SET status='active' WHERE task_id=?", (task_id,))
+            db.commit()
+            return True
+
+    def _verify_effect_proof(
+        self, token: Any, row: dict[str, Any], effect_id: str,
+        content_sha256: str, epoch: int, db: sqlite3.Connection, now: int,
+    ) -> None:
+        activation = db.execute(
+            "SELECT activation_id,destination_id,owner_epoch,expires_at "
+            "FROM guarded_activations WHERE task_id=?", (row["task_id"],),
+        ).fetchone()
+        if activation is None or activation[1] != row["destination_id"] or activation[2] != epoch:
+            raise Unauthorized("guarded_activation_missing_or_misbound")
+        if now >= activation[3]:
+            raise Unauthorized("guarded_activation_expired")
+        p = self._destination_proof(
+            token, "guarded-effect-invocation", row, now=now, fields=_EFFECT_FIELDS,
+        )
+        _id(p["effect_id"], "effect_id")
+        if (p["activation_id"] != activation[0] or p["owner_epoch"] != epoch
+                or p["effect_id"] != effect_id or not isinstance(p["payload_sha256"], str)
+                or not hmac.compare_digest(p["payload_sha256"], content_sha256)):
+            raise Unauthorized("guarded_effect_invocation_misbound")
+
     def commit(
         self, task_id: str, movement_id: str, agent_id: str,
-        epoch: int, effect_id: str, payload: str,
+        epoch: int, effect_id: str, payload: str, *, signed_execution: Any = None,
     ) -> bool:
         """Atomic receiver-bound simulated effect, with a shared effect budget."""
         for value, label in ((task_id, "task_id"), (movement_id, "movement_id"),
@@ -241,18 +376,23 @@ class GuardedAuthority:
             raise ContractError("invalid effect payload encoding") from exc
         if len(encoded) > 2048:
             raise ContractError("synthetic effect payload too large")
-        fingerprint = self.store.keyed_digest(hashlib.sha256(encoded).hexdigest())
+        content_sha256 = hashlib.sha256(encoded).hexdigest()
+        fingerprint = self.store.keyed_digest(content_sha256)
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = self._row(db, task_id)
-            if row["movement_id"] != movement_id or row["status"] != "transferred":
-                raise PolicyDenied("movement not yet authorized to execute")
+            if row["movement_id"] != movement_id or row["status"] != "active":
+                raise PolicyDenied("destination not authenticated and activated")
             if agent_id != row["destination_id"]:
                 raise PolicyDenied("effect caller is not destination")
             owner = db.execute("SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)).fetchone()
             if owner != (agent_id, epoch):
                 raise PolicyDenied("stale or unauthorized effect owner")
-            self._check(db, row, self._now())
+            now = self._now()
+            self._check(db, row, now)
+            self._verify_effect_proof(
+                signed_execution, row, effect_id, content_sha256, epoch, db, now,
+            )
             prior = db.execute(
                 "SELECT payload_digest FROM effects WHERE task_id=? AND effect_id=?", (task_id, effect_id)
             ).fetchone()
@@ -313,4 +453,5 @@ class GuardedAuthority:
             "owner": o[0] if o else None, "epoch": o[1] if o else None,
             "phase": r["status"], "used": r["budget_used"], "limit": r["budget_limit"],
             "cancelled": bool(r["cancelled"]), "unknown_effect": bool(r["unknown_effect"]),
+            "activated": r["status"] == "active",
         }
