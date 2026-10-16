@@ -47,31 +47,33 @@ flowchart TD
 
 ## Reproducible conformance test matrix
 
-| ID | Scenario | Expected result |
+The scenarios T01–T18 are maintained in the single [test registry](../../data/test-registry.csv) (`data/test-registry.csv`). Each registry row gives the scenario with its expected result, the OWASP Agentic Top 10 threat (`ASI01`–`ASI10`), the status (`implemented`, `partial` or `planned`) and the pytest node IDs of the tests that implement it. The status is kept only there. When a scenario duplicates a case from another list, the registry keeps one canonical row and records the old ID in its `aliases` column. This crosswalk maps each old ID to its registry row:
+
+| Old ID | Scenario | Registry row |
 | --- | --- | --- |
-| T01 | A2A task submitted to allowlisted destination | Accepted; result and artifact linked to origin |
-| T02 | Unsupported binding, schema or mandatory capability | Reject before private data disclosure |
-| T03 | Forged discovery metadata or unapproved host | Reject and audit |
-| T04 | Wrong-audience / revoked / expired authorization | Reject; no action |
-| T05 | Mutated artifact/checkpoint digest | Reject before use |
-| T06 | Same idempotency key sent twice | Single logical dispatch record; no duplicate simulated effect |
-| T07 | Connectivity lost after acceptance | Origin queries outcome; may report UNKNOWN |
-| T08 | Relocation without origin fence | **Refuse** resume |
-| T09 | Stale destination fencing epoch | Action rejected |
-| T10 | Checkpoint/runtime version mismatch | **Refuse** restore or negotiated new delegation |
-| T11 | Token and private text intentionally seeded in sample context | Neither crosses boundary nor appears in trace |
-| T12 | Simulated robot sends unsafe actuator command | Local gateway denies |
-| T13 | 24-hour disconnected queue / offline bundle | Authorized replay only, TTL enforced and auditable |
-| T14 | Concurrent copies from same template | Independent instance IDs and authority |
-| T15 | Crash during each state transition | Deterministic recovery/UNKNOWN; no false success |
-| T16 | Cancellation before tool action | No subsequent effect; recorded cancellation |
-| T17 | Large artifact versus small control message | Chunked/reference transfer; integrity/size verified |
-| T18 | Transport upgrade/downgrade attempt | Rejected unless explicit negotiated supported policy |
+| T01 | A2A task submitted to allowlisted destination | T01 |
+| T02 | Unsupported binding, schema or mandatory capability | T02 |
+| T03 | Forged discovery metadata or unapproved host | COM-T002 |
+| T04 | Wrong-audience / revoked / expired authorization | COM-T003, COM-T004, COM-T005 |
+| T05 | Mutated artifact/checkpoint digest | COM-T028 |
+| T06 | Same idempotency key sent twice | T06 |
+| T07 | Connectivity lost after acceptance | COM-T018 |
+| T08 | Relocation without origin fence | T08 |
+| T09 | Stale destination fencing epoch | T09 |
+| T10 | Checkpoint/runtime version mismatch | T10 |
+| T11 | Token and private text intentionally seeded in sample context | T11 |
+| T12 | Simulated robot sends unsafe actuator command | COM-T025 |
+| T13 | 24-hour disconnected queue / offline bundle | T13 |
+| T14 | Concurrent copies from same template | T14 |
+| T15 | Crash during each state transition | T15 |
+| T16 | Cancellation before tool action | T16 |
+| T17 | Large artifact versus small control message | T17 |
+| T18 | Transport upgrade/downgrade attempt | T18 |
 
 ## Measurement schema for future experiments
 
 Per trial record: test ID, timestamp, origin/destination runtime and versions, network class, protocol/binding, payload bytes, transport attempts, accepted/completed times, response code, task correctness, external effect count, checkpoint compatibility, trace coverage, policy outcome, CPU/RAM, transferred bytes, power/battery where relevant and per-task cost. Report median/p95 with sample count and confidence intervals; distinguish emulated from real link measurements.
 
-**No tests above have been run in this repository yet.** The items are acceptance criteria for contributors, not achieved features.
+**Which scenarios have tests is recorded only in the [test registry](../../data/test-registry.csv).** A `planned` row is an acceptance criterion for contributors, not an achieved feature. An `implemented` or `partial` row proves the case only in the local, synthetic setting of its tests.
 
 See [protocol catalog](protocol-catalog.md) and [movement contract](handoff-and-relocation-contract.md).
