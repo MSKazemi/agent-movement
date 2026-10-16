@@ -26,7 +26,7 @@ class _Listener(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.hits = 0
         self.recorded = threading.Event()
         super().__init__(("127.0.0.1", 0), _ListenerHandler)
