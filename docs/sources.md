@@ -31,6 +31,20 @@ This file indexes every external reference cited in the README and the core rese
 | Temporal child workflows | https://docs.temporal.io/child-workflows | Parent/child workflow composition | taxonomy |
 | AWS Durable Execution SDK: idempotency and retries | https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/ | At-least-once vs at-most-once per retry attempt; neither is end-to-end exactly-once by itself | questions [SRC-8] |
 
+## Distributed algorithms and formal foundations
+
+**Added to the research bibliography on 2026-10-16.** These are prior-art starting points for [the algorithmic foundations agenda](algorithms-and-cs-foundations.md), not evidence that this repository's implementation inherits the corresponding guarantees. Where only the publisher or author reference has been inspected, do not interpret the citation as a new empirical replication.
+
+| Topic | Primary source | Evidence scope | Cited in |
+|---|---|---|---|
+| Distributed snapshot (Chandy & Lamport, 1985) | https://doi.org/10.1145/214451.214456 | Consistent distributed global state under message delivery; not live private runtime export | algorithms-and-cs-foundations |
+| Asynchronous crash consensus limits (Fischer, Lynch & Paterson, 1985) | https://doi.org/10.1145/3149.214121 | Impossibility of deterministic guaranteed consensus termination in the fully asynchronous crash model | algorithms-and-cs-foundations |
+| Compensating workflows / sagas (Garcia-Molina & Salem, 1987) | https://doi.org/10.1145/38713.38742 | Compensating transactions and long-running workflows, not automatic reversal | algorithms-and-cs-foundations |
+| Partial synchrony consensus (Dwork, Lynch & Stockmeyer, 1988) | https://doi.org/10.1145/42282.42283 | Conditions under which distributed consensus progress may be established | algorithms-and-cs-foundations |
+| Linearizability (Herlihy & Wing, 1990) | https://doi.org/10.1145/78969.78972 | Correctness of atomic concurrent operations; relevant to ownership and effect gateways | algorithms-and-cs-foundations |
+| Idempotent API design (AWS Builders' Library, Featonby, 2021) | https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/ | Stable request identity, parameter mismatch and late retries | algorithms-and-cs-foundations |
+| TLA+ / TLC and Specifying Systems (Lamport, 2002) | https://lamport.azurewebsites.net/tla/book.html | Formal state-machine specification, fairness, model checking and proof assumptions | algorithms-and-cs-foundations |
+
 ## Packaging and scheduling
 
 | Topic | Primary source | Evidence scope | Cited in |
@@ -116,7 +130,7 @@ Related documents: [landscape](research-landscape.md), [questions](open-question
 
 Every external URL cited in the README and in `docs/`, grouped by the citing document. Corpus records and generated files are excluded; see `EXCLUDE_GLOBS` in [`tools/sources_index.py`](../tools/sources_index.py). *Cited in* lists every document that cites the URL. *Accessed* is the date stated next to the citation (basis `citation`), else in its section heading (`section`), else in the document header (`document`), else the default 2026-10-15 (`default`). A date stated in a document is the date the source was reviewed for that document. It is not a fresh link check. `make sources` fails when a cited URL is missing here.
 
-**Documents:** 35 · **Citations (document, URL):** 452 · **Unique URLs:** 270
+**Documents:** 35 · **Citations (document, URL):** 459 · **Unique URLs:** 276
 
 ### [README](../README.md)
 
@@ -345,7 +359,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://docs.langchain.com/oss/python/langgraph/persistence> | README, agent-movement-vs-copy-replication-multiplication, checkpoint-relocation, glossary, local-implementation, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker, strategic-target-and-scientific-agenda | 2026-10-16 | document |
 | <https://docs.temporal.io/workflow-execution> | README, glossary, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker, strategic-target-and-scientific-agenda | 2026-10-16 | document |
 | <https://doi.org/10.1109/32.685258> | glossary | 2026-10-16 | document |
-| <https://doi.org/10.1145/38713.38742> | glossary | 2026-10-16 | document |
+| <https://doi.org/10.1145/38713.38742> | glossary, sources | 2026-10-16 | document |
 | <https://doi.org/10.1145/74850.74870> | glossary | 2026-10-16 | document |
 | <https://genai.owasp.org/llmrisk/llm01-prompt-injection/> | cross-agent-prompt-injection, glossary | 2026-10-16 | document |
 | <https://github.com/OpenLineage/OpenLineage/blob/main/spec/OpenLineage.md> | agent-forensics-and-fingerprints, glossary, sources | 2026-10-16 | document |
@@ -585,6 +599,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://a2a-protocol.org/v1.0.0/specification/> | README, 2031-frontier-research-agenda, a2a-adapter, agent-forensics-and-fingerprints, agent-lifecycle-liveness-and-death, agent-movement-vs-copy-replication-multiplication, cross-agent-prompt-injection, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, local-implementation, mobilitybench-experiment-protocol, open-questions, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda | 2026-10-15 | document |
 | <https://arxiv.org/abs/2510.04173> | glossary, open-questions, sources | 2026-10-15 | document |
 | <https://arxiv.org/abs/2608.21208> | open-questions, sources, strategic-target-and-scientific-agenda | 2026-10-15 | document |
+| <https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/> | sources | 2026-10-16 | manual |
 | <https://blog.modelcontextprotocol.io/posts/2026-07-28/> | language-and-sdk-strategy, open-questions, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://csrc.nist.gov/pubs/sp/800/86/final> | agent-forensics-and-fingerprints, glossary, movement-receipts, sources | 2026-10-15 | document |
 | <https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/> | glossary, open-questions, sources | 2026-10-15 | document |
@@ -593,7 +608,12 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://docs.temporal.io/child-workflows> | agent-movement-vs-copy-replication-multiplication, sources | 2026-10-15 | document |
 | <https://docs.temporal.io/workflow-execution> | README, glossary, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker, strategic-target-and-scientific-agenda | 2026-10-15 | document |
 | <https://docs.temporal.io/workflows> | agent-movement-vs-copy-replication-multiplication, sources | 2026-10-15 | document |
+| <https://doi.org/10.1145/214451.214456> | sources | 2026-10-16 | manual |
+| <https://doi.org/10.1145/3149.214121> | sources | 2026-10-16 | manual |
 | <https://doi.org/10.1145/3786335.3813130> | 2031-frontier-research-agenda, mobilitybench-experiment-protocol, open-questions, sources, strategic-target-and-scientific-agenda | 2026-10-15 | document |
+| <https://doi.org/10.1145/38713.38742> | glossary, sources | 2026-10-16 | manual |
+| <https://doi.org/10.1145/42282.42283> | sources | 2026-10-16 | manual |
+| <https://doi.org/10.1145/78969.78972> | sources | 2026-10-16 | manual |
 | <https://github.com/OpenLineage/OpenLineage/blob/main/spec/OpenLineage.md> | agent-forensics-and-fingerprints, glossary, sources | 2026-10-15 | document |
 | <https://github.com/ag-ui-protocol/ag-ui> | README, glossary, protocols-and-networks/primary-sources, research-landscape, sources | 2026-10-15 | document |
 | <https://github.com/in-toto/attestation> | agent-forensics-and-fingerprints, glossary, movement-receipts, sources | 2026-10-15 | document |
@@ -602,6 +622,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/> | agent-movement-vs-copy-replication-multiplication, glossary, sources | 2026-10-15 | document |
 | <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/> | agent-movement-vs-copy-replication-multiplication, glossary, sources | 2026-10-15 | document |
 | <https://kubernetes.io/docs/concepts/workloads/controllers/job/> | README, protocols-and-networks/primary-sources, research-landscape, sources | 2026-10-15 | document |
+| <https://lamport.azurewebsites.net/tla/book.html> | sources | 2026-10-16 | manual |
 | <https://modelcontextprotocol.io/specification/2026-07-28> | README, 2031-frontier-research-agenda, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://opentelemetry.io/docs/specs/otel/trace/sdk/> | agent-forensics-and-fingerprints, sources | 2026-10-15 | document |
 | <https://specs.opencontainers.org/image-spec/> | README, glossary, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker | 2026-10-15 | document |
