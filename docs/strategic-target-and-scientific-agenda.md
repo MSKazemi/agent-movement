@@ -17,7 +17,7 @@
 **Positioning** (one statement, used verbatim in the [README](../README.md), the [2031 frontier agenda](2031-frontier-research-agenda.md) and `CITATION.cff`):
 
 <!-- positioning:start -->
-Agent Movement is a research prototype: an open, evidence-first testbed built to make claims about safely moving AI-agent work between executors falsifiable. It currently pairs ranked research questions with synthetic, localhost-only Python prototypes and MobilityBench v0.1, a frozen, deterministic, LLM-free benchmark of 18 synthetic tasks that scores keeping, restarting and locally delegating work under injected faults and reports refusals and unavailable baselines instead of hiding them. It is not production software, a new agent protocol or a rival to A2A or MCP.
+Agent Movement is a research prototype: an open, evidence-first testbed built to make claims about safely moving AI-agent work between executors falsifiable. It currently pairs ranked research questions with synthetic, localhost-only Python prototypes and MobilityBench v0.1, a frozen, deterministic, LLM-free benchmark of 18 synthetic tasks that scores keeping, restarting, delegating (locally or over A2A) and checkpoint-relocating work under injected faults, with the A2A and relocation modes enabled by optional extras, and reports refusals and unavailable baselines instead of hiding them. It is not production software, a new agent protocol or a rival to A2A or MCP.
 <!-- positioning:end -->
 
 **What it is NOT:** a new LLM model, a universal agent operating system, a replacement for MCP/A2A, a promise of lossless cross-framework reconstruction, a way to extract hidden reasoning/model internals, or a system for self-installation on third-party devices.

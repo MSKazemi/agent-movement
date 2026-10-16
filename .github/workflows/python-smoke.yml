@@ -155,6 +155,12 @@ jobs:
           agent-movement bench smoke --output cli-smoke.jsonl
           agent-movement receipts verify tests/fixtures/movement-receipts/01-valid-delegation --trust tests/fixtures/movement-receipts/trust.json --now 2026-10-16T00:00:00Z
           python tools/cli_reference.py --check
+      - name: MobilityBench v0.1 smoke subset with B2 (A2A) and B3 (relocation) scored
+        run: |
+          python -m agent_movement.mobilitybench run --suite v0.1 --subset smoke --out mobilitybench-v0.1-extras-smoke.jsonl
+          python -m agent_movement.mobilitybench report --in mobilitybench-v0.1-extras-smoke.jsonl --out mobilitybench-v0.1-extras-smoke.md
+          # With every extra installed only B4 (not implemented) may be unavailable.
+          python -c "import json,sys; m=json.loads(open('mobilitybench-v0.1-extras-smoke.jsonl').readline())['modes']; u=sorted(k for k,v in m.items() if v['status']!='implemented'); print('unavailable:', u); sys.exit(u!=['cross_framework_reconstruct'])"
       - name: Movement-receipt fixtures give their expected verifier exit codes
         shell: bash
         run: |
@@ -179,5 +185,7 @@ jobs:
           path: |
             relocation-results.json
             relocation-two-store-results.json
+            mobilitybench-v0.1-extras-smoke.jsonl
+            mobilitybench-v0.1-extras-smoke.md
           if-no-files-found: ignore
           retention-days: 7

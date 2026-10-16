@@ -1,16 +1,17 @@
 # MobilityBench v0.1: frozen task-continuity baselines
 
-**Status:** Frozen, digest-verified pilot fixtures plus an executable, deterministic, LLM-free harness (2026-10-16). The release is frozen in this repository's version control, with JSON manifests (`MANIFEST.json`, `seeds.json`) and SHA-256 digests. That is close to the mechanism the [proposed protocol](mobilitybench-experiment-protocol.md) names ("Pre-register datasets, acceptance rubric and failure schedules in version-controlled YAML manifests"), with JSON in place of YAML. However, the protocol's own status is "Proposed study plan, not yet registered or frozen", and this release has **not** been registered with an external, time-stamped registry. It is therefore **not a pre-registration**. (An earlier version of this line said "Pre-registered pilot protocol"; corrected 2026-10-16, [issue #26](https://github.com/MSKazemi/agent-movement/issues/26).)
+**Status:** Frozen, digest-verified pilot fixtures plus an executable, deterministic, LLM-free harness (2026-10-16). The release is frozen in this repository's version control, with JSON manifests (`MANIFEST.json`, `seeds.json`) and SHA-256 digests. That is close to the mechanism the [proposed protocol](mobilitybench-experiment-protocol.md) names ("Pre-register datasets, acceptance rubric and failure schedules in version-controlled YAML manifests"), with JSON in place of YAML. However, the protocol's own status is "Proposed study plan, not yet registered or frozen", and this release has **not** been registered with an external, time-stamped registry. It is therefore **not a pre-registration**. (An earlier version of this line said "Pre-registered pilot protocol"; corrected 2026-10-16, [issue #26](https://github.com/MSKazemi/agent-movement/issues/26).) Harness 0.2.0 also scores B2 (A2A) and B3 (checkpoint relocation) when their optional extras are installed ([issue #31](https://github.com/MSKazemi/agent-movement/issues/31)).
 **Tracks:** [issue #10](https://github.com/MSKazemi/agent-movement/issues/10); builds on [PR #6](https://github.com/MSKazemi/agent-movement/pull/6) and the [20-case smoke](human-impact-research-lab.md) (PR #14), which keeps working unchanged.
 **Study plan:** the broader [proposed pre-registration protocol](mobilitybench-experiment-protocol.md) and [scientific agenda](strategic-target-and-scientific-agenda.md) (PR #4); this pilot covers only part of that plan. The [evaluation plan for reference tasks EV-A, EV-B and EV-C](evaluation-plan.md) (design only, no results) maps issue #1's single-agent, delegated multi-role and resume-after-interruption tasks onto these families and modes.
 **Question ([AM-14 / AM-15](open-questions.md)):** *When does moving agent work improve outcomes instead of only adding overhead, and how do we measure that without hiding failures?*
 
-> This pilot gives exact, reproducible observations about a scripted interpreter. It does **not** measure LLM agents, real A2A interoperability, checkpoint relocation, cross-framework reconstruction, real external tools, or human outcomes. Nothing here supports a general statistical claim.
+> This pilot gives exact, reproducible observations about a scripted interpreter. It does **not** measure LLM agents, A2A over a real network, checkpoint relocation across hosts or runtimes, cross-framework reconstruction, real external tools, or human outcomes. Nothing here supports a general statistical claim.
 
 ## Quick start
 
 ~~~sh
-python -m pip install -e .
+python -m pip install -e .                       # core: B0, B1, B2-local scored
+python -m pip install -e '.[a2a,relocation]'     # optional: also score B2 (A2A v1) and B3 (relocation)
 python -m agent_movement.mobilitybench verify --suite v0.1                       # fixture SHA-256 release check
 python -m agent_movement.mobilitybench run --suite v0.1 --out results.jsonl      # 3 seeds x 2 repeats
 python -m agent_movement.mobilitybench report --in results.jsonl --out report.md
@@ -20,7 +21,7 @@ python -m agent_movement.mobilitybench schedule --suite v0.1                    
 python -m agent_movement.mobilitybench --output local.jsonl                      # original 20-case smoke
 ~~~
 
-`run` writes one sanitized JSONL record per attempt, plus a `run_manifest` record first and one `security` record per negative fixture. Wall-clock fields (`elapsed_ms`, `started_at`) are the only non-deterministic values. They are excluded from every fingerprint and from the run's `outcome_digest`, and `--no-timing` sets them to `null` so that two runs produce byte-identical JSONL. It exits `2` when the fixture release check fails (nothing runs), `1` for a harness error, an unexpected negative-fixture result or a non-reproducible repeat, and `0` otherwise. A baseline that answers **incorrectly** is data, not a harness failure, so it does not change the exit code. The full suite takes about 10 seconds on a laptop and needs no dependencies beyond the standard library.
+`run` writes one sanitized JSONL record per attempt, plus a `run_manifest` record first and one `security` record per negative fixture. Wall-clock fields (`elapsed_ms`, `started_at`) are the only non-deterministic values. They are excluded from every fingerprint and from the run's `outcome_digest`, and `--no-timing` sets them to `null` so that two runs produce byte-identical JSONL. It exits `2` when the fixture release check fails (nothing runs), `1` for a harness error, an unexpected negative-fixture result or a non-reproducible repeat, and `0` otherwise. A baseline that answers **incorrectly** is data, not a harness failure, so it does not change the exit code. Without extras the suite needs only the standard library; the full run took 10 to 20 seconds on a laptop (SQLite fsyncs dominate). With the `a2a` and `relocation` extras it also scores B2 and B3 and took about 45 seconds on the same laptop (one loopback A2A worker is started per delegating attempt).
 
 ## Frozen release
 
@@ -93,22 +94,22 @@ All text, names, addresses (`192.0.2.7` is the TEST-NET-1 documentation range) a
 | `keep_on_origin` | B0 | implemented | The origin runs every step and nothing is transferred. If the origin is pre-empted at the movement point, the attempt is **incomplete**. |
 | `restart_on_destination` | B1 | implemented | The origin runs up to the movement point and transfers the *original request* (input, initial constraints and plan, no session context). The gateway transfers ownership to B (epoch 2), and B re-executes from step 0. B hears only the session events at or after the movement point, and it uses fresh effect IDs (`…r1`) because it cannot know the origin's IDs. |
 | `local_delegate` | B2-local | implemented | The origin keeps ownership and delegates each remaining step through the **real PR #6 `HandoffReceiver`** (in-process, with a scoped `Approval`, a strict envelope and idempotent receipts). If any remaining step is not a contract-expressible pure op, the attempt is **refused** (`incompatible_state:<ops>`) before anything is sent. A pre-empted origin cannot collect receipts, so the attempt is **incomplete**. |
-| `a2a_delegate` | B2 | **UNAVAILABLE** | Official A2A v1 SDK delegation, [issue #7](https://github.com/MSKazemi/agent-movement/issues/7). |
-| `checkpoint_relocate` | B3 | **UNAVAILABLE** | Same-runtime checkpoint relocation, [issue #9](https://github.com/MSKazemi/agent-movement/issues/9). |
-| `cross_framework_reconstruct` | B4 | **UNAVAILABLE** | Cross-framework reconstruction. Not scheduled yet ([AM-14](open-questions.md); follows #9). |
+| `a2a_delegate` | B2 | implemented with extra `a2a` | The B2-local shape over the **official A2A v1 SDK**: each remaining pure step is mapped by the issue #7 profile (`a2a_profile.envelope_to_a2a`, validated client-side before anything is sent) and sent with the public `a2a_client.delegate` (Agent Card resolution and capability check, activated profile extension, blocking JSON-RPC `SendMessage`, authoritative `GetTask`, receipt verified against the sent envelope). The issue #7 destination worker (`a2a_server.build_app`, wrapping the same PR #6 receiver) runs under uvicorn on a 127.0.0.1 ephemeral port in a background thread, one worker per attempt: real A2A HTTP traffic, loopback only. Refusal and pre-emption rules are those of B2-local. |
+| `checkpoint_relocate` | B3 | implemented with extra `relocation` | The plan runs as a LangGraph graph (one node per plan step, one durable checkpoint per step) on the issue #9 pinned runtime, with checkpoint writes fenced by `relocation.FencedSqliteSaver`. At the movement point the origin's head checkpoint is exported in an issue #9 manifest; `relocation.Coordinator` checks compatibility and the head and moves the ownership epoch to B (epoch 2) in one transaction; B verifies the checkpoint digest, acknowledges, and resumes at the movement step with the origin's state, heard session events and **effect IDs**. A pre-empted origin is relocated by **failover** from its last durable checkpoint. A `private`/non-transferable task is refused before export. |
+| `cross_framework_reconstruct` | B4 | **UNAVAILABLE** | Cross-framework reconstruction. Not implemented and not scheduled yet ([AM-14](open-questions.md); follows #9). |
 
-Unavailable modes are still emitted once per (seed, task, repeat), with `outcome: "unavailable"` and a tracking reference. They appear in every denominator table and are never scored as failures or successes. When a mode is implemented, it gets a new suite version, not a silent change to v0.1.
+A mode is `unavailable` either because its optional extra is not installed (`reason: extra_not_installed:<extra>`) or because no implementation exists (`baseline_not_implemented`, B4 only). Unavailable modes are still emitted once per (seed, task, repeat), with `outcome: "unavailable"`, that reason and a tracking reference. They appear in every denominator table and are never scored as failures or successes. The run manifest records which modes were implemented in that run and `run_version.extras` records the installed extra versions, and `report` renders the run's own mode table, so a JSONL produced with extras is reported correctly on a machine without them. Adding B2 and B3 (issue #31) changed no task, rubric, interpreter semantics or ground truth, so the frozen release and `suite_version` stay `v0.1`; the change is versioned as `harness_version` 0.2.0, and the outcome fingerprints of B0, B1 and B2-local are byte-identical to harness 0.1.0 (all 108 attempt records of each mode, both repeats, compared).
 
 ## Fault injection
 
 The seed manifest declares the seeds `1103, 2207, 3301` and 2 repeats. For each seed *s*, the tasks are ordered by `sha256("mobilitybench-v0.1:<s>:<task_id>")`, and the fault index is `(position + s) mod 5`. This gives a balanced, auditable schedule with no global random number generator. It is identical on Python 3.10, 3.11 and 3.13 (verified). All modes of a (seed, task) pair get the **same** fault, so the mode comparisons are paired. Over the full run the fault counts are: `none` 10, `origin_preempted` 10, `effect_ack_lost` 11, `duplicate_delivery` 12, `stale_origin_returns` 11. Each record states whether the fault actually applied to that mode (`fault_applied`).
 
-| Fault | B0 keep | B1 restart | B2-local delegate |
-| --- | --- | --- | --- |
-| `origin_preempted` (at the movement point) | incomplete | unaffected (B owns the task) | incomplete (the owner is not transferred), unless already refused |
-| `effect_ack_lost` (first commit) | commit lands, ack lost → `unknown` → reconcile → `committed` | same | same, if an effect occurs before the move |
-| `duplicate_delivery` (each transfer message ×2) | n/a | intake deduplicates on movement ID | PR #6 receiver replays the receipt (`replayed: true`) |
-| `stale_origin_returns` (after the move) | n/a | old-epoch commit attempt → fenced or accepted | n/a (the origin is still the owner) |
+| Fault | B0 keep | B1 restart | B2-local / B2 A2A delegate | B3 relocate |
+| --- | --- | --- | --- | --- |
+| `origin_preempted` (at the movement point) | incomplete | unaffected (B owns the task) | incomplete (the owner is not transferred), unless already refused | coordinator **failover** from the durable head checkpoint |
+| `effect_ack_lost` (first commit) | commit lands, ack lost → `unknown` → reconcile → `committed` | same | same, if an effect occurs before the move | same |
+| `duplicate_delivery` (each transfer message ×2) | n/a | intake deduplicates on movement ID | the receiver replays the receipt (`replayed: true`); over A2A the duplicate is a new A2A task with the replayed receipt | coordinator request and grant acknowledgement are idempotent by movement ID (`replayed`) |
+| `stale_origin_returns` (after the move) | n/a | old-epoch commit attempt → fenced or accepted | n/a (the origin is still the owner) | old-epoch commit attempt → fenced or accepted |
 
 ## Per-attempt record (sanitized JSONL)
 
@@ -125,7 +126,7 @@ The records contain IDs, enums, counts and digests only. There is never any task
 | `duplicate_effects`, `unexpected_effects`, `missing_effects`, `effects_committed` | Committed synthetic effects compared with the ground truth |
 | `unknown_events`, `reconciled_events` | Unknown/reconcile events |
 | `stale_commits_fenced`, `stale_commits_accepted`, `duplicate_deliveries_suppressed` | Fencing and deduplication evidence |
-| `transfer_bytes`, `transfer_messages`, `sensitive_transfers` | Canonical JSON bytes and messages crossing origin↔destination (both directions for delegate). `sensitive_transfers` counts messages that contain a term the task marks for redaction. |
+| `transfer_bytes`, `transfer_messages`, `sensitive_transfers` | Canonical JSON bytes and messages crossing origin↔destination (both directions for delegate). B2 counts the A2A-bound profile projection (message metadata + task part) and the verified receipt, not JSON-RPC/HTTP framing or Agent Card fetches. B3 counts the relocation message (manifest + exported checkpoint channels, which a cross-host move would have to carry; here they are shared through one local store) and the coordinator's grant. `sensitive_transfers` counts messages that contain a term the task marks for redaction. |
 | `steps_executed`, `steps_reexecuted` | Deterministic work proxy |
 | `elapsed_ms` | Wall-clock time. Machine-dependent and dominated by SQLite setup, so it is **not** a fair latency comparison. |
 | `outcome_fingerprint` | SHA-256 over every deterministic field (all except time, run ID and repeat) |
@@ -178,16 +179,20 @@ The possible verdicts are:
 | `neg-unknown-effect` | `unknown` | pass | A missing ledger row is `unknown`, never "failed" |
 | `neg-revocation-not-at-effect` | `committed_without_grant_recheck` | **known_gap** | After revocation, the receiver denies a new handoff, but the executor's next simulated effect still commits. The gateway checks epochs, not grants. |
 
-## Pilot observations (2026-10-16, Python 3.11.16, release `920e9a2f…`)
+## Pilot observations (harness 0.2.0, 2026-10-16, release `920e9a2f…`)
 
-There are 324 attempt records per repeat (18 tasks × 3 seeds × 6 modes). Of these, 162 are implemented-mode attempts and 162 are unavailable-mode records. Repeat 1 reproduced every repeat-0 outcome fingerprint (0 mismatches of 324 groups). The run's timing-free `outcome_digest` was `32be6911f2d16b12d3eb18bcad847a2a9c406614e7b8249310251666e62b6adb` on Python 3.10, 3.11 and 3.13 alike, with the wheel installed and run outside the source tree. There were 0 harness errors. The negative fixtures gave 10 passes, 2 known gaps, 0 closed gaps and 0 failures out of 12.
+There are 324 attempt records per repeat (18 tasks × 3 seeds × 6 modes). With the `a2a` and `relocation` extras installed (a2a-sdk 1.2.2; langgraph 1.2.15, langgraph-checkpoint 4.3.0, langgraph-checkpoint-sqlite 3.1.2; Python 3.14.7), **270 are implemented-mode attempts across 5 scored modes** and 54 are unavailable-mode records (B4). Repeat 1 reproduced every repeat-0 outcome fingerprint (0 mismatches of 324 groups), two complete `--no-timing` runs produced byte-identical JSONL, and there were 0 harness errors. The timing-free `outcome_digest` was `d3f51dd6c8223860043beb4e591ca166b6311b8354ea84aa1d59cdfd71df891d`. The negative fixtures gave 10 passes, 2 known gaps, 0 closed gaps and 0 failures out of 12.
 
-| Mode | Completed | Correct / attempts | Correct / completed | Constraints kept (completed) | Policy violations | Duplicate effects | Unexpected effects | Unknown→reconciled | Stale fenced | Transfer bytes | Refused | Incomplete |
+Without the extras (core install, same machine) B2 and B3 are `extra_not_installed` records, 162 attempts are scored, and the digest is `1544217602a4c286250a8421a6c02a24e109301fdd227655762c35b23309c0b3`. B0, B1 and B2-local have identical fingerprints in both environments and under harness 0.1.0, so their rows below are unchanged from the issue #10 pilot (whose digest, `32be6911…`, differs only in the unavailable records' reason and tracking fields).
+
+| Mode | Completed | Correct / attempts | Correct / completed | Constraints kept (completed) | Policy violations | Duplicate effects | Unexpected effects | Unknown→reconciled | Stale fenced | Transfer bytes / messages | Refused | Incomplete |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| B0 keep | 44/54 | 44/54 | 44/44 | 27/27 | 0 | 0 | 0 | 11→11 | 0 | 0 | 0 | 10 |
-| B1 restart | 54/54 | 15/54 | 15/54 | 12/30 | 6 | 30 | 24 | 11→11 | 11 | 33 580 | 0 | 0 |
-| B2-local delegate | 16/54 | 16/54 | 16/16 | 8/8 | 0 | 0 | 0 | 4→4 | 0 | 48 004 | 36 | 2 |
-| B2 A2A / B3 relocate / B4 reconstruct | UNAVAILABLE | not scored (54 records each) | – | – | – | – | – | – | – | – | – | – |
+| B0 keep | 44/54 | 44/54 | 44/44 | 27/27 | 0 | 0 | 0 | 11→11 | 0 | 0 / 0 | 0 | 10 |
+| B1 restart | 54/54 | 15/54 | 15/54 | 12/30 | 6 | 30 | 24 | 11→11 | 11 | 33 580 / 66 | 0 | 0 |
+| B2-local delegate (PR #6, in-process) | 16/54 | 16/54 | 16/16 | 8/8 | 0 | 0 | 0 | 4→4 | 0 | 48 004 / 94 | 36 | 2 |
+| B2 A2A delegate (extra `a2a`) | 16/54 | 16/54 | 16/16 | 8/8 | 0 | 0 | 0 | 4→4 | 0 | 49 508 / 94 | 36 | 2 |
+| B3 checkpoint relocate (extra `relocation`) | 54/54 | 54/54 | 54/54 | 30/30 | 0 | 0 | 0 | 11→11 | 11 | 123 701 / 132 | 0 | 0 |
+| B4 reconstruct | UNAVAILABLE | not scored (54 records) | – | – | – | – | – | – | – | – | – | – |
 
 Correct / attempts by fault:
 
@@ -196,6 +201,8 @@ Correct / attempts by fault:
 | B0 keep | 10/10 | 0/10 | 11/11 | 12/12 | 11/11 |
 | B1 restart | 3/10 | 1/10 | 4/11 | 3/12 | 4/11 |
 | B2-local delegate | 5/10 | 0/10 | 3/11 | 5/12 | 3/11 |
+| B2 A2A delegate | 5/10 | 0/10 | 3/11 | 5/12 | 3/11 |
+| B3 checkpoint relocate | 10/10 | 10/10 | 11/11 | 12/12 | 11/11 |
 
 The `report` subcommand regenerates these tables, the per-family breakdown, the refusal reasons and every raw per-case row from the JSONL.
 
@@ -203,21 +210,24 @@ The `report` subcommand regenerates these tables, the per-family breakdown, the 
 
 1. **Keep vs. restart is a trade-off, not a winner.** B0 is correct whenever the origin survives, and it never completes under pre-emption (0/10). B1 always completes, but it is correct only on the 5 tasks that have **no pre-movement session context and no pre-movement effects** (`doc-policy-digest`, `doc-faq-merge`, `code-add-docstring`, `code-guard-config`, `tools-inventory-audit`; 5 × 3 seeds = 15). It lost mid-session constraints (12/30 kept), repeated committed effects (30 duplicates) and violated lost policies (6).
 2. **Output correctness is not enough.** In `tools-travel-booking`, B1 produces a byte-identical output but books the seat twice. The rubric marks it incorrect through `duplicate_effects`.
-3. **Ordinary delegation is not movement.** B2-local never violated a constraint or policy. However, it refused 36/54 attempts because the PR #6 envelope cannot carry effects, edits or context (`incompatible_state:*`). It also does not survive origin pre-emption, because ownership never moves. It transferred more bytes than restart (48 004 vs 33 580), even though it covered fewer tasks.
-4. **The missing comparator is exactly the unavailable one.** Surviving pre-emption *and* preserving context and effect identity needs state and ownership transfer (B3, issue #9). v0.1 measures the gap that B3 must close, but it cannot show that B3 closes it.
+3. **Ordinary delegation is not movement, whatever the wire.** B2 over the official A2A v1 SDK reproduces B2-local on every one of the 108 attempt records, field for field except bytes (same 16 completions, same 36 `incompatible_state:*` refusals, same 2 pre-emptions): the refusals come from the PR #6 envelope, which carries only pure `word_count`/`sha256` tasks, not from the transport. A2A framing added 1 504 canonical bytes (+3 %) over the same 94 messages, before any HTTP or JSON-RPC overhead.
+4. **State plus ownership transfer closes the gap that v0.1 was built to expose.** B3 was correct on all 54 attempts, including all 10 pre-empted ones (failover from the durable checkpoint), kept 30/30 constraints, and fenced all 11 stale-origin commits. This follows **by construction**: the checkpoint carries the interpreter's complete state, so B3 is the full-knowledge reference execution split across two executors with the same effect IDs. It shows that the issue #9 mechanisms (fenced checkpoints, epoch transfer, digest-checked resume) compose correctly on these tasks, not that relocation outperforms the others in general.
+5. **Relocation costs disclosure.** B3 moved the most bytes (123 701, 2.5–3.7× the other transferring modes) and was the only mode besides B1 to send redaction-marked text to the destination (15 sensitive transfers, like B1): the exported checkpoint contains the raw input sections that the output redacts. B2 sent none on these tasks, because its delegable steps here count or hash outputs and files that contain no marked term; nothing in the contract prevents delegated text from containing one (`neg-canary-delegate` shows the canary does reach the receiver).
 
-**What they do not support:** any claim about LLM agents, real networks, latency, cost in tokens, real tool APIs, or the frequency of these situations in practice. The counts are deterministic consequences of the authored fixtures and fault schedule, not samples from a population. No confidence intervals are reported, because repeats do not vary.
+**What they do not support:** any claim about LLM agents, real networks, latency, cost in tokens, real tool APIs, cross-host or cross-runtime relocation, or the frequency of these situations in practice. The counts are deterministic consequences of the authored fixtures and fault schedule, not samples from a population. No confidence intervals are reported, because repeats do not vary.
 
 ## Validity threats
 
 - **Construct:**
   - The ground truth is produced by the same interpreter that the baselines use, in full-knowledge mode. The constraint and policy checks are independent of the executor, but `output_correct` checks consistency with the interpreter semantics, not human-judged quality.
   - Restart's fresh effect IDs are a modelling assumption: a restarted LLM agent typically issues new tool-call IDs. A restart that derived deterministic IDs would show fewer duplicates.
-  - The "delegable" set is defined by the PR #6 contract, so B2-local refusals measure that contract, not delegation in general (that is B2/A2A, issue #7).
+  - The "delegable" set is defined by the PR #6 contract, so B2-local **and B2** refusals measure that contract, not delegation in general: the issue #7 A2A profile carries the same envelope. A2A task types that carry tool calls or edits would change B2's refusals.
+  - B3 relocates a benchmark-specific LangGraph graph (`mobilitybench-v0.1-plan`, one node per plan step) with the issue #9 fenced saver and coordinator. It does not reuse the issue #9 demo graph or its 30-row crash matrix, and its manifest is built by the benchmark (same fields as `relocation.build_manifest`). Movement happens only at clean step boundaries, so B3's at-least-once node re-execution is never exercised here (`steps_reexecuted` is 0).
 - **Internal:**
   - The fixtures and faults were authored by the same project that builds the system. Movement points and session events were chosen to exercise each mechanism, so the task mix is **not** representative.
   - Restart's intake deduplication on the movement ID is harness-level code, not a separately tested component.
-  - Delegate runs in-process with its receiver. Transfer bytes are canonical-JSON sizes, not wire bytes, and they exclude HTTP overhead.
+  - Delegate runs in-process with its receiver. Transfer bytes are canonical-JSON sizes, not wire bytes, and they exclude HTTP overhead. B2 sends real A2A HTTP requests over loopback to a worker thread in the same process; it uses the blocking JSON-RPC binding only (no streaming, no HTTP+JSON binding) and the default server-generated `contextId`.
+  - B3's origin and destination share one local SQLite file (owners, effects, relocations and checkpoints). Its transfer bytes count the checkpoint channels a cross-host move would carry; no cross-host transfer is implemented.
   - Each attempt runs in a single process with its own fresh SQLite files. v0.1 therefore does not exercise the multi-process "database is locked" race when a fresh file is first switched to WAL. That race is fixed separately on the PR #14 review branch, and v0.1 says nothing about multi-process contention.
 - **External:** these are 18 tiny synthetic tasks with no model, no real tools, no network, no concurrency between agents and a single machine. Real agents add stochasticity, partial outputs and model or version drift that v0.1 does not exercise.
 - **Statistical conclusion:** the "samples" are deterministic, so repeats only test reproducibility. A different seed only re-assigns faults. Any percentage computed from these counts describes this fixture set and nothing beyond it.
@@ -227,9 +237,9 @@ The `report` subcommand regenerates these tables, the per-family breakdown, the 
 
 1. `python -m agent_movement.mobilitybench verify --suite v0.1` should report release digest `920e9a2f4a7117729cba9f028c4c1ab394c9edbef4dd8fb10e49dda0ecc9a001`.
 2. `run --suite v0.1 --out results.jsonl` should exit 0. The stderr summary should report `harness_errors: 0` and `reproducibility.mismatched: 0`.
-3. Compare the `outcome_digest` (or the per-attempt `outcome_fingerprint` values, never `elapsed_ms`) with another machine's results. They should be identical on every supported Python (3.11+).
+3. Compare the `outcome_digest` (or the per-attempt `outcome_fingerprint` values, never `elapsed_ms`) with another machine's results **that had the same extras installed** (see `run_version.extras`): the digest covers the unavailable records too, so a core-only run and a run with extras differ by design. They should be identical on every supported Python (3.11+).
 4. `report --in results.jsonl` should match the tables above, apart from timing.
-5. CI (`.github/workflows/python-smoke.yml`) runs `freeze --check`, `verify` and the smoke subset (6 tasks × 1 seed × 6 modes plus the 12 negatives) on Python 3.11, 3.13 and 3.15 in its core (no extras) job, and uploads the JSONL and the Markdown report as artifacts.
+5. CI (`.github/workflows/python-smoke.yml`) runs `freeze --check`, `verify` and the smoke subset (6 tasks × 1 seed × 6 modes plus the 12 negatives) on Python 3.11, 3.13 and 3.15 in its core (no extras) job, where B2 and B3 are `extra_not_installed` records. The extras job (Python 3.11 and 3.13) runs the same smoke subset with every extra installed, fails unless B4 is the only unavailable mode, and uploads its JSONL and report next to the relocation results.
 
 ## Planned: multi-hop track
 
@@ -242,7 +252,7 @@ The `report` subcommand regenerates these tables, the per-family breakdown, the 
 | Each task moves **once**, at a single integer `movement_at` that falls strictly inside the plan | `src/agent_movement/mobilitybench_v01.py::validate_task`, `::Attempt` (`self.m`) |
 | There are exactly two executors, `agent-a` (origin) and `agent-b` (destination) | `::run_restart`, `::run_local_delegate` |
 | No model is called: a scripted interpreter executes the plans | `::EXECUTOR`, `::MODEL` (`"none"`) |
-| Three modes are implemented (B0, B1, B2-local); B2 A2A, B3 relocation and B4 reconstruction are recorded as unavailable | `::MODES` |
+| Three modes are always implemented (B0, B1, B2-local); B2 A2A and B3 relocation are implemented when their optional extra is installed (otherwise recorded as unavailable); B4 reconstruction is always recorded as unavailable | `::MODE_SPECS`, `::mode_table`, `mobilitybench_optional.py` |
 | Each (seed, task) gets one of five fault kinds; the movement-related kinds act on that single move (pre-emption at `movement_at`, duplicated transfer messages, a stale origin after the move) | `::FAULT_KINDS`, `::fault_schedule`, `::run_keep`, `::run_restart`, `::Attempt.send` |
 | `v0.1` is the only registered suite | `::SUITES` |
 
@@ -266,7 +276,7 @@ v0.1 therefore measures a single hop. It cannot say how constraints, evidence or
 
 ## Next versions
 
-- **v0.2:** score B3 once issue #9 lands, with crash points inside the plan (not only at the movement point) and partitions. Score B2 once issue #7 lands.
+- **v0.2:** crash points inside the plan (not only at the movement point) and partitions, so B3's at-least-once re-execution and B2's lost-receipt paths are exercised; B2 over the streaming and HTTP+JSON bindings; a restart variant with deterministic effect IDs; and B4 once cross-framework reconstruction exists. Any change to tasks or ground truth gets a new fixture release.
 - **Multi-hop track (planned):** chains of 0-8 transfers with annotated invariants; see [Planned: multi-hop track](#planned-multi-hop-track).
 - **Cost terms:** the proposed [economic evaluation methodology](economic-evaluation.md) maps each cost term to a field in the per-attempt record, or marks it unmeasured (human review time, incident severity, wire bytes).
 - **Later:** an LLM executor behind the same interface, with pinned model versions in `run_version.model`, real repeated sampling, and pre-registered sample sizes and intervals. Also blinded human rubric scoring for document tasks, and external task contributions.
