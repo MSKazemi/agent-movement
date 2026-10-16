@@ -16,7 +16,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from .core import SCHEMA_VERSION, EffectGateway, PolicyDenied, SQLiteStore
 
@@ -59,12 +59,15 @@ class _Receipts:
                 "verifier_exit_code": report["exit_code"]}
 
 
-def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(prog="python -m agent_movement.demo", description=__doc__.splitlines()[0])
+def main(argv: Sequence[str] = ()) -> None:
+    """Run the demo. ``argv`` holds command-line options (only the opt-in ``--receipts``)."""
+    parser = argparse.ArgumentParser(description="Core local handoff demo: a loopback receiver process, an approved "
+                                     "handoff, an idempotent replay, a denied request and stale-epoch fencing. "
+                                     "Synthetic, stdlib-only, not A2A.")
     parser.add_argument("--receipts", type=Path, metavar="OUTDIR",
                         help="opt in: sign movement receipts and write OUTDIR/live-run/ (evidence bundle) and "
                              "OUTDIR/trust-anchors.json (out-of-band anchors); needs the 'signing' extra")
-    options = parser.parse_args([] if argv is None else argv)
+    options = parser.parse_args(list(argv))
     if options.receipts is not None:
         from .receipts import HAVE_ED25519
         from .live_receipts import BUNDLE_NAME

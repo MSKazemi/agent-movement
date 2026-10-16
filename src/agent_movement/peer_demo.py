@@ -50,12 +50,12 @@ class _Static:
         return (200, self.card) if method == "GET" else (403, {"error": "forbidden"})
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Authenticated pre-disclosure handoff demo (NOT A2A)")
     parser.add_argument("--alg", choices=[HS256, ED25519], default=HS256)
     parser.add_argument("--delivery", choices=["auto", "plaintext", "hpke"], default="auto",
                         help="auto: hpke with Ed25519, plaintext (no confidentiality) with HS256")
-    options = parser.parse_args()
+    options = parser.parse_args(argv)
     alg = options.alg
     delivery = options.delivery if options.delivery != "auto" else ("hpke" if alg == ED25519 else "plaintext")
     if alg == ED25519 and not ed25519_available():

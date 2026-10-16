@@ -69,6 +69,21 @@ jobs:
             check ${pair##*:} python -m agent_movement.receipts verify "$R/${pair%%:*}" --trust $R/trust.json --now 2026-10-16T00:00:00Z
           done
           exit $fail
+      - name: Unified agent-movement CLI (core subcommands; missing extras give a hint and exit 2)
+        shell: bash
+        run: |
+          agent-movement version
+          agent-movement demo
+          agent-movement peer-demo
+          agent-movement bench verify --suite v0.1
+          fail=0
+          check() { want=$1; shift; rc=0; "$@" >/dev/null 2>&1 || rc=$?; echo "exit $rc (want $want): $*"; [ "$rc" = "$want" ] || fail=1; }
+          check 2 agent-movement a2a-demo
+          check 2 agent-movement relocate
+          check 2 agent-movement peer-demo --alg Ed25519
+          check 2 agent-movement peer-demo --delivery hpke
+          check 2 agent-movement receipts verify tests/fixtures/movement-receipts/01-valid-delegation --trust tests/fixtures/movement-receipts/trust.json
+          exit $fail
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -131,6 +146,15 @@ jobs:
         run: python -m agent_movement.relocation_demo --json relocation-results.json
       - name: Checkpoint relocation demo, two stores (digest-verified bundle copy, 11-row copy fault matrix)
         run: python -m agent_movement.relocation_demo --two-store --json relocation-two-store-results.json
+      - name: Unified agent-movement CLI, every subcommand with its extra
+        run: |
+          agent-movement version
+          agent-movement peer-demo --alg Ed25519
+          agent-movement a2a-demo
+          agent-movement relocate
+          agent-movement bench smoke --output cli-smoke.jsonl
+          agent-movement receipts verify tests/fixtures/movement-receipts/01-valid-delegation --trust tests/fixtures/movement-receipts/trust.json --now 2026-10-16T00:00:00Z
+          python tools/cli_reference.py --check
       - name: Movement-receipt fixtures give their expected verifier exit codes
         shell: bash
         run: |
