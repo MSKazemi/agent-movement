@@ -14,7 +14,9 @@ What this module does:
 What it does NOT do: a valid signature shows only that a trusted key holder
 signed the statement, not that the statement is true; timestamps are the
 signer's claim; a bundle can be incomplete; trace IDs are correlation only.
-Run ``python -m agent_movement.receipts verify <dir>``.
+Run ``python -m agent_movement.receipts verify <dir> --trust <anchors.json>``. Trust
+anchors are never read from the evidence implicitly; ``--fixture-trust`` opts into the
+anchors shipped with the synthetic fixtures, with a warning.
 """
 
 from __future__ import annotations
@@ -552,21 +554,54 @@ def _load_telemetry(path: Path) -> tuple[list[dict[str, Any]], int, int, int]:
     return spans, malformed, redactions, dropped
 
 
-def find_trust(bundle: Path) -> Path | None:
+NO_TRUST = ("no trust anchors: pass --trust FILE with anchors obtained out of band; a trust.json "
+            "shipped with the evidence is never used implicitly (synthetic fixtures only: --fixture-trust)")
+FIXTURE_TRUST_WARNING = ("fixture mode: trust anchors are read from the evidence ({path}); anchors shipped "
+                         "with the evidence prove nothing. Use --fixture-trust only for synthetic fixtures.")
+
+
+def fixture_trust_file(bundle: Path) -> Path | None:
+    """Fixture mode only: the ``trust.json`` shipped in the bundle or its parent directory."""
     for candidate in (bundle / "trust.json", bundle.parent / "trust.json"):
         if candidate.is_file():
             return candidate
     return None
 
 
+def resolve_trust(bundle: Path, trust_path: str | Path | None, fixture_trust: bool = False) -> Path:
+    """Return the trust anchor file; fail closed unless anchors were passed explicitly.
+
+    An explicit file inside the bundle being verified is refused too: it is part of the
+    evidence, whoever points at it. ``fixture_trust`` is the explicit, warned opt-in to
+    the bundle-local lookup and is meant for the synthetic fixtures only.
+    """
+    if fixture_trust:
+        if trust_path is not None:
+            raise ReceiptError("pass either --trust or --fixture-trust, not both")
+        found = fixture_trust_file(bundle)
+        if found is None:
+            raise ReceiptError("--fixture-trust: no trust.json in the bundle or its parent directory")
+        return found
+    if trust_path is None:
+        raise ReceiptError(NO_TRUST)
+    trust_file = Path(trust_path)
+    if trust_file.resolve().is_relative_to(bundle.resolve()):
+        raise ReceiptError(f"trust anchor file {trust_file} is inside the evidence bundle '{bundle.name}'; "
+                           "anchors shipped with the evidence prove nothing. Obtain them out of band "
+                           "(synthetic fixtures only: --fixture-trust)")
+    return trust_file
+
+
 def verify_bundle(bundle: str | Path, trust_path: str | Path | None = None,
-                  now: datetime | None = None) -> dict[str, Any]:
-    """Verify one evidence bundle directory and return a sanitized report."""
+                  now: datetime | None = None, *, fixture_trust: bool = False) -> dict[str, Any]:
+    """Verify one evidence bundle directory and return a sanitized report.
+
+    ``trust_path`` (anchors obtained out of band) is required unless ``fixture_trust``
+    explicitly selects the anchors shipped with a synthetic fixture bundle.
+    """
     bundle = Path(bundle)
     now = now or datetime.now(timezone.utc)
-    trust_file = Path(trust_path) if trust_path else find_trust(bundle)
-    if trust_file is None:
-        raise ReceiptError("no trust anchors: pass --trust FILE (obtain it out of band)")
+    trust_file = resolve_trust(bundle, trust_path, fixture_trust)
     trust = load_trust(trust_file)
 
     records: list[Record] = []
@@ -626,6 +661,7 @@ def verify_bundle(bundle: str | Path, trust_path: str | Path | None = None,
         "schema": REPORT_SCHEMA,
         "bundle": bundle.name,
         "trust_anchors": str(trust_file),
+        "trust_anchor_mode": "fixture" if fixture_trust else "explicit",
         "signature_checking": f"Ed25519 via cryptography {CRYPTO_VERSION}" if HAVE_ED25519
         else "UNAVAILABLE (install the 'signing' extra); signatures reported as UNCHECKED",
         "verified_at": format_time(now),
@@ -1024,7 +1060,9 @@ def bundles_under(path: Path) -> list[Path]:
 
 
 def render_text(report: dict[str, Any]) -> str:
-    lines = [f"bundle {report['bundle']}  (trust anchors: {report['trust_anchors']})",
+    mode = ", FIXTURE MODE: shipped with the evidence, proves nothing" \
+        if report["trust_anchor_mode"] == "fixture" else ""
+    lines = [f"bundle {report['bundle']}  (trust anchors: {report['trust_anchors']}{mode})",
              f"  signature checking: {report['signature_checking']}",
              "  receipts: " + ", ".join(f"{v} {k}" for k, v in report["receipt_verdicts"].items() if v)]
     for r in report["receipts"]:
@@ -1068,14 +1106,17 @@ def main(argv: list[str] | None = None) -> int:
                                      description="Offline verifier for experimental signed movement receipts")
     sub = parser.add_subparsers(dest="command", required=True)
     verify = sub.add_parser("verify", help="verify one bundle or a directory of bundles")
-    verify.add_argument("path", type=Path)
-    verify.add_argument("--trust", type=Path, help="trust anchor file (default: bundle or parent trust.json)")
-    verify.add_argument("--now", help="verifier clock, YYYY-MM-DDTHH:MM:SSZ (default: system clock)")
-    verify.add_argument("--json", action="store_true", help="print the full JSON report")
     timeline = sub.add_parser("timeline", help="print only the sanitized timeline JSON of one bundle")
-    timeline.add_argument("path", type=Path)
-    timeline.add_argument("--trust", type=Path)
-    timeline.add_argument("--now")
+    for command in (verify, timeline):
+        command.add_argument("path", type=Path)
+        anchors = command.add_mutually_exclusive_group()
+        anchors.add_argument("--trust", type=Path,
+                             help="REQUIRED: trust anchor file obtained out of band, never from the bundle")
+        anchors.add_argument("--fixture-trust", action="store_true",
+                             help="synthetic fixtures only: use the trust.json shipped in the bundle or its "
+                                  "parent directory, with a warning (such anchors prove nothing)")
+        command.add_argument("--now", help="verifier clock, YYYY-MM-DDTHH:MM:SSZ (default: system clock)")
+    verify.add_argument("--json", action="store_true", help="print the full JSON report")
     make = sub.add_parser("make-fixtures", help="regenerate the deterministic synthetic fixture set")
     make.add_argument("path", type=Path)
     options = parser.parse_args(argv)
@@ -1085,18 +1126,24 @@ def main(argv: list[str] | None = None) -> int:
             write_fixtures(options.path)
             print(f"wrote synthetic fixtures to {options.path}")
             return 0
+        if options.trust is None and not options.fixture_trust:
+            raise ReceiptError(NO_TRUST)  # fail closed before reading any evidence
         now = parse_time(options.now) if options.now else None
         bundles = bundles_under(options.path)
         if not bundles:
             raise ReceiptError("no bundle (receipts.jsonl or tool-records.jsonl) found")
         if options.command == "timeline":
-            report = verify_bundle(bundles[0], options.trust, now)
-            print(json.dumps(report["timeline"], indent=2, ensure_ascii=False))
-            return report["exit_code"]
-        reports = [verify_bundle(b, options.trust, now) for b in bundles]
+            bundles = bundles[:1]
+        reports = [verify_bundle(b, options.trust, now, fixture_trust=options.fixture_trust) for b in bundles]
     except (ReceiptError, ContractError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    if options.fixture_trust:
+        for path in sorted({r["trust_anchors"] for r in reports}):
+            print("WARNING: " + FIXTURE_TRUST_WARNING.format(path=path), file=sys.stderr)
+    if options.command == "timeline":
+        print(json.dumps(reports[0]["timeline"], indent=2, ensure_ascii=False))
+        return reports[0]["exit_code"]
     if options.json:
         print(json.dumps(reports[0] if len(reports) == 1 else reports, indent=2, ensure_ascii=False))
     else:

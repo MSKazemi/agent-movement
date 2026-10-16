@@ -10,7 +10,7 @@ from pathlib import Path
 from .core import SQLiteStore, _fields, parse_json
 from .http import LocalServer
 from .peer import PeerReceiver
-from .trust import TrustStore, import_key
+from .trust import TrustStore, import_enc_key, import_key
 
 
 def make_peer_server(receiver: PeerReceiver | None = None, port: int = 0) -> LocalServer:
@@ -52,11 +52,17 @@ def make_peer_server(receiver: PeerReceiver | None = None, port: int = 0) -> Loc
 
 
 def load_receiver(config_path: Path) -> PeerReceiver:
-    """Provisioning file written by the synthetic test CA (see peer_demo). Never real keys."""
-    config = _fields(parse_json(config_path.read_bytes()),
-                     {"card", "key", "trust", "capabilities", "db"}, "receiver config")
+    """Provisioning file written by the synthetic test CA (see peer_demo). Never real keys.
+
+    An optional ``enc_key`` (X25519, HPKE) must match the ``enc_key`` in the receiver card.
+    """
+    raw = parse_json(config_path.read_bytes())
+    base = {"card", "key", "trust", "capabilities", "db"}
+    config = _fields(raw, base | {"enc_key"} if isinstance(raw, dict) and "enc_key" in raw else base,
+                     "receiver config")
+    enc_key = import_enc_key(config["enc_key"]) if "enc_key" in config else None
     return PeerReceiver(config["card"], import_key(config["key"]), TrustStore.from_dict(config["trust"]),
-                        SQLiteStore(config["db"]), config["capabilities"])
+                        SQLiteStore(config["db"]), config["capabilities"], enc_key=enc_key)
 
 
 def main() -> None:

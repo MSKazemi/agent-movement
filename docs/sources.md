@@ -17,9 +17,9 @@ This file indexes every external reference cited in the README and the core rese
 
 | Topic | Primary source | Evidence scope | Cited in |
 |---|---|---|---|
-| Open Agent Specification (Agent Spec): A Unified Representation for AI Agents (2025; v1 titled "Technical Report") | https://arxiv.org/abs/2510.04173 | Declarative, framework-neutral agent/workflow definitions and an evaluation harness | questions [S5] |
-| Open Agent Specification, CAIS 2026 | https://doi.org/10.1145/3786335.3813130 | Cross-framework comparison using a shared representation; same author group as the 2025 report | questions [S6] |
-| Specification Portability Across LLM Development Agents (2026) | https://arxiv.org/abs/2608.21208 | Oracle→PostgreSQL migration study: specifications written for one coding agent often transfer poorly to another | questions [S7] |
+| Open Agent Specification (Agent Spec): A Unified Representation for AI Agents (2025; v1 titled "Technical Report") | https://arxiv.org/abs/2510.04173 | Declarative, framework-neutral agent/workflow definitions and an evaluation harness | questions [SRC-5] |
+| Open Agent Specification, CAIS 2026 | https://doi.org/10.1145/3786335.3813130 | Cross-framework comparison using a shared representation; same author group as the 2025 report | questions [SRC-6] |
+| Specification Portability Across LLM Development Agents (2026) | https://arxiv.org/abs/2608.21208 | Oracle→PostgreSQL migration study: specifications written for one coding agent often transfer poorly to another | questions [SRC-7] |
 
 ## Durable execution and orchestration
 
@@ -29,7 +29,7 @@ This file indexes every external reference cited in the README and the core rese
 | Temporal workflow execution | https://docs.temporal.io/workflow-execution | Event history, replay and durable execution semantics | README, landscape, questions |
 | Temporal workflows | https://docs.temporal.io/workflows | Workflow model overview | taxonomy |
 | Temporal child workflows | https://docs.temporal.io/child-workflows | Parent/child workflow composition | taxonomy |
-| AWS Durable Execution SDK: idempotency and retries | https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/ | At-least-once vs at-most-once per retry attempt; neither is end-to-end exactly-once by itself | questions [S8] |
+| AWS Durable Execution SDK: idempotency and retries | https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/ | At-least-once vs at-most-once per retry attempt; neither is end-to-end exactly-once by itself | questions [SRC-8] |
 
 ## Packaging and scheduling
 

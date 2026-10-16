@@ -58,8 +58,8 @@ def make_repo(root: Path, rows, guide="Cases T01 and COM-T001 are registered.\n"
     return root
 
 
-def run(root: Path, capsys) -> tuple[int, str]:
-    code = ctr.main(["--root", str(root)])
+def run(root: Path, capsys, *extra: str) -> tuple[int, str]:
+    code = ctr.main(["--root", str(root), *extra])
     out = capsys.readouterr()
     return code, out.out + out.err
 
@@ -87,7 +87,7 @@ def test_inherited_method_resolves_through_subclass(tmp_path, capsys):
 def test_mixin_test_must_be_registered_through_a_collected_class(tmp_path, capsys):
     rows = valid_rows()
     rows[0]["implementing_tests"] = ";".join(ALL_NODES[:2])
-    code, out = run(make_repo(tmp_path, rows), capsys)
+    code, out = run(make_repo(tmp_path, rows), capsys, "--strict")
     assert code == 1
     assert ("test tests/test_x.py::Mixin::test_mixed is not registered; "
             "add tests/test_x.py::Cases::test_mixed") in out
@@ -108,10 +108,14 @@ def test_unknown_test_node_fails(tmp_path, capsys, node, message):
     assert message in out
 
 
-def test_unregistered_test_in_registered_file_fails(tmp_path, capsys):
+def test_unregistered_test_in_registered_file_fails_only_with_strict(tmp_path, capsys):
     rows = valid_rows()
     rows[1] = row("COM-T001", "planned", aliases="E07")
-    code, out = run(make_repo(tmp_path, rows), capsys)
+    repo = make_repo(tmp_path, rows)
+    code, out = run(repo, capsys)
+    assert code == 0, out
+    assert "warning: test tests/test_x.py::test_function is not registered" in out
+    code, out = run(repo, capsys, "--strict")
     assert code == 1
     assert "test tests/test_x.py::test_function is not registered" in out
 

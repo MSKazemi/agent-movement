@@ -62,14 +62,15 @@ The core needs Python 3.11+ and only the standard library. Each optional extra a
 ```sh
 python -m pip install -e . pytest                     # core only
 python -m agent_movement.demo                         # handoff, replay, denial, stale-epoch fencing
-python -m agent_movement.peer_demo                    # authenticated peer handoff (HS256)
+python -m agent_movement.peer_demo                    # authenticated peer handoff (HS256, plaintext: no confidentiality)
 python -m pytest -q                                   # all tests: agent_movement + corpus tooling
 
-python -m pip install -e '.[a2a,ed25519,relocation,signing]'   # every optional extra
+python -m pip install -e '.[a2a,ed25519,hpke,relocation,signing]'   # every optional extra
 python -m agent_movement.a2a_demo                     # A2A v1 delegation via the official a2a-sdk
-python -m agent_movement.peer_demo --alg Ed25519      # asymmetric peer keys
+python -m agent_movement.peer_demo --alg Ed25519      # asymmetric peer keys, HPKE-sealed delivery
 python -m agent_movement.relocation_demo              # LangGraph checkpoint relocation fault matrix
-python -m agent_movement.receipts verify tests/fixtures/movement-receipts/01-valid-delegation --now 2026-10-16T00:00:00Z
+python -m agent_movement.relocation_demo --two-store  # same, checkpoint copied into Worker B's own store
+python -m agent_movement.receipts verify tests/fixtures/movement-receipts/01-valid-delegation --trust tests/fixtures/movement-receipts/trust.json --now 2026-10-16T00:00:00Z
 ```
 
 The core demo outputs a completed task, an idempotent replay, a denied unapproved request, and a rejected stale epoch. On 2026-10-16, `python -m pytest -q` gave **351 passed, 1 skipped** with every extra installed (CPython 3.11 and 3.13) and **276 passed, 76 skipped** with the core only (CPython 3.13 and 3.15); the skipped tests are the ones that need a missing extra. CI runs both configurations ([`python-smoke.yml`](.github/workflows/python-smoke.yml)). No model credentials, live external tool effects, private data or public endpoints are required.
@@ -90,7 +91,7 @@ Suggested reading order:
 10. **[Can agents move unnoticed or cause harm? Defensive threat model](docs/unnoticed-and-unauthorized-agent-movement.md)** — permission boundaries, hidden delegation, lateral movement, independent detection, revocation and kill switches; [15 proposed synthetic defense tests](data/unnoticed-agent-movement-defense-tests.csv)
 11. [Agent communication governance and enforceable policy proposal](docs/agent-communication-and-policy.md) · [28 conformance cases](data/agent-communication-conformance-cases.csv) · [Test registry: documented cases linked to implemented tests](data/test-registry.csv)
 12. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
-13. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
+13. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments · [Question ID crosswalk](docs/question-id-crosswalk.md)
 14. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
 15. [Proposed architecture and staged roadmap](docs/roadmap.md)
 16. [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md) · [Economic evaluation methodology (proposed cost model, no results)](docs/economic-evaluation.md) · [Evaluation plan for reference tasks EV-A, EV-B and EV-C (design only, no results)](docs/evaluation-plan.md)
@@ -112,8 +113,8 @@ Experimental code (synthetic, local, not production):
 - [Language and SDK strategy (public proposal; Python-first, with what is implemented so far)](docs/language-and-sdk-strategy.md)
 - [Optional A2A v1 adapter on the official SDK: delegation, not migration; experimental, unauthenticated](docs/a2a-adapter.md)
 - [A2A profile extension spec: the resolvable extension URI, envelope ↔ A2A field mapping, error codes and the server-generated contextId policy](docs/a2a-profile-extension.md)
-- [Peer authentication and pre-disclosure authorization (synthetic, local; `python -m agent_movement.peer_demo`)](docs/peer-authentication.md)
-- [Same-runtime checkpoint relocation (pinned LangGraph) with a 30-row crash/duplicate fault matrix](docs/checkpoint-relocation.md) (optional extra: `pip install -e '.[relocation]'`)
+- [Peer authentication and pre-disclosure authorization (synthetic, local; `python -m agent_movement.peer_demo`), with optional HPKE-sealed delivery](docs/peer-authentication.md)
+- [Same-runtime checkpoint relocation (pinned LangGraph) with a 30-row crash/duplicate fault matrix, plus a two-store mode that copies the checkpoint as a digest-verified bundle (11 copy fault rows)](docs/checkpoint-relocation.md) (optional extra: `pip install -e '.[relocation]'`)
 - [Signed movement receipts and offline forensic verifier (experimental, synthetic fixtures)](docs/movement-receipts.md)
 
 ## Executable human-impact research pilot

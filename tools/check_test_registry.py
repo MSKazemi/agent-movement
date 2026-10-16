@@ -11,9 +11,9 @@ none of the optional extras. It fails (exit 1) when:
 - an implementing test is not a ``tests/<file>.py::[Class::]test_name`` node ID that pytest
   would collect (a test class also runs the methods it inherits from base or mixin classes
   of the same file, so ``Subclass::test_inherited`` is valid; a mixin itself is not collected);
-- a test defined in a registered test file is run by no node that a row names (once one test
-  of a file is registered, every test of that file must be; an inherited test is covered by
-  any one of the classes that run it);
+- with ``--strict`` only: a test defined in a registered test file is run by no node that a
+  row names (an inherited test is covered by any one of the classes that run it). Without
+  ``--strict`` these are printed as warnings;
 - a ``source_docs`` path does not exist, or a ``threat_asi`` value is not ASI01..ASI10;
 - a document refers to a registry-style ID that is neither a registry ID nor an alias.
 
@@ -108,7 +108,7 @@ def scanned_documents(root: Path, registry: Path) -> list[Path]:
     return out
 
 
-def check(root: Path, registry: Path) -> tuple[list[str], dict]:
+def check(root: Path, registry: Path) -> tuple[list[str], list[str], dict]:
     errors: list[str] = []
     if not registry.is_file():
         return [f"{registry}: registry file not found"], {}
@@ -178,10 +178,13 @@ def check(root: Path, registry: Path) -> tuple[list[str], dict]:
             covered.setdefault(file, set()).add(parsed[file][0][suffix])
             nodes += 1
 
+    # Completeness is reported, not enforced by default: tests are added in parallel PRs, and a
+    # new test should not turn CI red before its registry row exists. Use --strict to enforce it.
+    unregistered: list[str] = []
     for file in sorted(covered):
         for definition, node in sorted(parsed[file][1].items()):
             if definition not in covered[file]:
-                errors.append(f"{registry.name}: test {file}::{definition} is not registered; add "
+                unregistered.append(f"{registry.name}: test {file}::{definition} is not registered; add "
                               f"{file}::{node} to a row (or a new REG-nnn row), since {file} has registered tests")
 
     known = set(ids) | aliases
@@ -199,7 +202,7 @@ def check(root: Path, registry: Path) -> tuple[list[str], dict]:
              "by_file": Counter(n.split("::")[0] for row in rows for n in split(row["implementing_tests"])),
              "rows_by_file": Counter(f for row in rows
                                      for f in {n.split("::")[0] for n in split(row["implementing_tests"])})}
-    return errors, stats
+    return errors, unregistered, stats
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -208,10 +211,17 @@ def main(argv: list[str] | None = None) -> int:
                         help="repository root (default: the parent of tools/)")
     parser.add_argument("--registry", type=Path, help="registry CSV (default: <root>/data/test-registry.csv)")
     parser.add_argument("--stats", action="store_true", help="also print rows per status and per test file")
+    parser.add_argument("--strict", action="store_true",
+                        help="also fail when a test in a registered test file has no registry row")
     args = parser.parse_args(argv)
     root = args.root.resolve()
     registry = args.registry or root / "data" / "test-registry.csv"
-    errors, stats = check(root, registry)
+    errors, unregistered, stats = check(root, registry)
+    if args.strict:
+        errors += unregistered
+    else:
+        for warning in unregistered:
+            print(f"warning: {warning}", file=sys.stderr)
     for error in errors:
         print(error, file=sys.stderr)
     if errors:
@@ -219,7 +229,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     status = ", ".join(f"{stats['status'][s]} {s}" for s in STATUSES)
     print(f"check-tests-registry: ok ({stats['rows']} rows: {status}; {stats['aliases']} aliases; "
-          f"{stats['nodes']} test references resolved in {stats['files']} test files, all of their tests registered)")
+          f"{stats['nodes']} test references resolved in {stats['files']} test files; "
+          f"{len(unregistered)} unregistered test(s) in those files{'' if unregistered else ', all registered'})")
     if args.stats:
         for file in sorted(stats["rows_by_file"]):
             print(f"  {file}: {stats['rows_by_file'][file]} rows, {stats['by_file'][file]} test references")
