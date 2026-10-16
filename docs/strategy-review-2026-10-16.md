@@ -5,7 +5,7 @@
 **Repository snapshot:** main at [c58553a](https://github.com/MSKazemi/agent-movement/commit/c58553a1374c0cbceb8d28fdc834f9ed6929a00c); [open PRs](https://github.com/MSKazemi/agent-movement/pulls) and issue #50 checked on 2026-10-16.  
 **Audit method:** Examined the current tree, README, roadmap, strategy/scientific agenda, open questions, architecture, canonical envelope and implemented core, evaluation plan, v0.2 results, and visible open PRs/issues. This is a strategic/document consistency audit, **not** a line-by-line verification of every document or a systematic external literature review.
 
-## Executive decision
+**Post-review decision (2026-10-16):** The owner authorized the next phase of mission/roadmap consolidation. The resulting [project charter](project-charter.md) is the adopted current direction and [roadmap](roadmap.md) owns execution gates. This longer dated assessment remains a historical decision record; subsequent main-branch changes, including bounded Continuity Runtime and abstract state-space work, are covered by the charter and roadmap.\n\n## Executive decision
 
 **Verdict:** The underlying research direction is coherent and the synthetic implementation is substantial, but the public-facing goal is too broad, the technical claims are scattered, and some entry documents preserve outdated snapshots. The next stage should consolidate rather than open more parallel topics.
 
@@ -50,7 +50,7 @@ The [evaluation plan](evaluation-plan.md) correctly recognizes that its determin
 3. **Canonical envelope and runtime wire shape diverge by design, but are easy to confuse.** [The proposal](how-it-works.md) and [JSON Schema](../schemas/handoff-envelope.schema.json) define **0.2.0-draft**, while the current core validates **0.1.0-draft**. The proposal documents its divergences; a strategy/README must not imply the 0.2 proposal is the runtime contract.
 4. **A missing enforcement composition gate is more important than another conceptual taxonomy.** [PR #16](https://github.com/MSKazemi/agent-movement/pull/16) drafts a *decision-only* movement-policy helper. [Issue #50](https://github.com/MSKazemi/agent-movement/issues/50) correctly demands policy checks at sender, receiver and simulated effect commit, with independently controlled mediation; no blanket bypass-proof guarantee follows from prompt instructions or self-attested facts.
 5. **Existing open proposals need refresh, not duplication.** [PR #17](https://github.com/MSKazemi/agent-movement/pull/17) proposes useful architecture boundaries but describes an older repository with no src package. [PR #83](https://github.com/MSKazemi/agent-movement/pull/83) adds neglected consent/obligation/compromise/human-control studies. Integrate them as subordinate tracks after reconciling their snapshots, instead of creating a competing fourth grand agenda.
-6. **Benchmark naming is not unique in the broader research landscape.** The public [AMAP-ML/MobilityBench](https://github.com/AMAP-ML/MobilityBench) is a separate KDD 2026 route-planning-agent benchmark. The shared name creates discoverability and citation confusion, **not by itself a demonstrated legal conflict**. Consider a distinct identifier such as *Agent Continuity Bench* as a proposal; check names and downstream references before any rename.
+6. **Benchmark naming is not unique in the broader research landscape.** The public AMAP-ML/MobilityBench (separate external route-planning benchmark; see PR #88 source discussion) is a separate KDD 2026 route-planning-agent benchmark. The shared name creates discoverability and citation confusion, **not by itself a demonstrated legal conflict**. Consider a distinct identifier such as *Agent Continuity Bench* as a proposal; check names and downstream references before any rename.
 
 ## Boundaries: the first release of the research program
 
@@ -149,8 +149,8 @@ The [open structure PR #17](https://github.com/MSKazemi/agent-movement/pull/17) 
 
 ## External context and source boundaries
 
-- [A2A specification 1.0](https://a2a-protocol.org/v1.0.0/specification/) supports inter-agent task messaging/extension mechanisms; this project should **reuse**, not replace, that layer.
-- [MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) provides tool interface and task facilities; it is not proof of framework-independent checkpoint continuation.
-- [AMAP-ML/MobilityBench](https://github.com/AMAP-ML/MobilityBench) is a distinct route-planning benchmark using the same project benchmark name (checked 2026-10-16).
+- [A2A interoperability notes](research-landscape.md) supports inter-agent task messaging/extension mechanisms; this project should **reuse**, not replace, that layer.
+- [MCP interoperability notes](research-landscape.md) provides tool interface and task facilities; it is not proof of framework-independent checkpoint continuation.
+- AMAP-ML/MobilityBench (separate external route-planning benchmark; see PR #88 source discussion) is a distinct route-planning benchmark using the same project benchmark name (checked 2026-10-16).
 
 **Limitations of this review:** conclusions about implementation are inferred from available source/docs and repository history, not a fresh runtime penetration test or third-party reproduction. Roadmap dates are proposed sequencing. Nothing in this document is a claim of production security, mathematical proof, universal agent identity, legal clearance, or publishable originality.
