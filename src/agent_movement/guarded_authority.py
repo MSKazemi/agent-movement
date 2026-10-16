@@ -210,7 +210,9 @@ class GuardedAuthority:
             owner = db.execute("SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)).fetchone()
             if owner != (row["origin_id"], row["origin_epoch"]):
                 raise Conflict("source owner/epoch changed since signed intent")
-            next_epoch = row["origin_epoch"] + 1
+            if type(row["origin_epoch"]) is not int:
+                raise Conflict("invalid stored source epoch")
+            next_epoch = int(row["origin_epoch"]) + 1
             modified = db.execute(
                 "UPDATE owners SET agent_id=?,epoch=? WHERE task_id=? AND agent_id=? AND epoch=?",
                 (row["destination_id"], next_epoch, task_id, owner[0], owner[1]),
