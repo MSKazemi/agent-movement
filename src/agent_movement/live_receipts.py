@@ -8,6 +8,10 @@ What it does when enabled (``python -m agent_movement.demo --receipts OUTDIR`` o
   delivery, or ``movement.rejected`` for a policy denial, before it answers;
 * a recording effect gateway signs ``tool.effect_recorded`` (committed or rejected)
   for every fenced simulated-effect commit attempt;
+* the receiver signs ``authority.revoked`` when it applies a new runtime revocation of
+  one of its approvals (issue #38). The receipt references the signed notice by its
+  plain JCS digest (a ``revocation_notice`` subject, :func:`notice_subject_ref`): the
+  notice is a public signed document, so it is neither salted nor secret;
 * :func:`export_run` writes the run's receipts as one evidence bundle and a SEPARATE
   trust anchor file outside the bundle, which the offline verifier accepts.
 
@@ -51,6 +55,12 @@ def live_principal(name: str, role: str = "agent") -> str:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def notice_subject_ref(notice: Any) -> str:
+    """Deterministic subject ref for a revocation notice: anyone holding the notice can
+    place it at ``subjects/<ref>.json`` for the verifier to check against the signed digest."""
+    return "notice-" + jcs_digest(notice)[len("sha256:"):][:32]
 
 
 class ReceiptEmitter:
@@ -206,6 +216,25 @@ class ReceiptEmitter:
                         "fencing_epoch": epoch})
         return self._emit(("effect", task_id, effect_id, agent_id, epoch, status), build)
 
+    def revoked(self, notice: Any, approval_ref: str, task_id: str) -> bool:
+        """Receiver side: a verified runtime revocation was newly applied (issue #38).
+
+        Once per approval: re-applying the same revocation is idempotent and signs nothing.
+        The receipt says the receiver applied the notice; the notice's own signature is the
+        evidence that the authority issued it.
+        """
+        external = {"role": "revocation_notice", "ref": notice_subject_ref(notice), "digest": jcs_digest(notice)}
+
+        def build(receipt_id: str, seq: int, prev: str | None, issued_at: str) -> dict[str, Any]:
+            body = self._body(
+                "authority.revoked", receipt_id, seq, prev, issued_at, agent_label=self.name, task_id=task_id,
+                destination={"claimed_agent_id": self.name, "claimed_principal": self.principal,
+                             "execution_id": None},
+                outcome="revoked")
+            body["subjects"] = [external]
+            return body
+        return self._emit(("revoked", approval_ref), build)
+
 
 class RecordingEffectGateway(EffectGateway):
     """PR #6 fenced gateway that also signs a tool-side record of each commit attempt.
@@ -260,12 +289,16 @@ def _jsonl(paths: Iterable[str | Path]) -> bytes:
 def export_run(outdir: str | Path, *, receipt_logs: Iterable[str | Path], tool_logs: Iterable[str | Path] = (),
                descriptors: Iterable[dict[str, str]], not_before: datetime,
                not_after: datetime | None = None,
-               revocation_issuers: Iterable[dict[str, str]] = ()) -> tuple[Path, Path]:
+               revocation_issuers: Iterable[dict[str, str]] = (),
+               notices: Iterable[Any] = ()) -> tuple[Path, Path]:
     """Write ``<outdir>/live-run/`` (the evidence) and ``<outdir>/trust-anchors.json`` (NOT evidence).
 
     The anchor file sits beside the bundle, never inside it, because anchors shipped with
     the evidence prove nothing. An existing non-empty bundle directory is refused so two
     runs are never mixed into one body of evidence. Commitment documents are not exported.
+    ``notices`` are approval revocation notices (public signed documents) written to
+    ``subjects/<notice_subject_ref>.json`` so the verifier can match ``authority.revoked``
+    subjects. They are not key revocations and do not go to ``revocations.jsonl``.
     """
     outdir = Path(outdir)
     bundle, trust = outdir / BUNDLE_NAME, outdir / TRUST_NAME
@@ -276,7 +309,10 @@ def export_run(outdir: str | Path, *, receipt_logs: Iterable[str | Path], tool_l
     tools = _jsonl(tool_logs)
     if tools:
         (bundle / "tool-records.jsonl").write_bytes(tools)
-    doc = trust_document(descriptors, not_before=not_before,
+    for notice in notices:
+        (bundle / "subjects").mkdir(exist_ok=True)
+        (bundle / "subjects" / f"{notice_subject_ref(notice)}.json").write_bytes(canonicalize(notice) + b"\n")
+    doc =trust_document(descriptors, not_before=not_before,
                          not_after=not_after or not_before + timedelta(days=1),
                          revocation_issuers=revocation_issuers)
     trust.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

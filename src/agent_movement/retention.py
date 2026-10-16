@@ -92,6 +92,10 @@ POLICY: dict[str, Rule] = {
     "authorized_effects": _retained("peer effect ledger: exactly-once replay detection"),
     "grant_revocations": _retained("a revocation must outlive its grant, whose expiry this file "
                                    "does not always know"),
+    "approval_revocations": _retained("runtime revocations of core approvals (issue #38); a revoked "
+                                      "approval must stay refused, at admission and at effect commit"),
+    "task_approvals": _retained("which approval each delivered task arrived under (issue #38); "
+                                "EffectGateway.commit reads it to refuse effects of a revoked approval"),
     "store_secret": _retained("key of the keyed commitments; deleting it makes the store unusable"),
     PURGE_LOG: _retained("the audit of purges (counts and policy only)"),
     # Operator reconciliation (issue #30), in the relocation coordinator file.

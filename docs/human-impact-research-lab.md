@@ -22,7 +22,7 @@ A zero-violation count over a small set of scripted synthetic cases does **not**
 
 | Human-impact question | Testable hypothesis in this repo | Baseline and observation | What falsifies or limits the claim | Tracking |
 | --- | --- | --- | --- | --- |
-| **HQ-01 Human control** | A revoked/expired receiver-local grant blocks a **new** handoff | Approved task vs revoked and expired synthetic deliveries | Unapproved new task accepted; *existing* downstream work is separate | PR #6, issue #8 |
+| **HQ-01 Human control** | A revoked/expired receiver-local grant blocks a **new** handoff; a runtime revocation by a signed notice also blocks the delegated task's next simulated effect | Approved task vs revoked and expired synthetic deliveries; effect commit after a runtime revocation | Unapproved new task accepted, or an effect committed after the revocation; a committed effect is not undone, and expiry is not rechecked at commit | PR #6, issues #8 and #38 |
 | **HQ-03 Verified identity** | Allowed task IDs/origin/destination **claims** are scoped, but must not be confused with authenticated principals | Wrong string claims denied; deliberately show expected-ID impersonation is unverified | No caller/workload authentication in current prototype | Issue #8 |
 | **HQ-05 Context privacy** | Strict envelope rejects unsupported classification and unknown fields; synthetic payload canary absent from stored audit events | Compare canary-bearing task to redacted local audit | This does not protect data **before it reaches** receiver or guarantee remote deletion | Issue #8 and future retention research |
 | **HQ-06 Accountability** | Local receipt/artifact hashes and database logs support limited debugging | Repeat and reopen SQLite, verify artifact digest; forge a receipt and show the offline digest check accepts it | No authenticated principal, independently signed receipt or complete event chain | Issue #11 |
@@ -54,23 +54,24 @@ The runner directly invokes local Python receiver/gateway classes, not a native 
 
 | Verdict | Count | Meaning |
 | --- | ---: | --- |
-| `pass` | **17 of 20** | Expected *narrow* local behavior reproduced: scripted admission, exact retry, redaction, local ledger and fencing |
-| `known_gap` | **3 of 20** | The scripted attack succeeded against the core path (see the table below) |
+| `pass` | **18 of 20** | Expected *narrow* local behavior reproduced: scripted admission, exact retry, redaction, local ledger, fencing and runtime revocation at the effect commit |
+| `known_gap` | **2 of 20** | The scripted attack succeeded against the core path (see the table below) |
 | `gap_closed` | **0 of 20** | No declared gap is closed on the core path |
 | `fail` | **0 of 20** | No discrepancy against the declarations |
 
-These counts were identical on CPython 3.11.16, 3.13.15, 3.14.7 and 3.15.0rc2, with the same timing-free `outcome_digest` (`828c9114ce4c4fc15655c6a3746875a87443287cab7fa825443bd7349cbd9f35`). They describe this commit; the authoritative counts are whatever the declarations and the latest run say.
+These counts were identical on CPython 3.11.16, 3.13.15, 3.14.7 and 3.15.0rc2, with the same timing-free `outcome_digest` (`4cb13f623e95856d28042a69a903216ea6b5c9bdd2482a3902d541eff6e23222`). They describe this commit; the authoritative counts are whatever the declarations and the latest run say.
 
 This is a **small deterministic engineering check**, not a statistically powered research result. Local B0 direct calculation and B2-like receiver calls have different execution boundaries, so their durations are **not a fair performance comparison**. No A2A, actual checkpoint, remote identity or external-tool result was measured.
 
-### The three known gaps, re-evaluated after issues #8 and #11
+### The known gaps, re-evaluated after issues #8, #11 and #38
 
-Issues #8 (peer authentication, commit-time grant recheck) and #11 (signed movement receipts) are on main. Both add **separate** modules. Neither changes the PR #6 core classes (`HandoffReceiver`, `EffectGateway`) that this smoke exercises. All three gaps therefore remain open **on the core path**, and each case points to the module that closes it elsewhere.
+Issues #8 (peer authentication, commit-time grant recheck) and #11 (signed movement receipts) add **separate** modules and do not change the PR #6 core classes (`HandoffReceiver`, `EffectGateway`) that this smoke exercises. Their two gaps remain open **on the core path**, and each case points to the module that closes it elsewhere.
+
+[Issue #38](https://github.com/MSKazemi/agent-movement/issues/38) changed the core classes themselves: the receiver accepts a signed runtime revocation notice, and the core gateway rechecks it inside the effect-commit transaction. The former third gap, `grant_revocation_not_bound_to_effect_gateway`, would now observe its declared closed observation (`rejected`). Following the procedure above, it was **rewritten** rather than relabelled: the new case `grant_revocation_blocks_effect_commit` (HQ-01, HQ-03, declared `pass`) revokes with a signed notice through the runtime API instead of the static flag, first checks that a forged notice is refused, and expects the executor's next simulated effect to be `rejected`. Its pass shows only that this cooperative simulated gateway refuses the commit for a task delivered under the revoked approval; it does not cover effects already committed, tasks that never arrived through a delivery, expiry at commit, or real tools.
 
 | Case | Attack exercised | Observed on the core path | Closed elsewhere by |
 | --- | --- | --- | --- |
 | `claimed_identity_is_not_authenticated` (HQ-03) | A party other than agent-a builds an envelope from non-secret identifiers, claims origin agent-a and supplies its own text | Executed; the receipt attributes it to agent-a | `agent_movement.peer.PeerReceiver`: signed agent cards and scoped grants, checked before delivery ([peer authentication](peer-authentication.md), issue #8) |
-| `grant_revocation_not_bound_to_effect_gateway` (HQ-01, HQ-03) | Approved work starts, the grant is revoked, then the executor commits its next simulated effect | The receiver denies a new handoff, but the effect still commits | `agent_movement.peer.AuthorizedEffectGateway`: grant recheck inside the commit transaction (issue #8) |
 | `receipt_is_not_independently_authenticated` (HQ-06) | Anyone holding a core receipt rewrites the artifact value and recomputes the unkeyed digest | The forgery passes the only offline check a third party can run | `agent_movement.receipts`: Ed25519-signed receipts and an offline verifier ([signed movement receipts](movement-receipts.md), issue #11, optional `signing` extra) |
 
 The first case has an inherent limit: the direct Python API has no notion of the actual caller, so the harness can only state that the forger is not agent-a. The receiver's inability to tell the two apart is exactly the gap.
@@ -78,7 +79,7 @@ The first case has an inherent limit: the direct Python API has no notion of the
 ### Exactly what the current tests do NOT show
 
 - **Identity before disclosure:** the receiver sees the task message before its local policy validation. An allowed-looking origin string is not a cryptographic identity.
-- **End-to-end revocation:** the core simulated gateway enforces ownership epochs, but does not recheck the original user's grant at commit. The separate `AuthorizedEffectGateway` (issue #8) does, but only for the peer-auth path, and only in simulation.
+- **End-to-end revocation:** the core simulated gateway rechecks a *runtime* revocation of the approval a task was delivered under (issue #38), and the separate `AuthorizedEffectGateway` (issue #8) rechecks the peer grant, both only in simulation. Neither undoes an effect committed before the revocation, the core gateway does not recheck expiry, and no real external tool is involved. A receiver cut off from the revocation authority keeps honouring the approval until it expires.
 - **Privacy across trust domains:** rejection of an unsupported classification does not mean a remote server never received it.
 - **Independent incident reconstruction:** unsigned digests and logs are neither complete nor proof of the truth of an agent's claims.
 - **Real agent migration:** reopening an artifact receipt is not restoring hidden chain-of-thought, a live process stack or a framework checkpoint.

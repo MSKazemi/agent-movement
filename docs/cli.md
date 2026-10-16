@@ -67,7 +67,7 @@ movement <command> --help' for its options.
 
 positional arguments:
   <command>
-    demo       core loopback handoff, replay, denial and stale-epoch fencing
+    demo       core loopback handoff, replay, denial, runtime revocation and stale-epoch fencing
     a2a-demo   A2A v1 delegation demo on the official a2a-sdk
     peer-demo  authenticated peer handoff (HS256; --alg Ed25519 and --delivery hpke need extras)
     relocate   same-runtime LangGraph checkpoint relocation and fault matrix
@@ -92,7 +92,8 @@ is printed); receipts verify also uses 3 for an unverifiable bundle.
 usage: agent-movement demo [-h] [--receipts OUTDIR]
 
 Core local handoff demo: a loopback receiver process, an approved handoff, an idempotent replay, a
-denied request and stale-epoch fencing. Synthetic, stdlib-only, not A2A.
+denied request, stale-epoch fencing and a runtime revocation by a signed notice. Synthetic,
+stdlib-only, not A2A.
 
 options:
   -h, --help         show this help message and exit

@@ -26,6 +26,8 @@ The demos create their stores in temporary directories and delete them on exit. 
 | `peer_admissions` | `PeerReceiver` | admission record: IDs, origin card, signed grant, client-salted task commitment, nonce, expiry | A delivery must present a live admission; a retry of an admitted movement must keep its binding | purged only when the admission **and** its grant expired before the cutoff, together with its `grant_uses` row |
 | `grant_uses` | `PeerLedger` | grant ID, movement ID, use number, `max_uses`, time | Single-use and counted grants (issue #29) | purged only with its admission (see above), so a live grant never regains uses |
 | `grant_revocations` | `PeerLedger.revoke` | grant ID, revocation time | A revoked grant must stay refused | **retained** |
+| `approval_revocations` | `HandoffReceiver.revoke` (issue #38) | approval ref, issuer key ID, claimed and recorded revocation time, SHA-256 of the public signed notice | A runtime-revoked approval must stay refused at admission and at effect commit | **retained** |
+| `task_approvals` | `SQLiteStore.receive` (issue #38) | task ID, approval ref it was delivered under | `EffectGateway.commit` refuses effects of a task whose approval was revoked | **retained** |
 | `authority_log` | `PeerLedger` | revocation and effect-authorization events (IDs and times) | Authority history | purged by age (`at`) |
 | `authorized_effects` | `AuthorizedEffectGateway` | task and effect IDs, grant, agent, keyed payload commitment | Exactly-once record of authorized simulated effects | **retained** |
 | `peer_trace` | `PeerReceiver` | stage, outcome, reason code, IDs, time | Sanitized receiver trace | purged by age (`at`) |

@@ -29,6 +29,7 @@ from typing import Any, Callable, Iterable, Sequence
 from .core import (ID, SCHEMA_VERSION, Approval, Conflict, ContractError,
                    EffectGateway, HandoffReceiver, PolicyDenied, SQLiteStore,
                    canonical, digest, parse_json)
+from .trust import HmacKey, issue_revocation
 
 # v0.2: per-case isolation, fixture-declared expectations, attack-exercising gap cases.
 SUITE_VERSION = "mobilitybench-local-smoke-v0.2"
@@ -153,6 +154,7 @@ def verdict_for(case: dict[str, Any], observed: str) -> str:
 # gateway it uses inside it. No evaluator reads state written by another case.
 
 APPROVAL = Approval("approval-mobilitybench", "task-mobilitybench", "agent-a", "agent-b", "word_count")
+REVOKED_AT = 1_792_000_000  # fixed claimed revocation time; never part of the output
 
 
 def _store(workdir: Path) -> SQLiteStore:
@@ -325,24 +327,35 @@ def case_claimed_identity_is_not_authenticated(workdir: Path) -> tuple[str, Evid
         "receipt_attributes_to_claimed_origin": attributed}
 
 
-def case_grant_revocation_not_bound_to_effect_gateway(workdir: Path) -> tuple[str, Evidence]:
-    """Known gap, exercised: revoke the grant mid-task, then commit the next effect."""
-    receiver = _receiver(workdir)
+def case_grant_revocation_blocks_effect_commit(workdir: Path) -> tuple[str, Evidence]:
+    """Revoke the grant mid-task at runtime, then let the executor commit its next effect.
+
+    Rewritten after issue #38 closed the former known gap
+    `grant_revocation_not_bound_to_effect_gateway` on the core path. The synthetic user
+    authority revokes with a signed notice (issue #8 format) through the receiver's
+    runtime API; a forged notice must be refused first.
+    """
+    authority = HmacKey.generate("authority-mobilitybench")  # synthetic, fresh per run
+    receiver = HandoffReceiver("agent-b", _store(workdir), [APPROVAL], revocation_authorities=[authority])
     receiver.receive(envelope("before-revocation"))  # approved work starts on agent-b
     gateway = EffectGateway(receiver.store)
     epoch = gateway.claim("task-mobilitybench", "agent-b")
-    # The user revokes the grant (a static flag: the core has no runtime revocation API).
-    revoked = HandoffReceiver("agent-b", receiver.store, [replace(APPROVAL, revoked=True)])
-    new_handoff, _ = exception_outcome(lambda: revoked.receive(envelope("after-revocation")), PolicyDenied)
-    if new_handoff != "denied":
-        return "revocation_not_enforced_at_receiver", {"new_handoff_denied": False}
+    impostor = HmacKey.generate(authority.kid)  # knows the authority's name, not its key
+    forged, _ = exception_outcome(lambda: receiver.revoke(
+        issue_revocation(impostor, APPROVAL.ref, REVOKED_AT)), PolicyDenied)
+    receiver.revoke(issue_revocation(authority, APPROVAL.ref, REVOKED_AT))
+    new_handoff, _ = exception_outcome(lambda: receiver.receive(envelope("after-revocation")), PolicyDenied)
+    if forged != "denied" or new_handoff != "denied":
+        return "revocation_not_enforced_at_receiver", {
+            "forged_revocation_rejected": forged == "denied", "new_handoff_denied": new_handoff == "denied"}
     try:  # Attack: the executor keeps going and commits its next simulated effect anyway.
         committed = gateway.commit("task-mobilitybench", "agent-b", epoch,
                                    "effect-after-revocation", "synthetic effect")
     except (PolicyDenied, Conflict):
         committed = False
     return ("committed_without_grant_recheck" if committed else "rejected"), {
-        "new_handoff_denied": True, "simulated_commit_after_revocation": committed}
+        "forged_revocation_rejected": True, "new_handoff_denied": True,
+        "simulated_commit_after_revocation": committed}
 
 
 def case_receipt_is_not_independently_authenticated(workdir: Path) -> tuple[str, Evidence]:

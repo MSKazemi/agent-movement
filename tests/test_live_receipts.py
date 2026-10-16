@@ -287,9 +287,10 @@ class DemoReceiptsFlagTests(unittest.TestCase):
             result = run_module("agent_movement.demo", "--receipts", str(out))
             self.assertEqual(result.returncode, 0, result.stderr)
             summary = json.loads(result.stdout)
-            self.assertEqual(set(summary), {"first", "replay", "denied", "fencing", "receipts"})
+            self.assertEqual(set(summary), {"first", "replay", "denied", "fencing", "revocation", "receipts"})
             self.assertEqual(summary["receipts"]["verifier_exit_code"], 0)
-            self.assertEqual(summary["receipts"]["receipt_verdicts"], {"VALID": 7})
+            self.assertEqual(summary["receipts"]["receipt_verdicts"], {"VALID": 12})
+            self.assertEqual(summary["receipts"]["revocation_notice_subjects"], ["DIGEST_MATCH"])
             bundle, trust = out / BUNDLE_NAME, out / TRUST_NAME
             ok = run_module("agent_movement.receipts", "verify", "--trust", str(trust), str(bundle))
             self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
@@ -299,7 +300,8 @@ class DemoReceiptsFlagTests(unittest.TestCase):
             (tampered / "receipts.jsonl").write_text(text.replace('"outcome":"accepted"', '"outcome":"rejected"', 1))
             bad = run_module("agent_movement.receipts", "verify", "--trust", str(trust), str(tampered))
             self.assertEqual(bad.returncode, 1, bad.stdout)
-            self.assertNotIn("synthetic agent movement test task", "".join(p.read_text() for p in bundle.iterdir()))
+            self.assertNotIn("synthetic agent movement test task",
+                             "".join(p.read_text() for p in bundle.rglob("*") if p.is_file()))
             again = run_module("agent_movement.demo", "--receipts", str(out))  # never mixes two runs
             self.assertEqual(again.returncode, 2)
             self.assertIn("already holds evidence", again.stderr)
@@ -318,7 +320,7 @@ class DemoReceiptsFlagTests(unittest.TestCase):
     def test_demo_default_output_has_no_receipts(self):
         result = run_module("agent_movement.demo")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(set(json.loads(result.stdout)), {"first", "replay", "denied", "fencing"})
+        self.assertEqual(set(json.loads(result.stdout)), {"first", "replay", "denied", "fencing", "revocation"})
 
 
 # ---------------------------------------------------------------------- revocation notices

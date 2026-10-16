@@ -109,14 +109,21 @@ class SmokeRunTests(unittest.TestCase):
         attack_succeeded = {
             "claimed_identity_is_not_authenticated": ("forged_task_executed",
                                                       "receipt_attributes_to_claimed_origin"),
-            "grant_revocation_not_bound_to_effect_gateway": ("new_handoff_denied",
-                                                             "simulated_commit_after_revocation"),
             "receipt_is_not_independently_authenticated": ("forged_receipt_self_consistent",),
         }
         for scenario, keys in attack_succeeded.items():
             if scenario in evidence:  # once a gap closes, this no longer applies
                 for key in keys:
                     self.assertIs(evidence[scenario][key], True, (scenario, key))
+
+    def test_runtime_revocation_case_blocks_the_commit(self):
+        # The former known gap grant_revocation_not_bound_to_effect_gateway, rewritten after
+        # issue #38: the attack now runs and is refused at the effect gateway.
+        case = next(c for c in self.cases if c.scenario == "grant_revocation_blocks_effect_commit")
+        self.assertEqual((case.expectation, case.observed, case.verdict), ("pass", "rejected", "pass"))
+        self.assertEqual(case.evidence, {"forged_revocation_rejected": True, "new_handoff_denied": True,
+                                         "simulated_commit_after_revocation": False})
+        self.assertNotIn("grant_revocation_not_bound_to_effect_gateway", mb.EVALUATORS)
 
     def test_no_canary_in_report(self):
         serialized = json.dumps([asdict(c) for c in self.cases])
