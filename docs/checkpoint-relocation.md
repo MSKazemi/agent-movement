@@ -1,6 +1,6 @@
 # Same-runtime checkpoint relocation and crash-fault matrix (2026-10-16)
 
-**Status:** tested experimental software, synthetic data only. This adds **same-runtime checkpoint relocation** to the [local proof of concept](local-implementation.md). An unfinished task moves from Worker A to Worker B at a persisted LangGraph checkpoint, and B continues it. By default both workers share one store; in [two-store mode](#two-store-mode-copy-the-checkpoint-into-worker-bs-own-store-issue-20) the checkpoint is copied into B's own store as a digest-verified bundle, and only the coordinator stays shared. It is **not** cross-framework reconstruction, cross-host transfer, live process migration, A2A, or production-secure. It makes **no exactly-once claim for arbitrary tools.** It addresses open questions [AM-03, AM-04 and AM-07](open-questions.md) for one runtime only.
+**Status:** tested experimental software, synthetic data only. This adds **same-runtime checkpoint relocation** to the [local proof of concept](local-implementation.md). An unfinished task moves from Worker A to Worker B at a persisted LangGraph checkpoint, and B continues it. By default both workers share one store; in [two-store mode](#two-store-mode-copy-the-checkpoint-into-worker-bs-own-store-issue-20) the checkpoint is copied into B's own store as a digest-verified bundle, and only the coordinator stays shared. It is **not** cross-framework reconstruction, cross-host transfer, live process migration, A2A, or production-secure. An effect whose outcome is unknown after a crash is parked, and an operator can [resolve it](#operator-reconciliation-of-parked-effects-issue-30) as `confirmed_done` or `confirmed_absent`. It makes **no exactly-once claim for arbitrary tools.** It addresses open questions [AM-03, AM-04 and AM-07](open-questions.md) for one runtime only.
 
 ## Run it
 
@@ -9,12 +9,15 @@ python -m pip install -e '.[relocation]'          # optional extra; core stays d
 python -m agent_movement.relocation_demo           # headline + 30-row fault matrix, exit 0 if all rows match
 python -m agent_movement.relocation_demo --json results.json
 python -m agent_movement.relocation_demo --two-store   # own store per worker, bundle copy, 11-row copy fault matrix
-python -m pytest -q tests/test_relocation.py tests/test_relocation_two_store.py   # skipped cleanly without the extra
+python -m agent_movement.relocation_reconcile --help    # operator CLI for parked effects (also: agent-movement relocate reconcile)
+python -m pytest -q tests/test_relocation.py tests/test_relocation_two_store.py tests/test_relocation_reconcile.py   # skipped cleanly without the extra
 ~~~
+
+Both modes end with nine [operator-reconciliation rows](#reconciliation-rows-observed) that resolve the effects parked by C13 and C14.
 
 The default mode shares one SQLite file between coordinator and workers and exports the checkpoint *by reference*. `--two-store` gives each worker its own SQLite file and *copies* the checkpoint into Worker B's store as a digest-verified bundle; see [Two-store mode](#two-store-mode-copy-the-checkpoint-into-worker-bs-own-store-issue-20).
 
-The experiment needs `os.fork` (Linux/macOS). The default mode completes in roughly 15–20 s, `--two-store` in under 10 s. It makes no model calls, needs no network, and uses no credentials. Each scenario uses fresh SQLite files in a temporary directory, and the directory is deleted afterwards. CI runs both modes in the `extras` job of [`python-smoke.yml`](../.github/workflows/python-smoke.yml) on Python 3.11 and 3.13 and uploads the JSON results as artifacts.
+The experiment needs `os.fork` (Linux/macOS). The default mode completes in roughly 20 s, `--two-store` in roughly 15 s, the reconciliation rows included. It makes no model calls, needs no network, and uses no credentials. Each scenario uses fresh SQLite files in a temporary directory, and the directory is deleted afterwards. CI runs both modes in the `extras` job of [`python-smoke.yml`](../.github/workflows/python-smoke.yml) on Python 3.11 and 3.13 and uploads the JSON results as artifacts.
 
 ## Pinned runtime (one durable runtime, exact pins)
 
@@ -91,7 +94,7 @@ The graph `synthetic-batch-report` v1 is deterministic and LLM-free: `process_it
 Effects use a write-ahead ledger with these states: `intent` → `attempt_started` → `committed`, or `reconciled_committed`, or `unknown`. Two simulated tool classes exist, and both are gated by the ownership epoch:
 
 - **`gateway`**: the core `EffectGateway`. It deduplicates by effect ID and its commit record can be queried. After a crash in the commit window, B calls `reconcile()`. If a record exists, B adopts it; if not, B retries with the **same** effect ID. The retry is safe **only because this gateway deduplicates**.
-- **`opaque`**: no idempotency key and no lookup. After a crash in the commit window, B cannot know whether the effect happened. The task is parked as `reconcile_required` with effect status `unknown`, and there is **no blind retry**. Only the harness reads the ground truth.
+- **`opaque`**: no idempotency key and no lookup. After a crash in the commit window, B cannot know whether the effect happened. The task is parked as `reconcile_required` with effect status `unknown`, and there is **no blind retry**. Only the harness reads the ground truth. An operator who checks the external system out of band can then [resolve the parked effect](#operator-reconciliation-of-parked-effects-issue-30).
 
 This is the AM-04 boundary in executable form. Exactly-once is achievable only where the target system cooperates (dedup or lookup). For anything else, the honest result is `unknown`.
 
@@ -120,7 +123,7 @@ Outcome vocabulary:
 
 - **allowed**: after the fault and the documented recovery, the task completes with all six artifacts, the correct word total, preserved constraints, and exactly one gated commit.
 - **reconciled**: allowed, and the uncertain effect was resolved through the gateway's commit record.
-- **unknown**: the effect outcome is not knowable by the worker. The task is parked as `reconcile_required` and nothing is retried.
+- **unknown**: the effect outcome is not knowable by the worker. The task is parked as `reconcile_required` and nothing is retried until an operator decides ([reconciliation rows](#reconciliation-rows-observed)).
 - **denied**: the injected message is rejected (`PolicyDenied`, `Conflict`, or `Incompatible`) and owner, head checkpoint, commits and relocation records are **unchanged**.
 - **deduplicated**: the message is accepted as a replay and that same state is unchanged.
 
@@ -211,7 +214,7 @@ Same task and checks as the single-store headline; all hold (`headline_ok: True`
 | Gated commits | exactly 1, at epoch 2 |
 | B's store before import / rows imported | 0 checkpoint rows / 1 checkpoint, 0 pending writes, 0 effect records |
 | Checkpoints in B's store written by `worker-a.1` | 1 (the copied head only) |
-| Coordinator file tables | `audit_events`, `deliveries`, `effects`, `opaque_effects`, `owners`, `relocations` (no checkpoint or ledger tables) |
+| Coordinator file tables | `audit_events`, `deliveries`, `effect_reconciliations`, `effects`, `opaque_effects`, `owners`, `reconciliation_events`, `relocations` (no checkpoint or ledger tables) |
 | Bundle bytes B verified = bundle bytes A wrote (SHA-256) | `true` |
 
 ### Copy fault matrix (observed)
@@ -241,6 +244,87 @@ Notes on specific rows:
 - **B7/B8** are the partial-import crashes. Before commit the import leaves 0 rows. After commit, the replacement execution's import finds the identical rows and accepts them without duplicating anything. As in the single-store matrix, a crashed execution is never revived. Recovery fails over to `worker-b.2` (epoch 3) from A's store, because no receiver acknowledged.
 - **B9**: after the acknowledgement, a re-import is answered as a replay without reading the bundle, so B is never rewound. A store-level import record also makes a re-import before the acknowledgement idempotent (unit test).
 - **B10/B11**: the import itself and A's writes to its *own* store are fenced through the coordinator epoch.
+
+## Operator reconciliation of parked effects (issue #30)
+
+Rows C13 and C14 end with the task parked as `reconcile_required`. The opaque tool cannot be queried, so no worker can learn whether its call happened. This section adds the step that resolves a parked effect: an operator checks the external system out of band and records what they found. Code: `Coordinator.parked_effects`, `Coordinator.reconcile`, `Coordinator.reconciliation_events`, `EffectLedger.apply_decision` and `Worker.resume_reconciled` in [`relocation.py`](../src/agent_movement/relocation.py); the operator CLI in [`relocation_reconcile.py`](../src/agent_movement/relocation_reconcile.py); the rows in [`relocation_demo_reconcile.py`](../src/agent_movement/relocation_demo_reconcile.py). The existing relocation API is unchanged; everything here is additive.
+
+### Protocol
+
+1. **Park.** When `effect_commit` marks an opaque effect `unknown`, the same fenced transaction registers it in the coordinator file (`effect_reconciliations`, status `parked`) and appends a `parked` event. In two-store mode the ledger row is in the worker's own store and the record is in the attached coordinator file; one `BEGIN IMMEDIATE` commits both or neither.
+2. **Decide.** The operator records `confirmed_done` or `confirmed_absent` with a reason (1–512 bytes of printable text), an operator identity (same ID syntax as agent IDs) and the ownership epoch they inspected. One coordinator transaction then checks, in this order:
+   1. **Epoch fence.** The task's current epoch must equal the decision's epoch, otherwise `PolicyDenied`. The fence runs first, so even an identical replay is denied once the epoch has moved on.
+   2. **Parked.** The effect must have been parked, otherwise `Conflict`.
+   3. **Double resolution.** The first decision is final. A replay of the identical decision (same decision, operator and reason) is answered as a replay and changes nothing. Any other second decision, including the opposite one from another operator, is `Conflict`.
+   4. **Retry budget.** `confirmed_absent` for an effect that is itself the retry is `PolicyDenied`.
+3. **Audit.** Every outcome appends one row to `reconciliation_events` in the coordinator file: `parked`, `confirmed_done` or `confirmed_absent`, `replayed`, `denied` (with the error) and `applied`. Each row records the actor (operator or execution), the epoch, the detail and a UTC timestamp. The decision record keeps the canonical decision and its SHA-256 digest.
+4. **Resume.** The current owner calls `Worker.resume_reconciled()`. It needs a recorded decision and the current epoch. It writes one fenced checkpoint that re-enters the graph at `effect_commit` (LangGraph `update_state(..., as_node="effect_intent")`, with an `operator_reconcile` entry in `step_log`) and runs on. `effect_commit` applies the decision to the worker's ledger in one fenced transaction and records `applied`:
+   - **`confirmed_done`**: the ledger entry becomes `confirmed_done` and the task continues to `finalize` **without re-executing the effect**.
+   - **`confirmed_absent`**: the ledger entry becomes `confirmed_absent`, and **one** retry intent is recorded under the new effect ID `<effect_id>.retry-1` with the same payload digest. The retry takes the normal intent → attempt → commit path. If the retry also crashes in its commit window, it is parked like any opaque effect (with `retry_of` set). It can then only be confirmed done: a second `confirmed_absent` is denied, so an effect is retried at most once.
+
+The operator writes only to the coordinator file and each worker updates only its own ledger, so the same protocol runs unchanged in single-store and two-store mode. The graph topology and `graph_version` are unchanged; the decision is applied inside the existing `effect_commit` node.
+
+### Trust assumption: a human in the loop
+
+This is **not** an exactly-once mechanism. The coordinator enforces *who* may decide and *when* (the epoch fence), that the first decision is final, and that every attempt is recorded. It cannot check *whether the claim is true*: the outcome of the effect is exactly what the system cannot observe. A false `confirmed_done` loses the effect (row C13d: zero calls) and a false `confirmed_absent` duplicates it (row C14a: two calls). The guarantee is therefore conditional: if the operator's out-of-band check is correct, the parked effect ends with exactly one call (C13a, C14d), or stays parked.
+
+Further limits of this trust model: operator identities are unauthenticated strings, like execution IDs; decisions are not signed; there is no two-person rule; and the event log is append-only by convention of this module, not tamper-evident, since any client with write access to the SQLite file can rewrite it. In the experiment the operator's out-of-band check is simulated by the harness reading the opaque tool's ground truth, which workers never read.
+
+### Operator CLI
+
+~~~sh
+# a synthetic parked task (row C14: the opaque call happened, then the receiver crashed)
+python -m agent_movement.relocation_reconcile example --dir /tmp/rec [--crash before] [--two-store]
+python -m agent_movement.relocation_reconcile list   --authority /tmp/rec/example.sqlite
+python -m agent_movement.relocation_reconcile decide --authority /tmp/rec/example.sqlite --task task-report-1 \
+    --effect publish-report --decision confirmed_done --operator ops-alice \
+    --reason "checked the external system" --epoch 3
+python -m agent_movement.relocation_reconcile resume --authority /tmp/rec/example.sqlite --task task-report-1 \
+    --worker worker-b --incarnation 2 --epoch 3      # two-store: add --store <worker-b.sqlite>
+python -m agent_movement.relocation_reconcile log    --authority /tmp/rec/example.sqlite
+~~~
+
+`example` prints the exact follow-up commands with the right paths. With `--two-store` the coordinator file is `<dir>/example/coordinator.sqlite`. The same commands run as `agent-movement relocate reconcile ...` and `python -m agent_movement.relocation_demo reconcile ...`; every subcommand and flag is in the [CLI reference](cli.md). Output is JSON. Exit codes: `0` done or an idempotent replay; `1` denied (stale epoch, already resolved differently, not parked, retry budget exhausted, not the owner); `2` usage error, invalid input or missing optional extra.
+
+### Reconciliation rows (observed)
+
+These rows extend C13 and C14. Each replays the crash (B crashes in the commit window, failover to `worker-b.2` at epoch 3, which parks the task), then lets the operator decide and resumes. Two outcomes are added to the vocabulary:
+
+- **resolved**: the operator's decision matches the ground truth; the task completes with all six artifacts and **exactly one** opaque call. The decision is recorded, applied by the owner, and the original effect's ledger entry is `confirmed_done` or `confirmed_absent`.
+- **misresolved**: the decision contradicts the ground truth. The protocol accepts it, because it cannot tell, and the task completes with **zero** calls (false `confirmed_done`) or **two** (false `confirmed_absent`). These rows are expected outcomes: they demonstrate the trust assumption.
+
+**denied** and **deduplicated** keep their meaning; "unchanged" now also covers the decision records. The R rows are then run to completion and checked as well.
+
+| ID | Extends | Injected fault / operator decision | Expected | Observed | Recovery / handling | Opaque calls by effect ID | Original effect ledger | Final |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| C13a | C13 | operator: confirmed_absent (true) | resolved | resolved | retry once as publish-report.retry-1 | publish-report.retry-1: 1 | confirmed_absent | done @ worker-b.2@3 |
+| C13d | C13 | operator: confirmed_done (FALSE) | misresolved | misresolved | continue without re-execution -> effect LOST | none | confirmed_done | done @ worker-b.2@3 |
+| C14d | C14 | operator: confirmed_done (true) | resolved | resolved | continue without re-execution | publish-report: 1 | confirmed_done | done @ worker-b.2@3 |
+| C14a | C14 | operator: confirmed_absent (FALSE) | misresolved | misresolved | retry once as publish-report.retry-1 -> effect DUPLICATED | publish-report: 1, publish-report.retry-1: 1 | confirmed_absent | done @ worker-b.2@3 |
+| R1 | C14 | stale-epoch decision (epoch 2 after failover to 3) | denied | denied | decision made at epoch 2 arrives at epoch 3 -> PolicyDenied | publish-report: 1 | confirmed_done | done @ worker-b.2@3 |
+| R2 | C14 | double resolution: identical decision replayed | deduplicated | deduplicated | identical decision re-sent after resume -> ok | publish-report: 1 | confirmed_done | done @ worker-b.2@3 |
+| R3 | C14 | double resolution: second operator, opposite decision | denied | denied | ops-bob records confirmed_absent -> Conflict | publish-report: 1 | confirmed_done | done @ worker-b.2@3 |
+| R4 | - | decision for an effect that was never parked | denied | denied | confirmed_absent for a settled effect -> Conflict | publish-report: 1 | committed | done @ worker-b.1@2 |
+| R5 | C13 | confirmed_absent for the retry (retry crashed too) | denied | denied | confirmed_absent for publish-report.retry-1 -> PolicyDenied | publish-report.retry-1: 1 | confirmed_absent | done @ worker-b.3@4 |
+
+`reconciliation rows: 9, matching expectation: 9`. The table is identical in single-store and `--two-store` mode, and the 30-row and 11-row tables above are unchanged by it. In two-store mode the coordinator file gains the `effect_reconciliations` and `reconciliation_events` tables (see the two-store headline); worker stores gain none.
+
+Notes on specific rows:
+
+- **C13a vs C13d** and **C14d vs C14a** are the same crash with opposite decisions. The worker-side state is identical in each pair before the decision; only the operator's claim differs, and with it the number of effects.
+- **R1**: the operator inspected the task while `worker-b.1` owned it (epoch 2); the decision arrives after the failover to epoch 3 and is denied. The `denied` event is still logged. The operator then decides at epoch 3 and the task completes.
+- **R2/R3** are the two kinds of double resolution. An identical replay after the resume changes nothing; an opposite decision by a second operator, before the resume, is denied and the first decision stands.
+- **R4**: an effect that committed normally was never parked, so no decision can touch it.
+- **R5**: after `confirmed_absent`, the retry `publish-report.retry-1` makes its call and then crashes before its checkpoint. A failover to `worker-b.3` (epoch 4) parks the retry with `retry_of = publish-report`. A second `confirmed_absent` is denied (retry budget), and the true `confirmed_done` for the retry completes the task with exactly one call.
+
+### Limits of reconciliation
+
+- **Trust**: the decision is only as correct as the operator's out-of-band check (see above).
+- **The resuming execution must own the task.** A parked task has no scheduled node, so `failover` refuses it ("finished task"). If the owning execution's process is gone, the same execution identity can resume (as in the experiment, where every action is a fresh process), or ownership can be moved with the core `EffectGateway.transfer` in single-store mode. Relocating a parked task between stores is not implemented.
+- **One execution, one process.** As elsewhere in the experiment, two concurrent processes with the same execution identity are outside the model; two concurrent resumes of one execution could both make the retry call.
+- **Opaque tool only.** Gateway effects never park; they reconcile through the commit record (C11, C12).
+- **No abandon or cancel decision.** A retry that is truly absent again stays parked; no further retry is allowed.
+- **Schema.** Coordinator files created before this change lack the two tables; `init_store`/`init_authority` create them.
 
 ## Limits and threats to validity
 
@@ -272,6 +356,16 @@ Notes on specific rows:
 | Ownership epoch stays in the coordinator; A cannot commit after transfer | [What lives where](#what-lives-where); headline; B3, B10, B11 |
 | New copy fault rows (truncated bundle, digest mismatch, partial import crash, duplicate import) with observed outcomes; matrix byte-identical across runs | B4, B5, B7/B8, B9 (plus B1–B3, B6, B10, B11); three identical runs |
 | The limits state what is still shared | First bullet of [Limits](#limits-and-threats-to-validity) |
+
+## Mapping to issue #30 acceptance criteria
+
+| Criterion | Evidence |
+| --- | --- |
+| Operator API and CLI mark a parked effect `confirmed_done` or `confirmed_absent` with a reason and an operator identity; the decision is an auditable event fenced by the current ownership epoch | `Coordinator.reconcile` and the [operator CLI](#operator-cli); [protocol](#protocol) steps 2–3; `reconciliation_events` |
+| After `confirmed_absent` the effect may be retried once with a new effect ID; after `confirmed_done` the task continues without re-execution | C13a (one call, under `publish-report.retry-1`), C14d (one call, no re-execution), R5 (no second retry) |
+| Rows C13/C14 extended with both resolutions | C13a, C13d, C14d, C14a, in both store modes |
+| Tests cover both resolutions, a stale-epoch decision (denied) and a double resolution (idempotent or denied) | `tests/test_relocation_reconcile.py` (registry rows REG-038 to REG-041); rows R1 (stale), R2 (identical replay), R3 (opposite decision) |
+| No exactly-once claim; the human-in-the-loop trust assumption is explained | [Trust assumption](#trust-assumption-a-human-in-the-loop); misresolved rows C13d and C14a |
 
 ## References
 
