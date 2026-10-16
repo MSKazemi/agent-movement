@@ -7,6 +7,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from pathlib import Path
+
+# The offline demo can run directly from a clean source checkout without
+# an editable install; it never reads environment credentials or uses network.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from agent_movement.contract_compat import (
     DRAFT_VERSION, negotiate_wire_version, project_draft_to_runtime,
