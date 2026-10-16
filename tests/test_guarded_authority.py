@@ -135,7 +135,8 @@ def test_wrong_or_tampered_grant_or_intent_fails_before_enrollment(lane):
         gated.enroll(intent(rig, grant=damaged), damaged)
     with pytest.raises(Unauthorized, match="grant_mismatch"):
         gated.enroll(intent(rig), wrong_audience)
-    assert gated.inspect if True else None  # no guarded row created by any failed request
+    with pytest.raises(PolicyDenied):
+        gated.inspect("task-1")
 
 
 def test_expired_grant_and_freshness_observation_fail_closed(lane):
