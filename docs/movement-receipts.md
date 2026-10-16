@@ -1,6 +1,6 @@
 # Verifiable movement receipts and an independent forensic timeline (experiment)
 
-**Status (2026-10-16):** Tested experimental profile `agent-movement.receipt/0.1-draft`. **Not a standard, not production-secure, not A2A.** It covers synthetic fixtures and a local offline verifier only. Tracking issue: #11. It builds on the unsigned PR #6 receipts in [local-implementation.md](local-implementation.md) and the research design in [agent-forensics-and-fingerprints.md](agent-forensics-and-fingerprints.md).
+**Status (2026-10-16):** Tested experimental profile `agent-movement.receipt/0.1-draft`. **Not a standard, not production-secure, not A2A.** It covers synthetic fixtures and a local offline verifier only. Tracking issues: #11, and #21 (out-of-band trust anchors, fixture exit codes in CI, seed-derived canaries). It builds on the unsigned PR #6 receipts in [local-implementation.md](local-implementation.md) and the research design in [agent-forensics-and-fingerprints.md](agent-forensics-and-fingerprints.md).
 
 PR #6 receipts carry digests but no signature or attestation field, so nobody outside the receiver can check them. This experiment adds three things:
 
@@ -14,24 +14,28 @@ It is deliberately **separate from trace correlation**. A trace ID helps you fin
 
 ```sh
 python -m pip install -e ".[signing]"     # optional extra: cryptography>=50.0.2 (Ed25519)
-python -m agent_movement.receipts verify tests/fixtures/movement-receipts                     # all 9 bundles
-python -m agent_movement.receipts verify tests/fixtures/movement-receipts/04-forged-identity --json
-python -m agent_movement.receipts timeline tests/fixtures/movement-receipts/09-clock-skew
+R=tests/fixtures/movement-receipts
+python -m agent_movement.receipts verify $R --trust $R/trust.json                     # all 9 bundles
+python -m agent_movement.receipts verify $R/04-forged-identity --trust $R/trust.json --json
+python -m agent_movement.receipts timeline $R/09-clock-skew --trust $R/trust.json
+python -m agent_movement.receipts verify $R --fixture-trust     # same, with a warning: see "Trust anchors"
 python -m agent_movement.receipts make-fixtures /tmp/regenerated   # byte-identical to the committed set
 python -m pytest -q
 ```
+
+`--trust FILE` is **required**. Without it the verifier exits 2 before it reads any evidence, even when a `trust.json` sits next to the bundle. For the committed fixtures, `$R/trust.json` stands in for anchors you would obtain out of band.
 
 The core package stays dependency-free. Without the `signing` extra:
 
 - the verifier still checks schema, body digests, exact replays, credential-like content, subject digests and redaction;
 - every signature is reported as `UNCHECKED`, and the run exits with code 3;
-- the 13 tests that need Ed25519 skip.
+- the 16 receipt tests that need Ed25519 skip, and so does the gitleaks-binary test when `gitleaks` is not installed.
 
 | Exit code | Meaning |
 | --- | --- |
 | 0 | No receipt was rejected and nothing conflicts. **This does not mean the evidence is complete.** Claims can still be `UNKNOWN`, and gaps can exist. |
 | 1 | At least one receipt was rejected (`TAMPERED`, `REPLAYED`, `UNTRUSTED` or `MALFORMED`), a statement conflicts, or a subject digest does not match. |
-| 2 | Usage or I/O error, for example no trust anchors. |
+| 2 | Usage or I/O error, for example no `--trust`, or a `--trust` file inside the bundle being verified. |
 | 3 | Verification is incomplete: signatures were not checked, or no receipt is valid. |
 
 ## Event schema: claims are not principals
@@ -100,7 +104,12 @@ Receipt types: `movement.dispatched`, `movement.accepted`, `movement.rejected`, 
 - PR #6's `Approval.revoked` is a static configuration flag with no runtime revoke API. Its `handoff.denied` audit events are **not** evidence that a revocation mechanism exists or ran.
 
 - **Fixture keys:** derived as `sha256("agent-movement/SYNTHETIC-PUBLIC-TEST-KEY/v1/" + name)`. Their private halves are public by construction, so they are test vectors, never credentials. No private key is stored in any file.
-- **Anchor lookup:** the verifier uses `--trust FILE` or, by default, a `trust.json` in the bundle directory or its parent. **Anchors shipped with the evidence prove nothing.** A test shows that an attacker who adds their own key to a bundle-local `trust.json` gets `VALID` under default lookup, and `UNTRUSTED` once the real anchors are passed with `--trust`. In real use, obtain anchors out of band, for example from a SPIFFE trust bundle. That is not implemented here.
+- **Anchor lookup (fails closed, issue #21):** **anchors shipped with the evidence prove nothing**, so the verifier never reads them implicitly.
+  - `--trust FILE` is required. Without it, `verify` and `timeline` exit 2 with `no trust anchors: pass --trust FILE ...`, and `verify_bundle(bundle, None)` raises `ReceiptError`.
+  - A `--trust` file that lies **inside** the bundle being verified is refused (exit 2): it is part of the evidence, whoever points at it.
+  - `--fixture-trust` is the explicit opt-in to the old lookup (`trust.json` in the bundle directory, then its parent). It is for the synthetic fixtures only. It prints `WARNING: fixture mode ...` to stderr, marks the text header `FIXTURE MODE`, and sets `"trust_anchor_mode": "fixture"` in the JSON report (`"explicit"` otherwise). Exit codes are unchanged, so a warning is the only signal: do not use it on real evidence.
+  - A test plants an attacker key in a bundle-local `trust.json`: the default run and `--trust <bundle>/trust.json` both exit 2, the real anchors make the receipt `UNTRUSTED` (exit 1), and only `--fixture-trust` reproduces the old `VALID` result.
+  - In real use, obtain anchors out of band, for example from a SPIFFE trust bundle. That is not implemented here.
 - **Role separation:** a `tool.effect_recorded` receipt must be signed by a `tool` key, and movement and execution receipts by an `agent` key. An agent that "confirms" its own effect is rejected.
 
 ## Verification algorithm
@@ -147,8 +156,19 @@ The set is generated by `src/agent_movement/receipt_fixtures.py` and uses the re
 | `05-missing-claims` | Null destination and trace; no response; seq 2..3 missing (a gap); an effect claim with no tool record. **Exit 0 with UNKNOWNs.** | 0 |
 | `06-conflicting-accounts` | Receiver signs both accept and reject; destination swap (agent/c answers a dispatch to agent/b); the agent says the effect was committed while the tool says it was rejected (stale epoch) | 1 |
 | `07-fork-lineage` | A delegate followed by two `fork` children; two executions that share one definition digest and stay distinct | 0 |
-| `08-privacy-canaries` | A token-shaped ID inside a signed receipt; an extra `prompt` field; telemetry carrying credential-like canaries in attributes, keys and span names | 1 |
+| `08-privacy-canaries` | A token-shaped ID inside a signed receipt; an extra `prompt` field; telemetry carrying credential-like canaries in attributes, keys and span names (seed-derived, see below) | 1 |
 | `09-clock-skew` | The accept claims an earlier time than its dispatch; causal order is kept and the skew is noted | 0 |
+
+Every exit code in the table is asserted twice: by `test_cli_fixture_matrix_exit_codes` (CLI, `--trust`, plus one `--fixture-trust` run that must warn) and by the `python-smoke.yml` extras job. Without the `signing` extra, signatures are `UNCHECKED` and the codes are 3, 1, 1, 1, 3, 3, 3, 1, 3 for bundles 01 to 09; `test_every_fixture_exit_code_without_the_extra` and the core CI job assert those.
+
+**Privacy canaries.** `receipt_fixtures.privacy_canaries(seed)` derives every canary from a public seed (`CANARY_SEED`): each carries a unique marker `SYNTHETIC-CANARY-` plus 8 letters. They are shaped to trip the verifier's redaction (a JWT-*shaped* `eyJ...` value, `Bearer ...`, `api_key: ...`, sensitive attribute names) but contain no digits, no provider prefix and no high-entropy run, so they do not look like real credentials. The committed bundle uses the default seed and stays byte-reproducible. Tests also rebuild the bundle at runtime from other seeds and assert that no marker reaches the text or JSON report.
+
+**Secret-scanner check.** No committed receipt file matches the [gitleaks](https://github.com/gitleaks/gitleaks) v8.30.1 default rules (the previous fixture planted a structurally valid `alg:none` JWT, which the `jwt` rule flagged). `tests/test_movement_receipts_secret_scan.py` checks this two ways:
+
+- always, with the standard library: 19 default rules copied verbatim (`generic-api-key` with its entropy cut-off and allowlists, `jwt`, `jwt-base64`, `private-key`, AWS, GitHub, GitLab, Slack, OpenAI, Anthropic, GCP, Stripe, Hugging Face, PyPI). It is stricter than gitleaks: no keyword pre-filter and no stopword list. Runtime-built positive controls prove the rules fire.
+- with the real `gitleaks` binary and all default rules, when it is on `PATH` or named by `$GITLEAKS`. The CI extras job installs a pinned, SHA-256-verified v8.30.1, so this test runs there instead of skipping.
+
+The scope is the files this feature owns (the fixture set, `receipts.py`, `receipt_fixtures.py`, `jcs.py`, both receipt test files and this document), not the whole repository.
 
 **Verifier output, abbreviated, for `06-conflicting-accounts`:**
 
@@ -213,6 +233,7 @@ timeline: 1 VERIFIABLE, 0 UNVERIFIABLE, 6 CONFLICTING
 - `src/agent_movement/jcs.py`: canonical JSON subset.
 - `src/agent_movement/receipts.py`: schema, signer, trust anchors, `ReplayGuard`, verifier, timeline, CLI, and the PR #6 bridge `body_from_handoff`.
 - `src/agent_movement/receipt_fixtures.py`: deterministic synthetic keys and scenarios, and the hand-written expectations.
-- `tests/test_movement_receipts.py`: canonicalization, schema, redaction, the path without the extra, fixture expectations, adversarial mutation, replay, trace-as-correlation, trust-anchor limits, and the PR #6 bridge, salted commitments and the external revocation reference.
+- `tests/test_movement_receipts.py`: canonicalization, schema, redaction, the path without the extra, fixture expectations and exit codes, adversarial mutation, replay, trace-as-correlation, fail-closed trust anchors, runtime canaries, and the PR #6 bridge, salted commitments and the external revocation reference.
+- `tests/test_movement_receipts_secret_scan.py`: the gitleaks default-rule checks described above.
 
 References: [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785.html), [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032), [W3C Trace Context](https://www.w3.org/TR/trace-context/), [SPIFFE SVIDs](https://spiffe.io/docs/latest/deploying/svids/), [in-toto attestation](https://github.com/in-toto/attestation), [NIST SP 800-86](https://csrc.nist.gov/pubs/sp/800/86/final), [cryptography on PyPI](https://pypi.org/project/cryptography/).
