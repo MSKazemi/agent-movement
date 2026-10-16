@@ -21,6 +21,7 @@ Before this change, the agenda documents reused the same short labels for differ
 | **X** | Proposed experiments of the open questions | [open-questions.md](open-questions.md) | X1…X3 | `E1`–`E3` (renamed by issue #45) |
 | **HL** | Next experiments of the human-impact lab | [human-impact research lab](human-impact-research-lab.md) | HL1…HL5 | `E1`–`E5` |
 | **PI-** | Executors (PI-E0, PI-E1) and hypotheses (PI-H1…PI-H4) of the prompt-injection study | [cross-agent prompt injection §5](cross-agent-prompt-injection.md) | PI-E0, PI-E1; PI-H1…PI-H4 | `E0`, `E1`; `H1`–`H4` |
+| **MP-** | Hypotheses of the MobilityBench experiment protocol | [MobilityBench experiment protocol](mobilitybench-experiment-protocol.md) | MP-H1…MP-H4 | `H1`–`H4` (clashed with host profiles H0–H4) |
 | **EV-** | Evaluation tasks (EV-A…EV-C) and their hypotheses (EV-A-H1, …) | [evaluation plan](evaluation-plan.md) (issue #26) | EV-A…EV-C | new |
 | **[SRC-n]** | Source-citation label, local to one document | [open-questions.md](open-questions.md) (SRC-1…SRC-8); [top-20](top-20-human-impact-questions-for-agentic-ai.md) (SRC-1…SRC-11); [research landscape](research-landscape.md) (SRC-1…SRC-12) | — | `[S1]`–`[S8]`, `[S1]`–`[S11]`, `[S1]`–`[S12]` |
 
@@ -105,10 +106,10 @@ HQ questions are broader than AM questions; an AM question is a technical sub-qu
 
 | Agenda | MobilityBench protocol | Relation |
 | --- | --- | --- |
-| SH-1 typed portability beats history replay | `H1` | duplicate; the protocol states the falsification condition |
-| SH-2 fencing is necessary but not sufficient | `H2` | duplicate |
-| SH-3 definition interoperability ≠ continuation interoperability | `H3` | duplicate |
-| — | `H4` forensic receipts improve reconstruction | operationalizes SQ-08 / SQ-12 |
+| SH-1 typed portability beats history replay | `MP-H1` (was `H1`) | duplicate; the protocol states the falsification condition |
+| SH-2 fencing is necessary but not sufficient | `MP-H2` (was `H2`) | duplicate |
+| SH-3 definition interoperability ≠ continuation interoperability | `MP-H3` (was `H3`) | duplicate |
+| — | `MP-H4` (was `H4`) forensic receipts improve reconstruction | operationalizes SQ-08 / SQ-12 |
 
 The MobilityBench protocol's `RQ1`, `RQ2`, `RQ3` and `RQ4` correspond to AM-01, AM-03, AM-14 and SQ-08 respectively.
 
