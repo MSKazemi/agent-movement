@@ -21,7 +21,7 @@ agent-movement version                                         # package version
 | 2 | usage error, or a **missing optional extra**: the CLI prints which extra is missing and the `pip install -e '.[<extra>]'` command to install it |
 | 3 | `receipts verify` / `receipts timeline` only: the bundle could not be fully verified |
 
-The CLI checks the optional extra before it runs a command (`a2a-demo` needs `a2a`, `relocate` needs `relocation`, `receipts` needs `signing`, and `peer-demo` needs `ed25519` only for `--alg Ed25519`). `--help` skips that check, except for `relocate`, whose module cannot be imported without LangGraph. The CLI is stricter than the module form in one case: `python -m agent_movement.receipts verify` without the `signing` extra still runs its structural checks and reports the signatures as unchecked (exit 3), but `agent-movement receipts verify` stops with the install hint (exit 2).
+The CLI checks the optional extra before it runs a command (`a2a-demo` needs `a2a`, `relocate` needs `relocation`, `receipts` needs `signing`, and `peer-demo` needs `ed25519` only for `--alg Ed25519`). `--help` skips that check, except for `relocate`, whose module cannot be imported without LangGraph. The CLI is stricter than the module form in one case: `python -m agent_movement.receipts verify --trust <anchors>` without the `signing` extra still runs its structural checks and reports the signatures as unchecked (exit 3), but `agent-movement receipts verify` stops with the install hint (exit 2).
 
 ## Examples
 
@@ -110,8 +110,11 @@ Run ``python -m agent_movement.a2a_demo`` after ``pip install -e '.[a2a]'``.
 3. Runs the origin client (``agent_movement.a2a_client``) as separate processes:
    a completed delegation (JSON-RPC, streaming), an exact retry (HTTP+JSON,
    blocking) that is answered from the receiver's idempotency ledger, a denied
-   approval (task REJECTED), an unadvertised capability and an unknown schema
-   version (both refused by the A2A server before any task exists).
+   approval (task REJECTED), a request through the deprecated URN alias with a
+   client-supplied contextId (profile 0.1 behaviour, still accepted), and three
+   requests the A2A server refuses before any task exists: an unadvertised
+   capability, an unknown schema version, and a client-supplied contextId under
+   the current profile URI (this server keeps the default: server-generated).
 4. Joins client-side A2A task IDs with the receiver-side audit tables.
 
 This proves DELEGATION of one allowlisted pure task, NOT agent migration.
@@ -264,30 +267,38 @@ options:
 ### `agent-movement receipts verify`
 
 ```text
-usage: python -m agent_movement.receipts verify [-h] [--trust TRUST] [--now NOW] [--json] path
+usage: python -m agent_movement.receipts verify [-h] [--trust TRUST | --fixture-trust] [--now NOW]
+                                                [--json]
+                                                path
 
 positional arguments:
   path
 
 options:
-  -h, --help     show this help message and exit
-  --trust TRUST  trust anchor file (default: bundle or parent trust.json)
-  --now NOW      verifier clock, YYYY-MM-DDTHH:MM:SSZ (default: system clock)
-  --json         print the full JSON report
+  -h, --help       show this help message and exit
+  --trust TRUST    REQUIRED: trust anchor file obtained out of band, never from the bundle
+  --fixture-trust  synthetic fixtures only: use the trust.json shipped in the bundle or its parent
+                   directory, with a warning (such anchors prove nothing)
+  --now NOW        verifier clock, YYYY-MM-DDTHH:MM:SSZ (default: system clock)
+  --json           print the full JSON report
 ```
 
 ### `agent-movement receipts timeline`
 
 ```text
-usage: python -m agent_movement.receipts timeline [-h] [--trust TRUST] [--now NOW] path
+usage: python -m agent_movement.receipts timeline [-h] [--trust TRUST | --fixture-trust]
+                                                  [--now NOW]
+                                                  path
 
 positional arguments:
   path
 
 options:
-  -h, --help     show this help message and exit
-  --trust TRUST
-  --now NOW
+  -h, --help       show this help message and exit
+  --trust TRUST    REQUIRED: trust anchor file obtained out of band, never from the bundle
+  --fixture-trust  synthetic fixtures only: use the trust.json shipped in the bundle or its parent
+                   directory, with a warning (such anchors prove nothing)
+  --now NOW        verifier clock, YYYY-MM-DDTHH:MM:SSZ (default: system clock)
 ```
 
 ### `agent-movement receipts make-fixtures`
