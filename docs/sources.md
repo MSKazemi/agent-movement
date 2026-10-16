@@ -116,7 +116,7 @@ Related documents: [landscape](research-landscape.md), [questions](open-question
 
 Every external URL cited in the README and in `docs/`, grouped by the citing document. Corpus records and generated files are excluded; see `EXCLUDE_GLOBS` in [`tools/sources_index.py`](../tools/sources_index.py). *Cited in* lists every document that cites the URL. *Accessed* is the date stated next to the citation (basis `citation`), else in its section heading (`section`), else in the document header (`document`), else the default 2026-10-15 (`default`). A date stated in a document is the date the source was reviewed for that document. It is not a fresh link check. `make sources` fails when a cited URL is missing here.
 
-**Documents:** 33 · **Citations (document, URL):** 447 · **Unique URLs:** 265
+**Documents:** 33 · **Citations (document, URL):** 448 · **Unique URLs:** 266
 
 ### [README](../README.md)
 
@@ -164,6 +164,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://a2a-protocol.org/v1.0.0/specification/> | README, 2031-frontier-research-agenda, a2a-adapter, agent-forensics-and-fingerprints, agent-lifecycle-liveness-and-death, agent-movement-vs-copy-replication-multiplication, cross-agent-prompt-injection, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, local-implementation, mobilitybench-experiment-protocol, open-questions, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda | 2026-10-15 | default |
 | <https://github.com/a2aproject/a2a-python> | a2a-adapter, language-and-sdk-strategy, local-implementation | 2026-10-15 | default |
 | <https://pypi.org/pypi/a2a-sdk/json> | a2a-adapter | 2026-10-15 | default |
+| <https://www.npmjs.com/package/@a2a-js/sdk> | a2a-adapter | 2026-10-15 | default |
 
 ### [a2a-profile-extension](a2a-profile-extension.md)
 
