@@ -269,13 +269,17 @@ class GuardedAuthority:
 
     def _mark(self, sealed: Any, verifier: Any, purpose: str, column: str) -> None:
         p = self._operator_notice(sealed, verifier, purpose)
-        # Column is a static, internal allowlisted identifier (not request data).
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = self._row(db, p["task_id"])
             if row["movement_id"] != p["movement_id"]:
                 raise Unauthorized("operator notice wrong movement")
-            db.execute(f"UPDATE guarded_tasks SET {column}=1 WHERE task_id=?", (p["task_id"],))
+            if column == "cancelled":
+                db.execute("UPDATE guarded_tasks SET cancelled=1 WHERE task_id=?", (p["task_id"],))
+            elif column == "unknown_effect":
+                db.execute("UPDATE guarded_tasks SET unknown_effect=1 WHERE task_id=?", (p["task_id"],))
+            else:
+                raise ContractError("unsupported protected state flag")
             db.commit()
 
     def cancel(self, sealed_notice: Any) -> None:
