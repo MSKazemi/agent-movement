@@ -79,6 +79,7 @@ jobs:
           check 2 agent-movement a2a-demo
           check 2 agent-movement relocate
           check 2 agent-movement peer-demo --alg Ed25519
+          check 2 agent-movement peer-demo --delivery hpke
           check 2 agent-movement receipts verify tests/fixtures/movement-receipts/01-valid-delegation --trust tests/fixtures/movement-receipts/trust.json
           exit $fail
       - uses: actions/upload-artifact@v7

@@ -156,6 +156,8 @@ def test_cli_calls_zero_argument_main_with_argv_in_sys_argv(monkeypatch):
     (["receipts", "verify", "bundle"], "signing"),
     (["peer-demo", "--alg", "Ed25519"], "ed25519"),
     (["peer-demo", "--alg=Ed25519"], "ed25519"),
+    (["peer-demo", "--delivery", "hpke"], "hpke"),
+    (["peer-demo", "--alg", "Ed25519", "--delivery=hpke"], "hpke"),
 ])
 def test_cli_missing_extra_prints_install_hint_and_exits_2(monkeypatch, capsys, argv, extra):
     monkeypatch.setattr(cli, "missing_modules", lambda e: ["fake_module"] if e == extra else [])
@@ -166,7 +168,8 @@ def test_cli_missing_extra_prints_install_hint_and_exits_2(monkeypatch, capsys, 
     assert f"python -m pip install -e '.[{extra}]'" in err
 
 
-@pytest.mark.parametrize("argv", [["peer-demo"], ["peer-demo", "--alg", "HS256"], ["a2a-demo", "--help"],
+@pytest.mark.parametrize("argv", [["peer-demo"], ["peer-demo", "--alg", "HS256"],
+                                  ["peer-demo", "--delivery", "plaintext"], ["a2a-demo", "--help"],
                                   ["receipts", "verify", "--help"]])
 def test_cli_extra_not_required_for_core_mode_or_help(recorded, monkeypatch, argv):
     monkeypatch.setattr(cli, "missing_modules", lambda extra: ["fake_module"])

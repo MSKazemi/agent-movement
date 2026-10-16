@@ -9,10 +9,11 @@ This module declares no experiment flags of its own.
 The one thing it adds is a uniform optional-extra check: a subcommand whose
 optional extra is not installed prints an install hint and exits 2 instead of
 failing with an ImportError or a module-specific message. ``--help`` skips that
-check wherever the module can render its help without the extra. The only flag
-the CLI reads (never parses or validates) is ``peer-demo --alg``, because only
-``--alg Ed25519`` needs the ``ed25519`` extra; if that flag is renamed the check
-simply stops firing and the module's own message is shown.
+check wherever the module can render its help without the extra. The only flags
+the CLI reads (never parses or validates) are ``peer-demo --alg`` and
+``--delivery``, because only ``--alg Ed25519`` needs the ``ed25519`` extra and only
+``--delivery hpke`` the ``hpke`` extra; if such a flag is renamed, its check simply
+stops firing and the module's own message is shown.
 
 Standard library only.
 """
@@ -38,6 +39,7 @@ MISSING_EXTRA_EXIT = 2
 EXTRAS: dict[str, tuple[str, ...]] = {
     "a2a": ("a2a", "uvicorn"),
     "ed25519": ("cryptography",),
+    "hpke": ("cryptography.hazmat.primitives.hpke",),  # cryptography >= 50 ships the HPKE API
     "relocation": ("langgraph", "langgraph.checkpoint.sqlite"),
     "signing": ("cryptography",),
 }
@@ -51,9 +53,9 @@ class Command:
     target: str  # "package.module:function"; the function takes the forwarded argv
     summary: str
     module: str  # the equivalent `python -m` entry point, for the reference docs
-    extra: str | None = None
-    # (option, value): the extra is needed only when the forwarded argv sets option=value.
-    extra_when: tuple[str, str] | None = None
+    extra: str | None = None  # needed by every run of the command
+    # (option, value, extra): ``extra`` is needed only when the forwarded argv sets option=value.
+    extra_if: tuple[tuple[str, str, str], ...] = ()
     # Subcommands this CLI adds in front of the module's own parser (bench smoke).
     local_subcommands: tuple[str, ...] = ()
 
@@ -64,8 +66,9 @@ COMMANDS: dict[str, Command] = {c.name: c for c in (
     Command("a2a-demo", "agent_movement.a2a_demo:main", "A2A v1 delegation demo on the official a2a-sdk",
             "agent_movement.a2a_demo", extra="a2a"),
     Command("peer-demo", "agent_movement.peer_demo:main",
-            "authenticated peer handoff (HS256; --alg Ed25519 needs the 'ed25519' extra)",
-            "agent_movement.peer_demo", extra="ed25519", extra_when=("--alg", "Ed25519")),
+            "authenticated peer handoff (HS256; --alg Ed25519 and --delivery hpke need extras)",
+            "agent_movement.peer_demo",
+            extra_if=(("--alg", "Ed25519", "ed25519"), ("--delivery", "hpke", "hpke"))),
     Command("relocate", "agent_movement.relocation_demo:main",
             "same-runtime LangGraph checkpoint relocation and fault matrix",
             "agent_movement.relocation_demo", extra="relocation"),
@@ -116,14 +119,14 @@ def _option_value(args: Sequence[str], option: str) -> str | None:
     return value
 
 
-def needs_extra(command: Command, args: Sequence[str]) -> bool:
-    """Whether running ``command`` with ``args`` needs its optional extra."""
-    if command.extra is None or _wants_help(args):
-        return False
-    if command.extra_when is None:
-        return True
-    option, value = command.extra_when
-    return _option_value(args, option) == value
+def required_extras(command: Command, args: Sequence[str]) -> list[str]:
+    """The optional extras that running ``command`` with ``args`` needs (none for --help)."""
+    if _wants_help(args):
+        return []
+    extras = [command.extra] if command.extra else []
+    extras += [extra for option, value, extra in command.extra_if
+               if _option_value(args, option) == value and extra not in extras]
+    return extras
 
 
 def _exit_code(code: Any) -> int:
@@ -181,10 +184,10 @@ def _call(func: Callable[..., Any], args: list[str]) -> int:
 def dispatch(name: str, args: Sequence[str]) -> int:
     """Run subcommand ``name`` with ``args`` forwarded unchanged; return its exit status."""
     command, args = COMMANDS[name], list(args)
-    if command.extra and needs_extra(command, args):
-        missing = missing_modules(command.extra)
+    for extra in required_extras(command, args):
+        missing = missing_modules(extra)
         if missing:
-            print(install_hint(name, command.extra, missing), file=sys.stderr)
+            print(install_hint(name, extra, missing), file=sys.stderr)
             return MISSING_EXTRA_EXIT
     target, prog, forwarded = _resolve(command, args)
     try:
@@ -192,7 +195,7 @@ def dispatch(name: str, args: Sequence[str]) -> int:
     except ImportError:
         # Only a missing optional extra becomes a hint (e.g. `relocate --help` without it);
         # any other ImportError is a bug and propagates.
-        missing = missing_modules(command.extra) if command.extra and not command.extra_when else []
+        missing = missing_modules(command.extra) if command.extra else []
         if not missing:
             raise
         print(install_hint(name, str(command.extra), missing), file=sys.stderr)

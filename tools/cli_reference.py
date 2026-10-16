@@ -95,9 +95,9 @@ def collect() -> tuple[dict[str, str], list[str]]:
 def command_table() -> str:
     rows = ["| Command | Forwards to | Optional extra |", "|---|---|---|"]
     for c in cli.COMMANDS.values():
-        extra = "none"
-        if c.extra:
-            extra = f"`{c.extra}`" + (f" (only for `{' '.join(c.extra_when)}`)" if c.extra_when else "")
+        needs = [f"`{c.extra}`"] if c.extra else []
+        needs += [f"`{extra}` (only for `{option} {value}`)" for option, value, extra in c.extra_if]
+        extra = ", ".join(needs) or "none"
         rows.append(f"| `{cli.PROG} {c.name}` | `python -m {c.module}` | {extra} |")
         rows += [f"| `{cli.PROG} {c.name} {s}` | `python -m {c.module}` (legacy {s}, no subcommand) | {extra} |"
                  for s in c.local_subcommands]
