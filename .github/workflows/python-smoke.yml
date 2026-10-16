@@ -38,8 +38,12 @@ jobs:
       - run: python -m pytest -q
       - run: python -m agent_movement.demo
       - run: python -m agent_movement.peer_demo
-      - name: MobilityBench 20-case smoke
-        run: python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
+      - name: MobilityBench 20-case smoke (plus two timing-free runs that must be byte-identical)
+        run: |
+          python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
+          python -m agent_movement.mobilitybench --no-timing --output "$RUNNER_TEMP/smoke-1.jsonl"
+          python -m agent_movement.mobilitybench --no-timing --output "$RUNNER_TEMP/smoke-2.jsonl"
+          cmp "$RUNNER_TEMP/smoke-1.jsonl" "$RUNNER_TEMP/smoke-2.jsonl"
       - name: MobilityBench v0.1 (digest-verified fixtures, CI smoke subset)
         run: |
           python tools/mobilitybench_freeze.py --check

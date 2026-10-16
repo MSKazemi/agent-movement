@@ -157,14 +157,14 @@ The exact ordering is contestable; ranks 1-10 in particular are close, interconn
 
 ## What this means for Agent Movement: choose a focused, falsifiable contribution
 
-The repository already studies delegation, task-context portability, checkpoint relocation, replication and cross-framework migration. It does **not** presently contain a working implementation (see the repository README and roadmap).
+The repository already studies delegation, task-context portability, checkpoint relocation, replication and cross-framework reconstruction. It does **not** presently contain a working implementation (see the repository README and roadmap).
 
 **The strongest practical research niche is a "human-authority-preserving handoff" contract**, not a claim of universal agent teleportation:
 
 1. **Intent + consent:** Explicit user-approved intent, task constraints, permissible recipients, retention and expiry.
 2. **Authority + identity:** Separate origin/destination identities, short-lived least-privilege grants and verifiable execution ownership.
 3. **Context minimization:** Only approved inputs and artifact references, not hidden model state, passwords or raw provider credentials.
-4. **Side-effect safety:** Stable operation identifiers, explicit states including "unknown / reconcile", fencing after handoff, and no unsupported claim of exactly-once external actions.
+4. **Side-effect safety:** Stable operation identifiers, explicit states including "unknown/reconcile", fencing after handoff, and no unsupported claim of exactly-once external actions.
 5. **Proof of lineage:** Privacy-preserving audit facts, source/destination runtime versions, policy decisions, checksums and transfer reason.
 6. **Honest compatibility:** Refuse unsafe continuation; report missing/lost state if a different model/framework resumes.
 
