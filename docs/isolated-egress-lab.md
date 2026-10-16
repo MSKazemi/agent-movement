@@ -28,7 +28,7 @@ The report is deterministic: 16 cases consisting of **nine prohibited network/pr
 
 **Important:** If Linux/x86_64 seccomp support or installation is unavailable, this demonstration **fails**, rather than disabling the filter and returning success. Other platforms are not in its evidence scope and their generic test jobs may skip the isolation-specific tests.
 
-## What these experiments DO and DO NOT establish
+**Follow-up (2026-10-16):** [Actual alternative-adapter reachability](real-adapter-egress.md) starts the *real* legacy HTTP and optional A2A servers, rather than only the generic path-labeled socket observer used in this frozen v0.1 experiment. It deliberately shows an unfenced legacy-origin-claim acceptance and then checks the same independently fenced child cannot reach the actual listeners. This still does **not** authenticate or globally disable the legacy/A2A handlers.\n\n## What these experiments DO and DO NOT establish
 
 **Evidence supported:** With this specific kernel filter installed before attacker source runs, the measured socket/spawn syscall attempts return `EPERM`, no additional loopback connection reaches the external observer, and a limited broker can run or refuse named synthetic delegations by invoking existing authenticated checks in the trusted parent. A red/green unfenced control verifies the observer would notice a reachable route without the policy.
 
