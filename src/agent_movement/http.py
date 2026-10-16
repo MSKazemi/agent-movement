@@ -2,6 +2,10 @@
 
 ``--receipts-log FILE`` (default off) makes the receiver sign movement receipts for its
 accept/reject decisions with an ephemeral synthetic key (issue #32, ``signing`` extra).
+
+``POST /v0/revocations`` (issue #38) takes a signed revocation notice in the issue #8
+format for one of the receiver's approvals. Notices verify only against the authority
+keys pinned with ``--revocation-authority FILE``; without one, every notice is refused.
 """
 
 from __future__ import annotations
@@ -14,7 +18,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from .core import Approval, Conflict, ContractError, HandoffReceiver, PolicyDenied, SQLiteStore, parse_json
+from .core import (Approval, Conflict, ContractError, HandoffReceiver, PolicyDenied, RevocationRejected,
+                   SQLiteStore, parse_json)
+
+HANDOFF_PATH, REVOCATION_PATH = "/v0/handoffs", "/v0/revocations"
 
 
 class LocalServer(ThreadingHTTPServer):
@@ -56,7 +63,7 @@ def make_server(receiver: HandoffReceiver, port: int = 0,
                 self.respond(404, {"error": "not_found"})
 
         def do_POST(self) -> None:
-            if self.path != "/v0/handoffs":
+            if self.path not in (HANDOFF_PATH, REVOCATION_PATH):
                 self.respond(404, {"error": "not_found"})
                 return
             if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
@@ -71,6 +78,12 @@ def make_server(receiver: HandoffReceiver, port: int = 0,
                 self.respond(413, {"error": "body_too_large_or_empty"})
                 return
             body = self.rfile.read(size)  # TimeoutError propagates; the base class closes the socket
+            if self.path == REVOCATION_PATH:
+                self.revoke(body)
+            else:
+                self.handoff(body)
+
+        def handoff(self, body: bytes) -> None:
             try:
                 message = parse_json(body)
                 receipt = receiver.receive(message)
@@ -90,8 +103,37 @@ def make_server(receiver: HandoffReceiver, port: int = 0,
                     _record(receipts.accepted, message, receipt)
                 self.respond(200, receipt)
 
+        def revoke(self, body: bytes) -> None:
+            # Coarse errors only; the reason code stays in the receiver's audit trail.
+            try:
+                notice = parse_json(body)
+                result = receiver.revoke(notice)
+            except ContractError:
+                self.respond(400, {"error": "invalid_contract"})
+            except RevocationRejected as exc:
+                if exc.reason == "unknown_approval":  # the notice verified; only its target is unknown
+                    self.respond(404, {"error": "unknown_approval"})
+                else:
+                    self.respond(401, {"error": "unauthenticated"})
+            except Exception:
+                self.respond(500, {"error": "internal_error"})
+            else:
+                if receipts is not None and not result["replayed"]:
+                    _record(receipts.revoked, notice, result["approval_ref"], result["logical_task_id"])
+                self.respond(200, result)
+
     # Intentionally impossible to expose on a public interface via this API.
     return LocalServer(("127.0.0.1", port), Handler)
+
+
+def load_authorities(path: Path) -> list[Any]:
+    """Revocation authority keys from a JSON file: one key object or a list of them."""
+    from .trust import import_key
+    data = parse_json(path.read_bytes())
+    keys = [import_key(item) for item in (data if isinstance(data, list) else [data])]
+    if not keys or len({k.kid for k in keys}) != len(keys):
+        raise ContractError("revocation authorities must be non-empty with distinct kids")
+    return keys
 
 
 def main() -> None:
@@ -106,6 +148,11 @@ def main() -> None:
     parser.add_argument("--receipts-log", type=Path, metavar="FILE",
                         help="opt in: sign accept/reject receipts with an ephemeral synthetic key and append "
                              "them to FILE; the public key is advertised on stdout (needs the 'signing' extra)")
+    parser.add_argument("--revocation-authority", type=Path, metavar="FILE",
+                        help="opt in to POST /v0/revocations: a JSON key, or a list of keys, in the "
+                             "agent_movement.trust export format whose signed notices may revoke the approval. "
+                             "An HS256 entry holds a shared secret, so keep FILE private; Ed25519 needs the "
+                             "'ed25519' extra. Without it every revocation notice is refused")
     options = parser.parse_args()
     approval = Approval(options.approval, options.task_id, options.origin_id,
                         options.receiver_id, options.kind,
@@ -119,7 +166,15 @@ def main() -> None:
         except ReceiptError as exc:
             print(f"error: {exc}", file=sys.stderr)
             raise SystemExit(2) from exc
-    receiver = HandoffReceiver(options.receiver_id, SQLiteStore(options.db), [approval])
+    authorities: list[Any] = []
+    if options.revocation_authority is not None:
+        try:
+            authorities = load_authorities(options.revocation_authority)
+        except (OSError, ValueError, ImportError) as exc:
+            print(f"error: cannot load --revocation-authority: {type(exc).__name__}", file=sys.stderr)
+            raise SystemExit(2) from exc
+    receiver = HandoffReceiver(options.receiver_id, SQLiteStore(options.db), [approval],
+                               revocation_authorities=authorities)
     server = make_server(receiver, options.port, receipts=receipts)
     advertised: dict[str, Any] = {"port": server.server_port, "agent": options.receiver_id}
     if receipts is not None:

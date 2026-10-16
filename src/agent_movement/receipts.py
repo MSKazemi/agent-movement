@@ -65,11 +65,13 @@ SPAN_ID = re.compile(r"[0-9a-f]{16}\Z")
 TIME = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
 B64URL = re.compile(r"[A-Za-z0-9_-]{1,200}\Z")
 
+# authority.revoked (issue #38, additive): a receiver applied a verified runtime revocation of
+# one of its approvals; it references the external signed notice as a revocation_notice subject.
 RECEIPT_TYPES = ("movement.dispatched", "movement.accepted", "movement.rejected",
-                 "execution.started", "execution.completed", "tool.effect_recorded")
+                 "execution.started", "execution.completed", "tool.effect_recorded", "authority.revoked")
 RESPONSE_TYPES = ("movement.accepted", "movement.rejected")
 LINEAGE = ("delegate", "relocate", "clone", "fork", "replicate", "fan_out")
-OUTCOMES = ("dispatched", "accepted", "rejected", "started", "completed", "failed", "unknown")
+OUTCOMES = ("dispatched", "accepted", "rejected", "started", "completed", "failed", "unknown", "revoked")
 EFFECT_STATUS = ("committed", "rejected", "unknown")
 # revocation_notice/policy_decision subjects reference EXTERNAL signed documents by digest
 # only. Key-revocation notices in the issue #8 format are verified separately (revocations.jsonl).
@@ -234,6 +236,8 @@ def validate_body(body: Any) -> dict[str, Any]:
         raise ReceiptError("execution receipts need an execution block")
     if kind == "tool.effect_recorded" and b["effect"] is None:
         raise ReceiptError("tool records need an effect block")
+    if kind == "authority.revoked" and not any(s["role"] == "revocation_notice" for s in b["subjects"]):
+        raise ReceiptError("revocation receipts need a revocation_notice subject")
     return b
 
 

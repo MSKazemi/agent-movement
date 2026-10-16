@@ -2,6 +2,9 @@
 
 This is an application-level experiment. No sender identity authentication, A2A,
 remote authorization, external tools, or general checkpoint migration is provided.
+Approvals can be revoked at runtime with a notice signed by a pinned synthetic
+authority (issue #38, :meth:`HandoffReceiver.revoke`); the revocation is checked at
+admission and again inside the simulated effect-commit transaction.
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 SCHEMA_VERSION = "0.1.0-draft"
 ID = re.compile(r"[A-Za-z][A-Za-z0-9._:-]{0,127}\Z")
@@ -75,6 +78,20 @@ _TABLES = (
         epoch INTEGER NOT NULL,
         PRIMARY KEY (task_id, effect_id))""",
 )
+# Runtime approval revocation (issue #38). Created with IF NOT EXISTS beside the versioned
+# layout above, like the peer ledger's tables, so a file of any version gains them on open.
+_REVOCATION_TABLES = """
+    CREATE TABLE IF NOT EXISTS approval_revocations (
+        approval_ref TEXT PRIMARY KEY,
+        issuer TEXT NOT NULL,
+        claimed_revoked_at INTEGER NOT NULL,
+        notice_digest TEXT NOT NULL,
+        recorded_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS task_approvals (
+        task_id TEXT NOT NULL,
+        approval_ref TEXT NOT NULL,
+        PRIMARY KEY (task_id, approval_ref));
+"""
 # Digest columns of OTHER modules' tables that can share a store file. The 1 -> 2 migration
 # wraps them with the store key as well, so no plain content digest survives the upgrade.
 _FOREIGN_DIGEST_COLUMNS = (
@@ -98,6 +115,26 @@ class Conflict(ValueError):
 
 class StoreSchemaError(RuntimeError):
     """The SQLite file has a layout this code cannot use or migrate."""
+
+
+class ApprovalRevoked(PolicyDenied):
+    """The approval was revoked at runtime; checked at admission and at effect commit."""
+
+    def __init__(self, approval_ref: str):
+        super().__init__("approval revoked")
+        self.approval_ref = approval_ref
+
+
+class RevocationRejected(PolicyDenied):
+    """A revocation notice was not applied. ``reason`` is a machine-readable code.
+
+    ``unknown_approval``: the notice verified but names no approval of this receiver.
+    Every other reason means the notice did not verify against a pinned authority.
+    """
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
 
 
 def _object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -205,7 +242,11 @@ def utc_now_iso() -> str:
 
 @dataclass(frozen=True)
 class Approval:
-    """Preconfigured receiver-side grant for exactly one synthetic/public task."""
+    """Preconfigured receiver-side grant for exactly one synthetic/public task.
+
+    ``revoked`` is a static configuration flag fixed at construction. Runtime revocation
+    goes through :meth:`HandoffReceiver.revoke` and is persisted in the store.
+    """
 
     ref: str
     task_id: str
@@ -244,6 +285,7 @@ class SQLiteStore:
         self._ensure_schema()
         with self._connection() as db:
             self._key = self._read_key(db)
+        self._ensure_revocation_tables()
 
     def _ensure_schema(self) -> None:
         """Create the tables, or migrate an older file in place, in ONE write transaction.
@@ -425,13 +467,19 @@ class SQLiteStore:
                         "handoff.denied", self.fingerprint(envelope))
             db.commit()
 
-    def receive(self, envelope: dict[str, Any], sender: str | None = None) -> dict[str, Any]:
+    def receive(self, envelope: dict[str, Any], sender: str | None = None,
+                approval_ref: str | None = None) -> dict[str, Any]:
         """Execute a *pure* preapproved task transactionally, memoizing its receipt.
 
         Idempotency keys are scoped to ``sender``: the authenticated sender when the
         caller knows it (``PeerReceiver``), else the envelope's *claimed* origin
         (``HandoffReceiver``, which authenticates nobody). Two senders may therefore use
         the same key. Movement IDs stay unique across all senders.
+
+        ``approval_ref`` (``HandoffReceiver``) is the approval that admitted the envelope.
+        Inside the same write transaction a runtime revocation of it raises
+        ``ApprovalRevoked`` (replays included), and a new delivery binds the task to it, so
+        ``EffectGateway.commit`` rechecks that approval for every effect of the task.
 
         The returned receipt is unchanged by issue #39 (its ``envelope_digest`` and
         ``artifact_digest`` are plain SHA-256, so the sender can check them), but the store
@@ -445,6 +493,8 @@ class SQLiteStore:
         sender_id = envelope["origin"]["agent_id"] if sender is None else _id(sender, "sender")
         with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            if approval_ref is not None and self._approval_revoked(db, approval_ref):
+                raise ApprovalRevoked(approval_ref)
             previous = db.execute("SELECT envelope_digest FROM deliveries "
                                   "WHERE sender_id = ? AND idempotency_key = ?",
                                   (sender_id, key)).fetchone()
@@ -463,6 +513,9 @@ class SQLiteStore:
                        "receipt_json,created_at) VALUES(?,?,?,?,?,?)",
                        (sender_id, key, envelope["movement_id"], fingerprint, canonical(stored),
                         utc_now_iso()))
+            if approval_ref is not None:
+                db.execute("INSERT OR IGNORE INTO task_approvals VALUES(?,?)",
+                           (envelope["logical_task_id"], approval_ref))
             self._event(db, receipt["movement_id"], receipt["logical_task_id"],
                         "handoff.completed", self.keyed_digest(receipt["artifact_digest"]))
             db.commit()
@@ -474,12 +527,83 @@ class SQLiteStore:
                               "FROM audit_events ORDER BY seq").fetchall()
         return [dict(zip(("movement_id", "task_id", "event_type", "info_digest", "event_time"), row)) for row in rows]
 
+    # -- runtime approval revocation (issue #38) ---------------------------------------
+    # Revocation audit events are not tied to a movement: their movement_id is "". Like every
+    # audit digest they are keyed commitments; approval_revocations keeps the plain SHA-256 of
+    # the notice, a public signed document, so it can be matched against the notice itself.
+
+    def _ensure_revocation_tables(self) -> None:
+        with self._connection() as db:
+            db.executescript(_REVOCATION_TABLES)
+
+    @staticmethod
+    def _approval_revoked(db: sqlite3.Connection, approval_ref: str) -> bool:
+        return db.execute("SELECT 1 FROM approval_revocations WHERE approval_ref=?",
+                          (approval_ref,)).fetchone() is not None
+
+    @staticmethod
+    def _revoked_task_approval(db: sqlite3.Connection, task_id: str) -> str | None:
+        """A revoked approval that a delivery of ``task_id`` was admitted under, if any."""
+        row = db.execute("SELECT t.approval_ref FROM task_approvals t JOIN approval_revocations r "
+                         "ON r.approval_ref = t.approval_ref WHERE t.task_id=? "
+                         "ORDER BY t.approval_ref LIMIT 1", (task_id,)).fetchone()
+        return None if row is None else row[0]
+
+    def revoke_approval(self, approval_ref: str, task_id: str, *, issuer: str,
+                        claimed_revoked_at: int, notice_digest: str) -> bool:
+        """Persist a verified revocation. True if new; False if the approval was already
+        revoked (idempotent: the first notice stays the record and no event is added).
+
+        Takes the same write lock as ``receive`` and ``EffectGateway.commit``, so a
+        revocation and a delivery or effect commit are linearized: whichever commits
+        first wins. ``claimed_revoked_at`` is the issuer's claim, kept for the record; the
+        revocation takes effect when this transaction commits.
+        """
+        _id(approval_ref, "approval_ref")
+        _id(task_id, "task_id")
+        with self._connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if self._approval_revoked(db, approval_ref):
+                db.commit()
+                return False
+            db.execute("INSERT INTO approval_revocations VALUES(?,?,?,?,?)",
+                       (approval_ref, issuer, claimed_revoked_at, notice_digest, utc_now_iso()))
+            self._event(db, "", task_id, "approval.revoked", self.keyed_digest(notice_digest))
+            db.commit()
+            return True
+
+    def revocation_rejected(self, notice_digest: str) -> None:
+        with self._connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self._event(db, "", "", "approval.revocation_rejected", self.keyed_digest(notice_digest))
+            db.commit()
+
+    def revocations(self) -> list[dict[str, Any]]:
+        names = ("approval_ref", "issuer", "claimed_revoked_at", "notice_digest", "recorded_at")
+        with self._connection() as db:
+            rows = db.execute(f"SELECT {','.join(names)} FROM approval_revocations "
+                              "ORDER BY recorded_at, approval_ref").fetchall()
+        return [dict(zip(names, row)) for row in rows]
+
 
 class HandoffReceiver:
-    def __init__(self, name: str, store: SQLiteStore, approvals: list[Approval]):
+    """Receiver-local admission against preconfigured approvals.
+
+    ``revocation_authorities`` pins the keys (``trust.HmacKey``, or ``trust.Ed25519Key``
+    with the optional extra) whose signed notices may revoke this receiver's approvals at
+    runtime. With none pinned, :meth:`revoke` rejects every notice.
+    """
+
+    def __init__(self, name: str, store: SQLiteStore, approvals: list[Approval],
+                 revocation_authorities: Iterable[Any] = ()):
         self.name = name
         self.store = store
         self.approvals = tuple(approvals)
+        authorities = tuple(revocation_authorities)
+        self._revocation_trust = None
+        if authorities:
+            from .trust import TrustStore  # trust.py imports this module
+            self._revocation_trust = TrustStore.build((), authorities)
 
     def receive(self, message: Any) -> dict[str, Any]:
         envelope = validate_envelope(message)
@@ -488,7 +612,46 @@ class HandoffReceiver:
                 a.allows(envelope, now) for a in self.approvals):
             self.store.denied(envelope)
             raise PolicyDenied("receiver-side approval not found, valid or scoped for this transfer")
-        return self.store.receive(envelope)
+        try:
+            return self.store.receive(envelope, approval_ref=envelope["authority"]["approval_ref"])
+        except ApprovalRevoked:
+            self.store.denied(envelope)
+            raise
+
+    def revoke(self, notice: Any) -> dict[str, Any]:
+        """Apply a signed revocation notice (issue #8 format) to one of this receiver's approvals.
+
+        The notice is ``trust.issue_revocation(authority_key, approval_ref, revoked_at)``:
+        its ``grant_id`` names the approval. It must verify against a pinned revocation
+        authority; anything else (unsigned, forged, tampered, untrusted issuer, malformed)
+        raises ``RevocationRejected`` and is audited as ``approval.revocation_rejected``.
+        A verified notice is effective as soon as this call returns: new and replayed
+        handoffs under the approval are denied, and so are effect commits for every task a
+        delivery was admitted under it. Revoking again is idempotent (``replayed: True``).
+        There is no un-revoke.
+        """
+        try:
+            notice_digest = digest(notice)
+        except (TypeError, ValueError) as exc:
+            raise ContractError("revocation notice is not JSON") from exc
+        if self._revocation_trust is None:
+            self.store.revocation_rejected(notice_digest)
+            raise RevocationRejected("no_revocation_authority")
+        from .trust import TrustDenied, verify_revocation
+        try:
+            payload = verify_revocation(notice, self._revocation_trust)
+        except TrustDenied as exc:
+            self.store.revocation_rejected(notice_digest)
+            raise RevocationRejected(exc.reason) from exc
+        approval = next((a for a in self.approvals if a.ref == payload["grant_id"]), None)
+        if approval is None:
+            self.store.revocation_rejected(notice_digest)
+            raise RevocationRejected("unknown_approval")
+        new = self.store.revoke_approval(approval.ref, approval.task_id, issuer=payload["issuer"],
+                                         claimed_revoked_at=payload["revoked_at"],
+                                         notice_digest=notice_digest)
+        return {"status": "revoked", "approval_ref": approval.ref, "logical_task_id": approval.task_id,
+                "notice_digest": notice_digest, "replayed": not new}
 
 
 class EffectGateway:
@@ -496,6 +659,12 @@ class EffectGateway:
 
     Fencing works only because THIS gateway checks epoch in the SAME transaction
     as a simulated commit. It offers no guarantee for real-world external tools.
+
+    The same transaction rechecks runtime approval revocation (issue #38): a commit for a
+    task that a ``HandoffReceiver`` delivery was admitted under a since-revoked approval
+    raises ``ApprovalRevoked`` and is audited as ``effect.denied``. A task that never
+    arrived through a delivery carries no approval, so only its epoch is checked. Expiry
+    is not rechecked here (the gateway does not hold the approvals).
     """
 
     def __init__(self, store: SQLiteStore):
@@ -552,6 +721,13 @@ class EffectGateway:
             owner = db.execute("SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)).fetchone()
             if owner != (agent_id, epoch):
                 raise PolicyDenied("stale or unauthorized executor")
+            revoked = self.store._revoked_task_approval(db, task_id)
+            if revoked is not None:  # checked before the replay lookup: replays are refused too
+                self.store._event(db, "", task_id, "effect.denied",
+                                  self.store.fingerprint({"effect_id": effect_id, "approval_ref": revoked,
+                                                          "reason": "approval_revoked"}))
+                db.commit()  # keep the audit event; nothing else was written
+                raise ApprovalRevoked(revoked)
             existing = db.execute("SELECT payload_digest FROM effects WHERE task_id=? AND effect_id=?",
                                   (task_id, effect_id)).fetchone()
             if existing is not None:
