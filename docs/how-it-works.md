@@ -1,4 +1,6 @@
-# How Agent Movement could work (proposal; not implemented)
+# How Agent Movement could work (proposed end-to-end flow; components prototyped locally)
+
+**Current status (2026-10-16):** The ten-step flow is a *target architecture*, not an integrated, production-secure system. Independent synthetic/local demonstrations exist for loopback handoff, authenticated peers, optional A2A, same-runtime relocation and receipts; see [as-built architecture](architecture.md). The **canonical proposed** envelope is `0.2.0-draft` and the existing **runtime** envelope remains `0.1.0-draft`. See [project charter](project-charter.md) and [roadmap](roadmap.md).
 
 ## Operational definition
 

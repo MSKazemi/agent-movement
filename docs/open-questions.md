@@ -1,7 +1,7 @@
 # Most important open research questions in Agent Movement
 
 **Research review:** 2026-10-15 (sources [SRC-1]–[SRC-8] fact-checked 2026-10-16)  
-**Project status:** Research/design only. No movement, cloning, replication, or interoperability demonstration has been implemented in this repository.  
+**Project status (updated 2026-10-16):** Research agenda plus runnable **synthetic/local** handoff, A2A delegation, same-runtime checkpoint relocation, bounded continuity/authority checks and deterministic LLM-free benchmarks. The open questions below remain hypotheses; no general live migration, production security, universal cross-framework continuation or arbitrary agent cloning/replication has been demonstrated. See the [current charter](project-charter.md) and [as-built architecture](architecture.md).  
 **Scope:** Movement of AI-agent *work* across executors, frameworks, model providers and trust domains; not movement of a robot in physical space.  
 **IDs:** AM-01…AM-16 are frozen (the [evidence map](evidence-map.md) depends on them); [SRC-n] labels cite the source list at the end. How they relate to the IDs in the other agenda documents: [question ID crosswalk](question-id-crosswalk.md).
 
