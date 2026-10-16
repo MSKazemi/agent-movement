@@ -2,6 +2,11 @@
 
     python -m pip install -e '.[relocation]'
     python -m agent_movement.relocation_demo [--json results.json]
+    python -m agent_movement.relocation_demo --two-store [--json results.json]
+
+The default mode shares one SQLite file between coordinator and workers. ``--two-store``
+gives each worker its own store and copies the checkpoint as a digest-verified bundle
+(scenarios in :mod:`agent_movement.relocation_demo_two_store`).
 
 Every actor action (origin worker, coordinator, receiver worker) runs in a
 freshly forked OS process that shares nothing with the next action except the
@@ -158,7 +163,8 @@ def completed(obs: dict[str, Any]) -> bool:
 
 def unchanged(before: dict[str, Any], after: dict[str, Any]) -> bool:
     keys = ("owner", "head_checkpoint_id", "gateway_commits", "opaque_invocations", "relocations")
-    return all(before[k] == after[k] for k in keys)
+    # Two-store observations also summarize every worker store (absent = single store).
+    return all(before[k] == after[k] for k in keys) and before.get("stores") == after.get("stores")
 
 
 def evidence(obs: dict[str, Any]) -> dict[str, Any]:
@@ -477,9 +483,14 @@ MATRIX: list[dict[str, Any]] = [
 ]
 
 
+def row_kind(row: dict[str, Any]) -> str:
+    """'crash' rows are judged on the recovered end state, 'inject' rows on the injected message."""
+    return row.get("kind", "crash" if row["id"].startswith("C") else "inject")
+
+
 def classify(row: dict[str, Any], observed: str, obs: dict[str, Any]) -> str:
     """Crash rows are judged on the recovered end state; D/V rows on the injected message."""
-    if row["id"].startswith("C"):
+    if row_kind(row) == "crash":
         values = obs["values"] or {}
         effect = values.get("effect", {})
         if row["expected"] == "unknown":
@@ -496,13 +507,14 @@ def classify(row: dict[str, Any], observed: str, obs: dict[str, Any]) -> str:
     return observed
 
 
-def run_matrix(root: str) -> list[dict[str, Any]]:
+def run_matrix(root: str, matrix: list[dict[str, Any]] | None = None,
+               run_class: type[Run] = Run) -> list[dict[str, Any]]:
     rows = []
-    for spec in MATRIX:
-        run = Run(root, spec["id"], spec.get("tool", "gateway"))
+    for spec in MATRIX if matrix is None else matrix:
+        run = run_class(root, spec["id"], spec.get("tool", "gateway"))
         outcome = spec["scenario"](run)
         report = None
-        if spec["id"].startswith("C"):
+        if row_kind(spec) == "crash":
             recovery, obs = outcome
             observed = classify(spec, "", obs)
         else:
@@ -590,36 +602,50 @@ def markdown(rows: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def experiment(root: str) -> dict[str, Any]:
+def experiment(root: str, two_store: bool = False) -> dict[str, Any]:
+    if two_store:
+        from . import relocation_demo_two_store as two
+        return two.experiment(root)
     h = headline(root)
     rows = run_matrix(root)
-    return {"runtime": runtime_versions(), "pinned": PINNED_RUNTIME, "python": sys.version.split()[0],
+    return {"mode": "single-store", "runtime": runtime_versions(), "pinned": PINNED_RUNTIME,
+            "python": sys.version.split()[0],
             "exported_state": EXPORTED_STATE, "unsupported_state": UNSUPPORTED_STATE,
             "headline": h, "headline_ok": headline_ok(h), "matrix": rows,
             "all_rows_match": all(r["match"] for r in rows)}
 
 
+HEADLINE_KEYS = ("items_by_execution", "process_item_runs", "fenced_a_step", "fenced_a_commit",
+                 "fenced_a_attempts", "b_first_checkpoint_parent_is_exported", "lineage_writers",
+                 "execution_identities", "task_identity", "constraints_preserved",
+                 "artifacts_from_origin_preserved", "gateway_commits", "final_owner", "final_status")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Synthetic same-runtime checkpoint relocation experiment")
     parser.add_argument("--json", type=Path, help="also write full results as JSON")
+    parser.add_argument("--two-store", action="store_true",
+                        help="give each worker its own SQLite store and copy the checkpoint as a "
+                             "digest-verified bundle (copy-specific fault matrix)")
     options = parser.parse_args(argv)
     if not hasattr(os, "fork"):
         print("This experiment needs os.fork (Linux/macOS).", file=sys.stderr)
         return 2
     with tempfile.TemporaryDirectory(prefix="agent-relocation-") as root:
-        results = experiment(root)
+        results = experiment(root, two_store=options.two_store)
     h = results["headline"]
     print(f"runtime: {results['runtime']} (pinned: {results['runtime'] == results['pinned']}), "
           f"python {results['python']}")
-    print("\n== Headline: relocate task at a persisted checkpoint ==")
-    print(json.dumps({k: h[k] for k in ("items_by_execution", "process_item_runs", "fenced_a_step",
-                                         "fenced_a_commit", "fenced_a_attempts",
-                                         "b_first_checkpoint_parent_is_exported", "lineage_writers",
-                                         "execution_identities", "task_identity", "constraints_preserved",
-                                         "artifacts_from_origin_preserved", "gateway_commits",
-                                         "final_owner", "final_status")}, indent=2))
+    if options.two_store:
+        print("\n== Headline (two stores): copy the checkpoint into Worker B's own store ==")
+        keys = HEADLINE_KEYS + tuple(results["headline_two_store_keys"])
+    else:
+        print("\n== Headline: relocate task at a persisted checkpoint ==")
+        keys = HEADLINE_KEYS
+    print(json.dumps({k: h[k] for k in keys}, indent=2))
     print(f"headline_ok: {results['headline_ok']}")
-    print("\n== Crash / duplicate / version fault matrix ==")
+    print("\n== Two-store bundle copy fault matrix ==" if options.two_store
+          else "\n== Crash / duplicate / version fault matrix ==")
     print(markdown(results["matrix"]))
     print(f"\nrows: {len(results['matrix'])}, matching expectation: "
           f"{sum(r['match'] for r in results['matrix'])}")
