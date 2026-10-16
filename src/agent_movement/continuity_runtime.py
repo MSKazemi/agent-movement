@@ -15,8 +15,8 @@ from typing import Any, Literal
 
 from .continuity_guard import (
     ConsentGrant,
-    ObservedFacts,
     Observation,
+    ObservedFacts,
     Policy,
     Proposal,
     _valid_policy,
