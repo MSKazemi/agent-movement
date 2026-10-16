@@ -9,6 +9,7 @@ task are rejected by core.EffectGateway. This is not an OS sandbox or external P
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 import time
 from collections.abc import Callable, Mapping
@@ -47,14 +48,14 @@ class GuardedAuthority:
             raise ContractError("trusted store and continuity authority required")
         if continuity.store.path != store.path or not isinstance(trust, TrustStore):
             raise ContractError("all authority checks must use the same SQLite store")
-        if continuity.grant_trust.grant_issuers.keys() != trust.grant_issuers.keys():
+        if continuity.grant_trust is not trust:
             raise ContractError("grant trust roots must agree")
         if not origin_verifiers or not callable(clock):
             raise ContractError("trusted origin verifiers and clock required")
         if not (type(budget_limit) is int and 1 <= budget_limit <= 100):
             raise ContractError("invalid operator-provisioned effect budget")
         if not (hasattr(cancel_verifier, "verify") and hasattr(incident_verifier, "verify")):
-            raise ContractError("independent operator verifiers required")
+            raise ContractError("pinned operator verifiers required")
         self.store = store
         self.continuity = continuity
         self.trust = trust
@@ -97,6 +98,8 @@ class GuardedAuthority:
         wrapped = sealed_parts(intent, "guarded-transfer-intent")
         claimed = wrapped["payload"]
         actor = claimed.get("origin_id")
+        if not isinstance(actor, str):
+            raise Unauthorized("untrusted_movement_origin")
         key = self.origin_verifiers.get(actor)
         if key is None:
             raise Unauthorized("untrusted_movement_origin")
@@ -129,7 +132,7 @@ class GuardedAuthority:
         return dict(zip(names, r, strict=True))
 
     def _check(self, db: sqlite3.Connection, row: dict[str, Any], now: int) -> dict[str, Any]:
-        grant = verify_grant(__import__("json").loads(row["grant_json"]), self.trust)
+        grant = verify_grant(json.loads(row["grant_json"]), self.trust)
         check_grant_scope(
             grant, actor=row["origin_id"], audience=row["destination_id"],
             task_id=row["task_id"], kind=row["kind"], classification=row["classification"],
