@@ -81,7 +81,7 @@ agent-movement demo --receipts /tmp/am-receipts       # same demo, plus signed r
 
 Each `agent-movement` subcommand forwards its arguments unchanged to an existing module, so `python -m agent_movement.demo`, `python -m agent_movement.mobilitybench` and the others still work. A subcommand whose optional extra is missing prints the install command and exits 2. Every subcommand and flag is listed in the [CLI reference](docs/cli.md), which a test checks against the live `--help` output.
 
-The core demo outputs a completed task, an idempotent replay, a denied unapproved request, and a rejected stale epoch. On 2026-10-16, `python -m pytest -q` gave **351 passed, 1 skipped** with every extra installed (CPython 3.11 and 3.13) and **276 passed, 76 skipped** with the core only (CPython 3.13 and 3.15); the skipped tests are the ones that need a missing extra. CI runs both configurations ([`python-smoke.yml`](.github/workflows/python-smoke.yml)). No model credentials, live external tool effects, private data or public endpoints are required.
+The core demo outputs a completed task, an idempotent replay, a denied unapproved request, and a rejected stale epoch. On 2026-10-16 (commit dac5f62), `python -m pytest -q` gave **762 passed, 8 skipped** with every extra installed (CPython 3.11 and 3.12) and **521 passed, 249 skipped** with the core only (CPython 3.12 and 3.15); the skipped tests are the ones that need a missing extra or the optional gitleaks binary. CI runs both configurations ([`python-smoke.yml`](.github/workflows/python-smoke.yml)). No model credentials, live external tool effects, private data or public endpoints are required.
 
 ## Read the research
 
@@ -117,7 +117,7 @@ Further research notes:
 
 Experimental code (synthetic, local, not production):
 
-- [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md)
+- [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md) · [As-built architecture of the `agent_movement` package (verified against `dac5f62`)](docs/architecture.md)
 - [`agent-movement` CLI reference: every subcommand, flag, optional extra and exit code](docs/cli.md)
 - [Language and SDK strategy (public proposal; Python-first, with what is implemented so far)](docs/language-and-sdk-strategy.md)
 - [Optional A2A v1 adapter on the official SDK: delegation, not migration; experimental, unauthenticated](docs/a2a-adapter.md)
