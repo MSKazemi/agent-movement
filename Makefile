@@ -21,7 +21,7 @@ PAPER_APPEND = $(PYTHON) tools/paper_corpus.py append $(PAPER_DIR)/raw/round2.js
 PAPER_AUDIT2 = $(PYTHON) tools/paper_corpus.py apply-audit $(PAPER_DIR)/audit-round2.jsonl
 
 .DEFAULT_GOAL := all
-.PHONY: all help check build analysis verify-analysis verify-determinism check-ids check-tests-registry test bib
+.PHONY: all help check build analysis verify-analysis verify-determinism check-ids check-tests-registry test bib cli-docs
 
 all: check verify-determinism verify-analysis check-ids check-tests-registry test bib ## Run every gate
 
@@ -78,6 +78,9 @@ check-ids: ## Fail on ambiguous bare Q#/S# IDs and unknown question/study IDs in
 
 check-tests-registry: ## Validate data/test-registry.csv against tests/ (ast only) and the docs' registry IDs
 	$(PYTHON) tools/check_test_registry.py
+
+cli-docs: ## Regenerate docs/cli.md from live `agent-movement --help` (needs every optional extra)
+	$(PYTHON) tools/cli_reference.py
 
 test: ## Run pytest if tests/ exists
 	@if [ -d tests ]; then $(PYTHON) -m pytest -q; \
