@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from agent_movement.activated_authority import ActivatedGuardedAuthority
-from agent_movement.core import Conflict, EffectGateway, PolicyDenied, digest
+from agent_movement.core import Conflict, ContractError, EffectGateway, PolicyDenied, digest
 from agent_movement.guarded_authority import GuardedAuthority
 from agent_movement.trust import HmacKey, Unauthorized, seal
 from test_continuity_runtime import NOW, Rig
