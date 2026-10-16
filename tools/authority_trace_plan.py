@@ -15,8 +15,8 @@ from typing import Any
 
 from movement_authority_machine import State, transitions
 
-# A deliberately *partial* event refinement. Runtime activation is NOT mapped;
-# the resume event below is an abstract marker, not verified execution state.
+# A deliberately partial refinement. Signed destination activation is mapped;
+# physical process liveness and external effects remain outside this profile.
 EVENTS = frozenset({
     "prepare_destination",
     "issue_attenuated_grant_B",
@@ -31,12 +31,12 @@ EVENTS = frozenset({
     "advance_clock",
     "dispatch_opaque_effect_unknown",
 })
-ABSTRACT_MARKERS = frozenset({"prepare_destination", "resume_destination"})
+ABSTRACT_MARKERS = frozenset({"prepare_destination"})
 UNMAPPED = (
     "origin-side effects (commit_A_*): guarded enrollment forbids early effects",
     "OS crash/restart, gateway partition/reheal: no equivalent fault injection in this runner",
     "operator_claim_done/absent: a claim cannot resolve an actual unknown effect",
-    "physical process liveness and authenticated destination activation",
+    "physical process liveness and independently attested runtime identity",
     "external effects, peer/A2A/relocation transports, consensus and independent data stores",
 )
 Predicate = Callable[[State], bool]
