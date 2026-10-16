@@ -672,6 +672,21 @@ class EffectGateway:
     def __init__(self, store: SQLiteStore):
         self.store = store
 
+    @staticmethod
+    def _deny_guarded(db: sqlite3.Connection, task_id: str) -> None:
+        """Guarded tasks cannot fall back to the lower-level legacy authority lane.
+
+        Enrollment and this check share the SQLite write lock. For unguarded
+        tasks the original experimental CAS/commit semantics are unchanged.
+        """
+        exists = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='guarded_tasks'"
+        ).fetchone()
+        if exists and db.execute(
+            "SELECT 1 FROM guarded_tasks WHERE task_id=?", (task_id,)
+        ).fetchone():
+            raise PolicyDenied("guarded task requires GuardedAuthority")
+
     def claim(self, task_id: str, agent_id: str) -> int:
         _id(task_id, "task_id")
         _id(agent_id, "agent_id")
@@ -695,6 +710,7 @@ class EffectGateway:
             raise ContractError("new owner must differ")
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            self._deny_guarded(db, task_id)
             updated = db.execute("UPDATE owners SET agent_id = ?, epoch = epoch + 1 "
                                  "WHERE task_id = ? AND agent_id = ? AND epoch = ?",
                                  (new_owner, task_id, expected_owner, expected_epoch))
@@ -720,6 +736,7 @@ class EffectGateway:
         fingerprint = self.store.keyed_digest(hashlib.sha256(payload_bytes).hexdigest())
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            self._deny_guarded(db, task_id)
             owner = db.execute("SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)).fetchone()
             if owner != (agent_id, epoch):
                 raise PolicyDenied("stale or unauthorized executor")

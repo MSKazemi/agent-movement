@@ -103,7 +103,7 @@ Suggested reading order:
 12. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
 13. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments · [Question ID crosswalk](docs/question-id-crosswalk.md)
 14. **[Algorithms and computer-science foundations](docs/algorithms-and-cs-foundations.md)**: distributed authority, formal invariants, model checking, graph/scheduling algorithms, semantic portability and a bounded state explorer
-14. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
+15. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
 16. [Proposed architecture and staged roadmap](docs/roadmap.md)
 17. [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md) · [Economic evaluation methodology (proposed cost model, no results)](docs/economic-evaluation.md) · [Evaluation plan for reference tasks EV-A, EV-B and EV-C (design only, no results)](docs/evaluation-plan.md)
 18. [2031 frontier: 20 visionary research questions and four testable studies](docs/2031-frontier-research-agenda.md)
@@ -116,6 +116,8 @@ Suggested reading order:
 
 Further research notes:
 
+- **[Algorithmic foundations research handoff (2026-10-16)](docs/algorithmic-research-handoff-2026-10-16.md)** — verified milestones, undecided scientific questions, guarded-runtime dependencies and next reproducible tests
+
 - [Underexplored dimensions and proposed experiments (2026-10-16 gap audit)](docs/missing-dimensions-and-research-gaps.md): multi-principal authority, portable obligations, self-change, quarantine, human control and context freshness
 - [Twenty high-impact research questions for AI agents and human life (reasoned agenda, not a systematic review)](docs/top-20-human-impact-questions-for-agentic-ai.md)
 
@@ -125,6 +127,7 @@ Experimental code (synthetic, local, not production):
 - [Continuity Runtime v0.1: signed facts and SQLite effect-side rechecks for one peer receiver](docs/continuity-runtime-enforcement.md) — bounded enforcement with non-covered routes explicitly documented
 - [Independent-process egress experiment (Linux seccomp, research-only)](docs/isolated-egress-lab.md) — socket/spawn bypass tests, pipe-only broker, deterministic 16-case evidence and explicit limits
 - **[Movement Authority State Machine MASM-0.1](docs/movement-authority-state-machine.md)** — 10 safety properties spanning epochs, two-principal authorization, grant attenuation, policy freshness, effect deduplication and shared budgets; [executable state explorer](tools/movement_authority_machine.py) and [15 falsification tests](tests/test_movement_authority_machine.py). Research model only, not a runtime guard.
+- [Opt-in guarded authority transfer v0.1](docs/guarded-authority-transfer.md) — signed source intent, independently verified receiver consents, SQLite-atomic ownership fencing and simulated protected effects; [implementation](src/agent_movement/guarded_authority.py) and [adversarial tests](tests/test_guarded_authority.py). Bounded single-store experiment only; other effect paths remain outside the guarantee.
 - [Abstract protected-relocation model checker](tools/movement_modelcheck.py) · [its six focused tests](tests/test_movement_modelcheck.py) · [assumptions, invariants, counterexample and research agenda](docs/algorithms-and-cs-foundations.md)
 - [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md) · [As-built architecture of the `agent_movement` package (verified against `dac5f62`)](docs/architecture.md)
 - [`agent-movement` CLI reference: every subcommand, flag, optional extra and exit code](docs/cli.md)
