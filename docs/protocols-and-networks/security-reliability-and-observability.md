@@ -38,20 +38,22 @@ No generic exactly-once guarantee across arbitrarily unreliable networks and arb
 
 ## Observability (minimum event schema, proposal)
 
+This is an audit event, not an envelope. Fields that also occur in the [handoff envelope](../how-it-works.md#canonical-handoff-envelope-020-draft) use its canonical names (`movement_id`, `logical_task_id`, `operation`, `execution_id`, `fencing_epoch`, `trace_id`); `origin_agent_id` and `destination_agent_id` are the names of the implemented receipt (`src/agent_movement/core.py`), and `policy_decision_ref` follows the [glossary](../glossary.md).
+
 ~~~json
 {
   "timestamp": "2026-10-15T19:00:00Z",
   "movement_id": "mov-123",
   "logical_task_id": "task-123",
-  "origin_id": "agent-A",
-  "destination_id": "agent-B",
+  "origin_agent_id": "agent-A",
+  "destination_agent_id": "agent-B",
   "event": "dispatch_accepted",
   "operation": "delegate",
-  "run_id": "run-B",
-  "lease_epoch": null,
+  "execution_id": "exec-B",
+  "fencing_epoch": null,
   "trace_id": "example-trace-id",
   "transport": "a2a-https",
-  "policy_decision_id": "policy-123",
+  "policy_decision_ref": "policy-123",
   "bytes_sent": 2700,
   "outcome": "accepted"
 }

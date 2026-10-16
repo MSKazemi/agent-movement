@@ -143,36 +143,49 @@ If previous effect status is uncertain: UNKNOWN / RECONCILE, not "success".
 
 At receiver **repeat** identity, payload, grant, tenant and schema validation against locally trusted facts. Before any tool or physical command, perform **fresh** authorization and revocation checks; never treat an earlier gateway ALLOW as perpetual authority.
 
-### Example proposed envelope (application metadata, NOT native A2A wire schema)
+### Envelope for DELEGATE and MOVE messages
 
-~~~json
+This policy does **not** define its own envelope. A message whose intent is DELEGATE or MOVE/CHECKPOINT_TRANSFER carries the canonical [handoff envelope `0.2.0-draft`](how-it-works.md#canonical-handoff-envelope-020-draft) (schema: [`schemas/handoff-envelope.schema.json`](../schemas/handoff-envelope.schema.json)) as application metadata; it is not native A2A wire schema. DELEGATE maps to `operation: "delegate"` and MOVE/CHECKPOINT_TRANSFER to `operation: "relocate"`. The other intents (READ/QUERY, RESULT/STATUS/EVENT, TOOL_ACTION, SPAWN/REPLICATE, DEVICE_COMMAND, CANCEL/REVOKE) are not handoffs and do not use this envelope. The earlier `agent-communication/0.1-proposal` example is retired; its fields map to canonical names as listed in [Envelope field naming (2026-10-16)](how-it-works.md#envelope-field-naming-2026-10-16).
+
+This policy extends the canonical envelope in two ways:
+
+- **The `message` block**, defined in the canonical schema for this policy: `message.message_id` identifies the message that carries the envelope, `message.parent_message_id` links replies, and `message.expires_at` is the delivery TTL (at most 300 seconds after sending in Phase 1). The TTL is separate from `authority.expires_at`, the expiry of the authority itself.
+- **Policy constraints** that a schema-valid envelope must also meet before the gateway sends it (Phase 1 defaults, section 4): `context.classification` is `public` or `synthetic`; `authority.delegation_depth` is 0 (our reading of "one delegation hop": the destination may not delegate onward); `authority.grant_ref` is present (COM-03); `authority.approval_ref` references the policy approval even when no human approval is required, because the schema always requires it; payload at most 256 KiB.
+
+Example (all values synthetic; the artifact digest is the placeholder artifact used in [how it works](how-it-works.md#examples)):
+
+<!-- envelope-example -->
+```json
 {
-  "schema_version": "agent-communication/0.1-proposal",
-  "message_id": "uuid-generated-by-runtime",
-  "task_id": "public-fixture-123",
-  "parent_message_id": null,
-  "kind": "DELEGATE",
-  "sender_claim": "urn:example:agent:researcher",
-  "recipient_claim": "urn:example:agent:reviewer",
-  "requested_action": "summarize_public_fixture",
+  "schema_version": "0.2.0-draft",
+  "movement_id": "mov-public-fixture-123",
+  "logical_task_id": "public-fixture-123",
+  "operation": "delegate",
+  "origin": {"agent_id": "urn:example:agent:researcher"},
+  "destination": {"agent_id": "urn:example:agent:reviewer"},
+  "task": {"kind": "summarize_public_fixture"},
   "context": {
     "classification": "public",
     "purpose": "synthetic_research_demo",
-    "artifact_refs": ["opaque-storage-reference"],
-    "inline_data": null
+    "artifact_refs": [{
+      "ref": "opaque-storage-reference",
+      "sha256": "af7688acddc82b568a78f804c84de44631eee954d4c72a0571da1f6e74042854"
+    }]
   },
-  "delegation": {
+  "authority": {
+    "approval_ref": "policy-approval-public-fixture-123",
     "grant_ref": "opaque-identifier-not-a-reusable-token",
-    "approval_ref": null,
-    "depth": 0
+    "delegation_depth": 0
   },
-  "delivery": {
-    "idempotency_key": "opaque-operation-id",
-    "expires_at": "2026-10-15T20:15:00Z",
-    "trace_id": "opaque-trace-correlation"
+  "execution": {"idempotency_key": "opaque-operation-id"},
+  "observability": {"trace_id": "opaque-trace-correlation"},
+  "message": {
+    "message_id": "msg-generated-by-runtime",
+    "parent_message_id": null,
+    "expires_at": "2026-10-15T20:15:00Z"
   }
 }
-~~~
+```
 
 **Critical:** sender/recipient are *claims* for correlation, not proofs. An authenticated transport/session verifier derives the actual principals separately. The policy engine receives independently verified time, grants, scopes, endpoint and classification labels from platform services. References must be resolved with separate ACLs and may never be pre-authenticated bearer URLs. Reject forged metadata even if a message field looks reasonable. The example timestamp is illustrative and not an active credential.
 
