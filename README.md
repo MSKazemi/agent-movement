@@ -21,6 +21,8 @@ Four distinct operations must not be conflated:
 
 **Not claimed:** Live process migration or lossless transfer of arbitrary agent hidden state, model internals, credentials, or in-flight side effects.
 
+For the proposed trust model for **device/hardware-bound agents**, attested destinations and risk-tiered authorization, see [hardware binding and mobility safety](docs/device-and-hardware-binding.md).
+
 ## Why this matters
 
 A useful agent might start on a laptop, delegate to a cloud agent, use tools in another organization, pause for approval, and resume after failure. Today the building blocks span multiple layers:
@@ -100,23 +102,28 @@ Suggested reading order:
 11. [Agent communication governance and enforceable policy proposal](docs/agent-communication-and-policy.md) · [28 conformance cases](data/agent-communication-conformance-cases.csv) · [Test registry: documented cases linked to implemented tests](data/test-registry.csv)
 12. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
 13. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments · [Question ID crosswalk](docs/question-id-crosswalk.md)
+14. **[Algorithms and computer-science foundations](docs/algorithms-and-cs-foundations.md)**: distributed authority, formal invariants, model checking, graph/scheduling algorithms, semantic portability and a bounded state explorer
 14. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
-15. [Proposed architecture and staged roadmap](docs/roadmap.md)
-16. [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md) · [Economic evaluation methodology (proposed cost model, no results)](docs/economic-evaluation.md) · [Evaluation plan for reference tasks EV-A, EV-B and EV-C (design only, no results)](docs/evaluation-plan.md)
-17. [2031 frontier: 20 visionary research questions and four testable studies](docs/2031-frontier-research-agenda.md)
-18. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
-19. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
-20. [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
-21. [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
-22. [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
-23. [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
+16. [Proposed architecture and staged roadmap](docs/roadmap.md)
+17. [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md) · [Economic evaluation methodology (proposed cost model, no results)](docs/economic-evaluation.md) · [Evaluation plan for reference tasks EV-A, EV-B and EV-C (design only, no results)](docs/evaluation-plan.md)
+18. [2031 frontier: 20 visionary research questions and four testable studies](docs/2031-frontier-research-agenda.md)
+19. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
+20. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
+21. [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
+22. [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
+23. [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
+24. [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
 
 Further research notes:
 
+- [Underexplored dimensions and proposed experiments (2026-10-16 gap audit)](docs/missing-dimensions-and-research-gaps.md): multi-principal authority, portable obligations, self-change, quarantine, human control and context freshness
 - [Twenty high-impact research questions for AI agents and human life (reasoned agenda, not a systematic review)](docs/top-20-human-impact-questions-for-agentic-ai.md)
 
 Experimental code (synthetic, local, not production):
 
+- [Continuity Guard v0.1: multi-principal approval, obligations, configuration drift, quarantine and freshness (research-only)](docs/continuity-guard-v0.md) — deterministic 10-case demo and synthetic unit tests
+- [Continuity Runtime v0.1: signed facts and SQLite effect-side rechecks for one peer receiver](docs/continuity-runtime-enforcement.md) — bounded enforcement with non-covered routes explicitly documented
+- [Abstract protected-relocation model checker](tools/movement_modelcheck.py) · [its six focused tests](tests/test_movement_modelcheck.py) · [assumptions, invariants, counterexample and research agenda](docs/algorithms-and-cs-foundations.md)
 - [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md) · [As-built architecture of the `agent_movement` package (verified against `dac5f62`)](docs/architecture.md)
 - [`agent-movement` CLI reference: every subcommand, flag, optional extra and exit code](docs/cli.md)
 - [Language and SDK strategy (public proposal; Python-first, with what is implemented so far)](docs/language-and-sdk-strategy.md)
