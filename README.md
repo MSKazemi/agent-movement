@@ -123,6 +123,7 @@ Experimental code (synthetic, local, not production):
 
 - [Continuity Guard v0.1: multi-principal approval, obligations, configuration drift, quarantine and freshness (research-only)](docs/continuity-guard-v0.md) — deterministic 10-case demo and synthetic unit tests
 - [Continuity Runtime v0.1: signed facts and SQLite effect-side rechecks for one peer receiver](docs/continuity-runtime-enforcement.md) — bounded enforcement with non-covered routes explicitly documented
+- [Independent-process egress experiment (Linux seccomp, research-only)](docs/isolated-egress-lab.md) — socket/spawn bypass tests, pipe-only broker, deterministic 16-case evidence and explicit limits
 - [Abstract protected-relocation model checker](tools/movement_modelcheck.py) · [its six focused tests](tests/test_movement_modelcheck.py) · [assumptions, invariants, counterexample and research agenda](docs/algorithms-and-cs-foundations.md)
 - [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md) · [As-built architecture of the `agent_movement` package (verified against `dac5f62`)](docs/architecture.md)
 - [`agent-movement` CLI reference: every subcommand, flag, optional extra and exit code](docs/cli.md)
