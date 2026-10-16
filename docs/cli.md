@@ -221,17 +221,27 @@ options:
 ### `agent-movement bench smoke`
 
 ```text
-usage: agent-movement bench smoke [-h] [--output OUTPUT]
+usage: agent-movement bench smoke [-h] [--output OUTPUT] [--no-timing]
 
-MobilityBench local smoke: reproducible synthetic *observations*, not safety proof. Run: python -m
-agent_movement.mobilitybench --output /tmp/mobilitybench.jsonl The v0.1 suite lives in
-mobilitybench_v01 and is reached through the subcommands `run`, `report`, `verify` and `schedule`
-of this same entry point. This uses the draft localhost experiment's application classes directly;
-it is NOT A2A, authenticated networking, process migration, or real external effects.
+MobilityBench local smoke: reproducible synthetic *observations*, not safety proof.
+
+Run: python -m agent_movement.mobilitybench --output /tmp/mobilitybench.jsonl
+     python -m agent_movement.mobilitybench --no-timing --output a.jsonl  # byte-identical reruns
+The v0.1 suite lives in mobilitybench_v01 and is reached through the
+subcommands `run`, `report`, `verify` and `schedule` of this same entry point.
+This uses the draft localhost experiment's application classes directly; it is
+NOT A2A, authenticated networking, process migration, or real external effects.
+
+Every case declares its expectation in a packaged fixture
+(fixtures/mobilitybench-local-smoke/cases.jsonl): `pass`, `known_gap` (with the
+expected fix and the observation that would show it closed), or `gap_closed`.
+Each case runs in its own temporary directory and SQLite database, so the
+results do not depend on case order.
 
 options:
   -h, --help       show this help message and exit
   --output OUTPUT  JSONL destination; '-' = stdout
+  --no-timing      write duration_ms as null so that two runs are byte-identical
 ```
 
 ### `agent-movement receipts`
