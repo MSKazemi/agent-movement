@@ -102,7 +102,7 @@ Suggested reading order:
 3. [Research landscape and technology comparison](docs/research-landscape.md): what A2A, MCP, LangGraph, Temporal and others do and do not solve
 4. **[How agents move: complete protocol and network guide](docs/protocols-and-networks/README.md)** — [protocol catalog](docs/protocols-and-networks/protocol-catalog.md), [network topologies](docs/protocols-and-networks/network-topologies.md), [handoff/relocation contract](docs/protocols-and-networks/handoff-and-relocation-contract.md), [security and failure recovery](docs/protocols-and-networks/security-reliability-and-observability.md), [decision and benchmark guide](docs/protocols-and-networks/decision-guide-and-benchmarks.md), [primary sources](docs/protocols-and-networks/primary-sources.md), [machine-readable CSV](data/protocol-network-matrix.csv)
 5. [Standards and protocol version tracker (31 specs, primary sources, checked 2026-10-16)](docs/standards-tracker.md) · [CSV](data/standards-tracker.csv)
-6. [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
+6. [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md) · [0.1 runtime / 0.2 draft compatibility decision, strict migration tests](docs/handoff-contract-versioning.md)
 7. [Agent lifecycle, liveness, death and safe retirement (proposed model)](docs/agent-lifecycle-liveness-and-death.md)
 8. [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
 9. [Security, privacy, and threat model](docs/security-and-trust.md) · [Prompt injection across agent boundaries (taxonomy, evidence, proposed experiment)](docs/cross-agent-prompt-injection.md)
