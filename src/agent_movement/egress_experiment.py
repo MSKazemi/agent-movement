@@ -8,6 +8,7 @@ import socket
 import socketserver
 import sys
 import threading
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -34,16 +35,12 @@ class _Listener(socketserver.ThreadingTCPServer):
 class _ListenerHandler(socketserver.BaseRequestHandler):
     def handle(self) -> None:
         self.request.settimeout(1.0)
-        try:
+        with suppress(OSError):
             self.request.recv(512)
-        except OSError:
-            pass
         self.server.hits += 1  # type: ignore[attr-defined]
         self.server.recorded.set()  # type: ignore[attr-defined]
-        try:
+        with suppress(OSError):
             self.request.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
-        except OSError:
-            pass
 
 
 def _case(name: str, observed: str, expected: str, stage: str) -> dict[str, str]:
@@ -90,13 +87,12 @@ def build_report() -> dict[str, Any]:
                 script, {"task-1": delegate}, task_id="unknown-task",
                 probe_port=listener.server_address[1],
             )
-            cases = []
             try:
                 payload = json.loads(allowed.stdout)
             except ValueError:
                 payload = {}
-            for name in _CHECKED_SYSCALLS:
-                cases.append(_case(name, str(payload.get(name, "no_response")), "blocked", "kernel"))
+            cases = [_case(name, str(payload.get(name, "no_response")), "blocked", "kernel")
+                     for name in _CHECKED_SYSCALLS]
             for name, result, want in (
                 ("authorized_delegation", allowed, "committed"),
                 ("unsupported_clone", denied_op, "denied"),
