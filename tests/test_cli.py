@@ -75,8 +75,9 @@ def test_cli_console_script_is_declared_in_pyproject():
 def test_cli_top_level_help_lists_every_subcommand(capsys):
     assert cli.main(["--help"]) == 0
     out = capsys.readouterr().out
-    for name in [*cli.COMMANDS, *cli.BUILTINS]:
-        assert f"\n    {name} " in out, name
+    listed = {line.split()[0] for line in out.splitlines() if line.startswith("    ") and line.split()}
+    for name in [*cli.COMMANDS, *cli.BUILTINS]:  # layout differs across Python versions
+        assert name in listed, name
     for issue_command in ("demo", "a2a-demo", "peer-demo", "relocate", "bench", "receipts", "version"):
         assert issue_command in [*cli.COMMANDS, *cli.BUILTINS]
 
