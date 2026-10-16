@@ -24,7 +24,7 @@ from .continuity_guard import (
     obligation_ack_digest,
 )
 from .core import ContractError, SQLiteStore, _id, canonical, digest
-from .trust import TrustDenied, Unauthorized, unseal
+from .trust import TrustDenied, TrustStore, Unauthorized, unseal, verify_grant
 
 _ADMISSION_STATE = Literal["eligible", "suspect", "quarantined", "unknown"]
 _SHA64 = frozenset("0123456789abcdef")
@@ -95,6 +95,7 @@ class ContinuityRuntime:
         principal_verifiers: Mapping[str, Any],
         observation_verifiers: Mapping[str, Any],
         recipient_verifier: Any,
+        grant_trust: TrustStore,
         measure_manifest: Callable[[], str],
     ) -> None:
         if not _valid_policy(policy):
@@ -110,12 +111,15 @@ class ContinuityRuntime:
             raise ContractError("principals must use distinct issuer key identifiers")
         if not callable(measure_manifest):
             raise ContractError("trusted manifest measurer required")
+        if not isinstance(grant_trust, TrustStore):
+            raise ContractError("trusted grant verifier required")
         self.store = store
         self.policy = policy
         self.profile_digest = _profile_digest(policy)
         self.principal_verifiers = dict(principal_verifiers)
         self.observation_verifiers = dict(observation_verifiers)
         self.recipient_verifier = recipient_verifier
+        self.grant_trust = grant_trust
         self.measure_manifest = measure_manifest
         with store._connection() as db:
             db.executescript("""
@@ -357,9 +361,13 @@ class ContinuityRuntime:
             raise Unauthorized("continuity_unadmitted_effect")
         record: dict[str, Any] = json.loads(row[0])
         if (record.get("logical_task_id") != task_id
-                or record.get("grant", {}).get("payload", {}).get("grant_id") != grant["grant_id"]
                 or record.get("continuity_profile_digest") != self.profile_digest):
             raise Unauthorized("continuity_effect_binding_mismatch")
+        # Reverify the stored issuer signature, not the caller-supplied grant dict.
+        # A direct gateway caller must not extend a signed grant or substitute its issuer.
+        stored_grant = verify_grant(record["grant"], self.grant_trust)
+        if stored_grant != grant:
+            raise Unauthorized("continuity_unverified_effect_grant")
         epoch = record.get("continuity_policy_epoch")
         if type(epoch) is not int:
             raise Unauthorized("continuity_missing_epoch")
