@@ -8,14 +8,15 @@ import socket
 import subprocess
 import sys
 import warnings
+from collections.abc import Callable
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 port = int(os.environ["AMV_PROBE_PORT"])
-result = {}
+result: dict[str, str] = {}
 
 
-def attempt(name, fn):
+def attempt(name: str, fn: Callable[[], object]) -> None:
     try:
         fn()
         result[name] = "allowed"
@@ -23,13 +24,13 @@ def attempt(name, fn):
         result[name] = "blocked" if exc.errno == errno.EPERM else "unexpected_errno"
 
 
-def tcp_send(route):
+def tcp_send(route: str) -> None:
     with socket.create_connection(("127.0.0.1", port), timeout=1) as sock:
         sock.sendall((route + " fake-canary-only\n").encode())
 
 
 attempt("tcp", lambda: tcp_send("raw"))
-def http_send(route):
+def http_send(route: str) -> None:
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=1)
     try:
         conn.request("POST", route, body=b"fake-canary-only")
