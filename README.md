@@ -69,7 +69,7 @@ python -m pip install -e '.[a2a,ed25519,relocation,signing]'   # every optional 
 python -m agent_movement.a2a_demo                     # A2A v1 delegation via the official a2a-sdk
 python -m agent_movement.peer_demo --alg Ed25519      # asymmetric peer keys
 python -m agent_movement.relocation_demo              # LangGraph checkpoint relocation fault matrix
-python -m agent_movement.receipts verify tests/fixtures/movement-receipts/01-valid-delegation --now 2026-10-16T00:00:00Z
+python -m agent_movement.receipts verify tests/fixtures/movement-receipts/01-valid-delegation --trust tests/fixtures/movement-receipts/trust.json --now 2026-10-16T00:00:00Z
 ```
 
 The core demo outputs a completed task, an idempotent replay, a denied unapproved request, and a rejected stale epoch. On 2026-10-16, `python -m pytest -q` gave **351 passed, 1 skipped** with every extra installed (CPython 3.11 and 3.13) and **276 passed, 76 skipped** with the core only (CPython 3.13 and 3.15); the skipped tests are the ones that need a missing extra. CI runs both configurations ([`python-smoke.yml`](.github/workflows/python-smoke.yml)). No model credentials, live external tool effects, private data or public endpoints are required.
