@@ -6,9 +6,9 @@
 
 | Protocol | Interface | Native communication model | Movement usage | Crucial limitation |
 | --- | --- | --- | --- | --- |
-| A2A v1.0.x | Agent ↔ agent | Agent Cards, tasks, messages, artifacts; JSON-RPC, gRPC, HTTP+JSON bindings, task updates | **Best first choice for cross-agent delegation** | Not a standard for migrating arbitrary process/checkpoint |
+| A2A v1.0.x | Agent ↔ agent | Agent Cards, tasks, messages, artifacts; JSON-RPC, gRPC, HTTP+JSON bindings, task updates | Cross-agent delegation. *Project recommendation, not a measured result:* start here, because A2A is specified for "communication and interoperability between independent, potentially opaque AI agent systems" and defines Agent Card discovery, tasks with states, and three standard bindings ([spec v1.0.1](https://a2a-protocol.org/v1.0.1/specification/), accessed 2026-10-16) | Not a standard for migrating arbitrary process/checkpoint |
 | MCP 2026-07-28 | Agent/model host ↔ tools/resources/prompts | stdio (local); Streamable HTTP (remote), JSON-RPC messages | Rebind a moved/delegated agent to approved tools | Does not move the agent or transfer authority |
-| AG-UI | Agent backend ↔ frontend | Event stream and UI state | Show progress and request approval | Not an agent checkpoint or migration protocol |
+| AG-UI (SDK `@ag-ui/core` 1.0.x: 1.0.0 on 2026-09-17, latest 1.0.2 on 2026-10-05; [npm registry](https://registry.npmjs.org/@ag-ui/core), checked 2026-10-16) | Agent backend ↔ frontend | Event stream and UI state | Show progress and request approval | Not an agent checkpoint or migration protocol |
 | HTTP/1.1, HTTP/2 | General request-response | HTTPS requests; HTTP/2 multiplexing | A2A/MCP gateways, artifacts, registration | Application semantics and replay protection still needed |
 | HTTP/3 / QUIC | Network transport | TLS-protected QUIC streams, connection mobility features | Mobile/WAN when supported by both endpoints | QUIC connection migration ≠ agent migration |
 | gRPC | Typed RPC (usually HTTP/2) | Unary, server/client/bidirectional streams | Efficient internal control plane; A2A binding | No intrinsic agent checkpoint portability |

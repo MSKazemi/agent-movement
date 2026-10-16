@@ -59,7 +59,7 @@ Optional only after threat review: SPIFFE/OAuth-style bounded identities, encryp
 - Transfer payload size (bytes)
 - Unauthorized operations and leaked fields (target: zero in security fixtures)
 - Policy decision correctness (%)
-- Cost per completed task (tokens, compute, network)
+- Cost per completed task (tokens, compute, network). The proposed [economic evaluation methodology](economic-evaluation.md) extends this to cost per *correct* completion, including human review, incident, rework and reconciliation cost
 
 ## First tasks for contributors
 
@@ -69,4 +69,4 @@ Optional only after threat review: SPIFFE/OAuth-style bounded identities, encryp
 4. Build a fault-injection matrix with expected outcomes.
 5. Compare one workflow's native checkpoints with an exportable application-level snapshot.
 
-**Decision needed:** pick Phase 1 delegation-first as recommended starting point, or explicitly choose the far more complex checkpoint-migration-first alternative.
+**Decision needed:** pick Phase 1 delegation-first as recommended starting point, or explicitly choose the far more complex checkpoint-relocation-first alternative.

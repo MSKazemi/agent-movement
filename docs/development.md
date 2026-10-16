@@ -21,11 +21,11 @@ To use a different interpreter, override `PYTHON`, e.g. `make check PYTHON=pytho
 |---|---|
 | `make check` | Validates `news.jsonl` and `papers.jsonl` (schema, vocabularies, IDs, cite keys, duplicates). Exits non-zero on any error. |
 | `make verify-determinism` | Rebuilds both corpora from `raw/` + screening + audit files (papers: round 1, then `append` round 2 and its audit) into a temporary directory and requires all 7 generated files per corpus to be byte-identical to the committed ones. |
-| `make test` | Runs `python -m pytest -q` if `tests/` exists; otherwise prints a skip message. This covers the corpus tools and the `agent_movement` package (pytest puts `tools/` and `src/` on the import path, so no install is needed); tests that need an optional extra skip. The package's demos and extras run in `.github/workflows/python-smoke.yml`. |
+| `make test` | Runs `python -m pytest -q` if `tests/` exists; otherwise prints a skip message. This covers the corpus tools and the `agent_movement` package (pytest puts `tools/` and `src/` on the import path, so no install is needed); tests that need an optional extra skip. `tests/test_positioning.py` requires the positioning statement (between `<!-- positioning:start -->` and `<!-- positioning:end -->` in `README.md` and both agenda docs, and the first paragraph of the `CITATION.cff` abstract) to be byte-identical, so change all four together. The package's demos and extras run in `.github/workflows/python-smoke.yml`. |
 | `make bib` | Runs `biber --tool --validate-datamodel` on `news.bib` and `papers.bib`. It fails on biber errors and prints warnings. Use `make bib BIB_STRICT=1` to make warnings fail too. It is skipped with a message if biber is not installed. |
 | `make verify-analysis` | Regenerates `docs/corpus-analysis/timeline.md` and `coverage.md` into a temporary folder and requires them to match the committed files (`make analysis` regenerates them in place). |
 | `make build` | Rebuilds both corpora **in place**, exactly as documented in each README: `merge` from `raw/`, then `apply-audit`; for papers, then `append` each later round and apply its audit file. |
-| `make` / `make all` | Runs `check`, `verify-determinism`, `test` and `bib`. |
+| `make` / `make all` | Runs `check`, `verify-determinism`, `verify-analysis`, `test` and `bib`. |
 | `make help` | Lists the targets. |
 
 Run `make all` before every commit that touches `docs/news-corpus/`, `docs/paper-corpus/` or `tools/`. If `verify-determinism` fails, either the committed files were edited by hand or a tool change altered the output. Run `make build`, review `git diff`, and commit the regenerated files together with the change that caused them.

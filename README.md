@@ -1,19 +1,23 @@
 # Agent Movement
 
-**Research-stage project: portable, interoperable, and governable AI-agent work across runtimes and environments.**
+<!-- positioning:start -->
+Agent Movement is a research prototype: an open, evidence-first testbed built to make claims about safely moving AI-agent work between executors falsifiable. It currently pairs ranked research questions with synthetic, localhost-only Python prototypes and MobilityBench v0.1, a frozen, deterministic, LLM-free benchmark of 18 synthetic tasks that scores keeping, restarting and locally delegating work under injected faults and reports refusals and unavailable baselines instead of hiding them. It is not production software, a new agent protocol or a rival to A2A or MCP.
+<!-- positioning:end -->
 
-**Status:** Research-stage. Alongside the research documents, the repository has an **experimental Python package of synthetic, local prototypes**: loopback task handoff with simulated-effect fencing, an optional A2A v1 adapter on the official SDK, authenticated peer handoff, same-runtime LangGraph checkpoint relocation, signed movement receipts and the MobilityBench harness. None of it is production software. It does **not** provide production security, independently tested A2A interoperability, cross-framework migration or deployment to other devices. Last reviewed: 2026-10-16.
+**Status:** Research-stage. Alongside the research documents, the repository has an **experimental Python package of synthetic, local prototypes**: loopback task handoff with simulated-effect fencing, an optional A2A v1 adapter on the official SDK, authenticated peer handoff, same-runtime LangGraph checkpoint relocation, signed movement receipts and the MobilityBench harness. None of it is production software. It does **not** provide production security, independently tested A2A interoperability, cross-framework reconstruction or deployment to other devices. Last reviewed: 2026-10-16.
 
 ## What does "agent movement" mean?
 
 *Agent Movement* is the **proposed name and working definition for this project**, not a recognized universal standard. We use it to study how an AI-agent task or execution can move between agents, frameworks, models, machines, and organizations **without losing relevant context, accountability, or safety controls**.
 
+Used this way, *agent movement* is an umbrella research term that covers the four operations below. A **move** in the strict sense means that ownership of the task transfers to a different executor (operations 2–4). Delegation keeps the origin as the owner, so it is in scope for the research but is not a move ([terminology decisions](docs/glossary.md#terminology-decisions-2026-10-16)).
+
 Four distinct operations must not be conflated:
 
-1. **Delegation / handoff:** Agent A asks Agent B to perform a task. Agent A need not expose or migrate its internals. A2A addresses this interface.
-2. **Portable task context:** Transfer an explicit, policy-checked package of goals, inputs, artifact references, and resumable checkpoints.
-3. **Runtime relocation:** Stop at a safe boundary and resume compatible execution elsewhere, with durable workflow state and idempotency controls. This is substantially harder than delegation.
-4. **Cross-framework migration:** Reconstruct a workflow on a different runtime using an adapter and a portable representation, with explicitly documented loss of features.
+1. **Delegation:** Agent A asks Agent B to perform a task. Agent A need not expose or migrate its internals. A2A addresses this interface.
+2. **Portable task context:** Transfer an explicit, policy-checked package of goals, inputs and artifact references. When a resumable checkpoint travels with it, the checkpoint is a separate, versioned contract that the package references (operation 3).
+3. **Checkpoint relocation:** Stop at a safe boundary and resume compatible execution elsewhere, with durable workflow state and idempotency controls. This is substantially harder than delegation.
+4. **Cross-framework reconstruction:** Reconstruct a workflow on a different runtime using an adapter and a portable representation, with explicitly documented loss of features.
 
 **Not claimed:** Live process migration or lossless transfer of arbitrary agent hidden state, model internals, credentials, or in-flight side effects.
 
@@ -23,7 +27,7 @@ A useful agent might start on a laptop, delegate to a cloud agent, use tools in 
 
 | Layer | Relevant technologies | What they solve | What they do **not** solve |
 | --- | --- | --- | --- |
-| Agent-to-agent | [A2A](https://a2a-protocol.org/v1.0.0/specification/) | Discovery, messaging, tasks, artifacts, streaming | Generic checkpoint migration |
+| Agent-to-agent | [A2A](https://a2a-protocol.org/v1.0.0/specification/) | Discovery, messaging, tasks, artifacts, streaming | Generic checkpoint relocation |
 | Agent-to-tools/data | [MCP, spec 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) | Structured access to external capabilities | Agent-to-agent execution transfer |
 | Agent-to-user | [AG-UI](https://github.com/ag-ui-protocol/ag-ui) | Agent/frontend events, state, interaction | Migration between runtimes |
 | Orchestration and recovery | [LangGraph](https://docs.langchain.com/oss/python/langgraph/persistence), [Temporal](https://docs.temporal.io/workflow-execution) | Checkpoints, durable execution and recovery | Automatic semantic compatibility across all frameworks |
@@ -82,14 +86,14 @@ Suggested reading order:
 6. [How movement would work: lifecycle and draft handoff envelope](docs/how-it-works.md)
 7. [Agent lifecycle, liveness, death and safe retirement (proposed model)](docs/agent-lifecycle-liveness-and-death.md)
 8. [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
-9. [Security, privacy, and threat model](docs/security-and-trust.md)
+9. [Security, privacy, and threat model](docs/security-and-trust.md) · [Prompt injection across agent boundaries (taxonomy, evidence, proposed experiment)](docs/cross-agent-prompt-injection.md)
 10. **[Can agents move unnoticed or cause harm? Defensive threat model](docs/unnoticed-and-unauthorized-agent-movement.md)** — permission boundaries, hidden delegation, lateral movement, independent detection, revocation and kill switches; [15 proposed synthetic defense tests](data/unnoticed-agent-movement-defense-tests.csv)
 11. [Agent communication governance and enforceable policy proposal](docs/agent-communication-and-policy.md) · [28 planned conformance cases](data/agent-communication-conformance-cases.csv)
 12. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
 13. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments
 14. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
 15. [Proposed architecture and staged roadmap](docs/roadmap.md)
-16. [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md)
+16. [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md) · [Economic evaluation methodology (proposed cost model, no results)](docs/economic-evaluation.md)
 17. [2031 frontier: 20 visionary research questions and four testable studies](docs/2031-frontier-research-agenda.md)
 18. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
 19. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
@@ -127,7 +131,7 @@ The local smoke suite models 20 cases. Each case declares its expected verdict i
 
 ## Recommended initial experiment
 
-First synthetic, local slices now exist for the non-A2A task handoff and deduplication test, an A2A v1 SDK-based delegation between two processes, peer authentication *before input disclosure*, and same-runtime checkpoint relocation under injected crashes. Both A2A ends use the same Python SDK, so independent interoperability (the A2A inspector or TCK, or a second implementation) is still untested. Cross-framework migration, real devices and production security remain research proposals.
+First synthetic, local slices now exist for the non-A2A task handoff and deduplication test, an A2A v1 SDK-based delegation between two processes, peer authentication *before input disclosure*, and same-runtime checkpoint relocation under injected crashes. Both A2A ends use the same Python SDK, so independent interoperability (the A2A inspector or TCK, or a second implementation) is still untested. Cross-framework reconstruction, real devices and production security remain research proposals.
 
 See [local implementation](docs/local-implementation.md) for the ordered next steps and [roadmap](docs/roadmap.md) for the staged plan.
 

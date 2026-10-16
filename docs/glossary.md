@@ -1,7 +1,7 @@
 # Glossary
 
 **Compiled:** 2026-10-16. External sources were accessed on 2026-10-16 unless a different date is given.
-**Scope:** The technical terms that [README.md](../README.md) and the research documents in `docs/*.md` rely on. The raw data in the paper and news corpora is not covered. The glossary records how the repository *uses* each term today. It does not change or settle the meaning in the source documents. Where documents disagree, see [Inconsistent usage found](#inconsistent-usage-found).
+**Scope:** The technical terms that [README.md](../README.md) and the research documents in `docs/*.md` rely on. The raw data in the paper and news corpora is not covered. The glossary records how the repository *uses* each term today. It does not change or settle the meaning in the source documents. Cross-document conflicts in wording were settled in [Terminology decisions (2026-10-16)](#terminology-decisions-2026-10-16), which records each decision and its rationale.
 **Status:** Research and design only. A term listed here does not mean that anything has been implemented.
 
 **Status tags**
@@ -30,7 +30,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **See:** [forensics](agent-forensics-and-fingerprints.md)
 
 ### A2A Task
-**[standard term]** "The fundamental unit of work managed by A2A, identified by a unique ID" (A2A §2.2). A Task has a lifecycle with these states: submitted, working, input-required, auth-required, completed, failed, canceled and rejected (§4.1.3). The server issues the Task ID, so the receiver's Task ID is not necessarily the origin's logical task ID. Do not confuse an A2A Task with the separate MCP *Tasks* extension.
+**[standard term]** "The fundamental unit of work managed by A2A, identified by a unique ID" (A2A §2.2). A Task has a lifecycle with these states: submitted, working, input-required, auth-required, completed, failed, canceled and rejected (§4.1.3). The protobuf enum also has `TASK_STATE_UNSPECIFIED` ("unknown or indeterminate"), an unset default, not a lifecycle state; it is **not** the project's *unknown/reconcile* outcome. The server issues the Task ID, so the receiver's Task ID is not necessarily the origin's logical task ID. Do not confuse an A2A Task with the separate MCP *Tasks* extension.
 **Source:** [A2A v1.0.0 §2.2, §4.1.3](https://a2a-protocol.org/v1.0.0/specification/).
 **See:** [forensics](agent-forensics-and-fingerprints.md), [open-questions](open-questions.md), [security-and-trust](security-and-trust.md)
 
@@ -55,8 +55,8 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **See:** [movement-vs-copy](agent-movement-vs-copy-replication-multiplication.md), [open-questions](open-questions.md) (AM-02)
 
 ### Agent movement
-**[project working definition]** The project's proposed name for studying how an AI-agent task or execution can move between agents, frameworks, models, machines and organizations without losing relevant context, accountability or safety controls. **It is not a recognized standard** ([README](../README.md) says so explicitly). Documents disagree on whether delegation counts as movement (see below).
-**Source:** project working definition, [README](../README.md); narrower variants in [open-questions](open-questions.md) and [how-it-works](how-it-works.md).
+**[project working definition]** The project's proposed name for studying how an AI-agent task or execution can move between agents, frameworks, models, machines and organizations without losing relevant context, accountability or safety controls. **It is not a recognized standard** ([README](../README.md) says so explicitly). It is an **umbrella research term**: its scope covers delegation, portable task context, checkpoint relocation and cross-framework reconstruction, and the related copy, clone, replication and multiplication primitives. A **move** (movement in the strict sense) is narrower: ownership of the same logical task transfers to a different executor. Delegation and the copy-family primitives are in scope but are not moves (decision T1).
+**Source:** project working definition, [README](../README.md); strict sense in [open-questions](open-questions.md), [movement-vs-copy §1](agent-movement-vs-copy-replication-multiplication.md) and [how-it-works](how-it-works.md).
 **See:** all documents
 
 ### Agent Skill (Agent Skills format)
@@ -75,7 +75,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **See:** [research-landscape](research-landscape.md#procedural-packaging-and-browsercomputer-use-interfaces-added-2026-10-16), [standards-tracker](standards-tracker.md)
 
 ### Attestation
-**[standard term]** with several meanings. NIST's glossary lists multiple definitions, from signed hardware measurements to "the issue of a statement … that fulfillment of specified requirements has been demonstrated". In SPIRE, attestation is "asserting the identity of a workload" (node and workload attestation). in-toto attestations are "verifiable claims about any aspect of how a piece of software is produced". The repository uses all three meanings and also an informal one (see the inconsistencies section).
+**[standard term]** with several meanings. NIST's glossary lists multiple definitions, from signed hardware measurements to "the issue of a statement … that fulfillment of specified requirements has been demonstrated". In SPIRE, attestation is "asserting the identity of a workload" (node and workload attestation). in-toto attestations are "verifiable claims about any aspect of how a piece of software is produced". The repository uses all three meanings. Unqualified, "attestation" means a signed, verifiable claim by an identified issuer about a subject, which is trusted only after its signer, trust root and statement are validated; always name the kind (workload, supply-chain or hardware). The project's *capability attestation* and *retention/deletion attestation* are signed claims by a destination: they are evidence of what the destination asserted, not proof of its behaviour (decision T10).
 **Source:** [NIST CSRC glossary: attestation](https://csrc.nist.gov/glossary/term/attestation); [SPIRE concepts](https://spiffe.io/docs/latest/spire-about/spire-concepts/); [in-toto attestation framework](https://github.com/in-toto/attestation).
 **See:** [forensics](agent-forensics-and-fingerprints.md), [device-matrix](device-compatibility-and-capability-matrix.md), [top-20](top-20-human-impact-questions-for-agentic-ai.md)
 
@@ -104,10 +104,10 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **Source:** [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence); [CRIU](https://criu.org/Main_Page); AMP-048 (CRIUgpu), AMP-070 (ACRFence: the risks of checkpoint-restore in agent frameworks).
 **See:** [README](../README.md), [movement-vs-copy](agent-movement-vs-copy-replication-multiplication.md), [open-questions](open-questions.md) (AM-07), [roadmap](roadmap.md)
 
-### Checkpoint relocation (runtime relocation, task relocation "M")
-**[project working definition]** Stop at a safe boundary, persist a runtime-compatible application checkpoint, restore it on another worker, fence the old executor, and reconcile uncertain external effects. The logical task ID is kept, and a new execution ID is issued. The repository says this is substantially harder than delegation.
+### Checkpoint relocation (formerly runtime relocation, task relocation; "M")
+**[project working definition]** The canonical name (decision T7). Stop at a safe boundary, persist a runtime-compatible application checkpoint, restore it on another worker, fence the old executor, and reconcile uncertain external effects. The logical task ID is kept, and a new execution ID is issued. The repository says this is substantially harder than delegation.
 **Source:** project working definition, [README](../README.md) (item 3), [movement-vs-copy §1](agent-movement-vs-copy-replication-multiplication.md), [device-matrix](device-compatibility-and-capability-matrix.md) ("M").
-**See:** [research-landscape](research-landscape.md), [roadmap](roadmap.md) (Phase 2), [open-questions](open-questions.md) (E2)
+**See:** [research-landscape](research-landscape.md), [roadmap](roadmap.md) (Phase 2), [open-questions](open-questions.md) (X2)
 
 ### Clone (snapshot clone)
 **[project working definition]** Create a new agent with a **new** identity from an explicitly authorized, exportable application snapshot, recording lineage back to the source. The two agents can diverge immediately. A clone is not a move.
@@ -139,15 +139,15 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **Source:** project working definition, [movement-vs-copy §2](agent-movement-vs-copy-replication-multiplication.md); [device-matrix](device-compatibility-and-capability-matrix.md) ("C").
 **See:** [open-questions](open-questions.md) (AM-12)
 
-### Cross-framework migration (cross-framework reconstruction)
-**[project working definition]** Rebuild a workflow on a different runtime or framework using an adapter and a portable representation, with explicitly documented loss of features. It is not byte-for-byte state transfer.
-**Source:** project working definition, [README](../README.md) (item 4); [open-questions](open-questions.md) (E3, "cross-framework reconstruction").
+### Cross-framework reconstruction (formerly "cross-framework migration")
+**[project working definition]** The canonical name (decision T5); "migration" is reserved for live process migration. Rebuild a workflow on a different runtime or framework using an adapter and a portable representation, with explicitly documented loss of features. It is not byte-for-byte state transfer.
+**Source:** project working definition, [README](../README.md) (item 4); [open-questions](open-questions.md) (X3, "cross-framework reconstruction").
 **See:** [top-20](top-20-human-impact-questions-for-agentic-ai.md) (Q19), [roadmap](roadmap.md) (Phase 3)
 
 ### Delegation
-**[research term]** One agent asks another to perform a task. The delegator normally keeps oversight and need not expose or move its internals. In the literature, delegation also transfers authority, responsibility and accountability (AMP-067). It has roots in Contract Net task allocation (AMP-001). RFC 8693 separately distinguishes *delegation* (the actor keeps its own identity) from *impersonation*.
+**[research term]** One agent asks another to perform a task. The delegator normally keeps oversight and need not expose or move its internals. In the literature, delegation also transfers authority, responsibility and accountability (AMP-067). It has roots in Contract Net task allocation (AMP-001). RFC 8693 separately distinguishes *delegation* (the actor keeps its own identity) from *impersonation*. In this repository, delegation is in the agent-movement research scope, but it is **not a move**: the origin stays the owner of the task (decision T1).
 **Source:** AMP-001, AMP-044, AMP-067; [RFC 8693 §1.1](https://www.rfc-editor.org/rfc/rfc8693); project scoping in [README](../README.md) (item 1) and [movement-vs-copy](agent-movement-vs-copy-replication-multiplication.md).
-**See:** [research-landscape](research-landscape.md), [roadmap](roadmap.md) (Phase 1), [open-questions](open-questions.md) (E1)
+**See:** [research-landscape](research-landscape.md), [roadmap](roadmap.md) (Phase 1), [open-questions](open-questions.md) (X1)
 
 ### Durable execution
 **[research term]**, used by vendors without a single normative definition. Execution whose progress is persisted, for example as an event history or step checkpoints, so that it resumes after crashes or restarts. In Temporal, "a Workflow Execution is a durable, reliable, and scalable function execution" that resumes through *replay* against its Event History.
@@ -155,7 +155,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **See:** [README](../README.md), [research-landscape](research-landscape.md), [roadmap](roadmap.md) (Phase 2), [open-questions](open-questions.md)
 
 ### Evidence grades (E0–E3)
-**[project working definition]** The repository's proposed, non-standard grading of forensic evidence. E3 is cryptographically corroborated, E2 is corroborated operational records, E1 is correlated self-reported telemetry, and E0 is inference only. The grades are not probabilities.
+**[project working definition]** The repository's proposed, non-standard grading of forensic evidence. E3 is cryptographically corroborated, E2 is corroborated operational records, E1 is correlated self-reported telemetry, and E0 is inference only. The grades are not probabilities. E-codes are reserved for these grades across the repository (decision T12).
 **Source:** project working definition, [forensics](agent-forensics-and-fingerprints.md).
 **See:** [forensics](agent-forensics-and-fingerprints.md)
 
@@ -165,9 +165,9 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **See:** [security-and-trust](security-and-trust.md), [open-questions](open-questions.md) (AM-04), [movement-vs-copy](agent-movement-vs-copy-replication-multiplication.md)
 
 ### Fencing (fencing token, fencing epoch) and split-brain
-**[research term]** A fencing token is a monotonically increasing number, issued with each grant of a lock or lease, that lets a resource reject writes from a holder with a stale token. *Split-brain* is the failure in which two executors both believe they own the same work. The repository's `fencing_epoch` (a monotonic coordinator epoch) is a project field built on this idea.
+**[research term]** A fencing token is a monotonically increasing number, issued with each grant of a lock or lease, that lets a resource reject writes from a holder with a stale token. *Split-brain* is the failure in which two executors both believe they own the same work. The repository's `fencing_epoch` (a monotonic coordinator epoch) is a project field built on this idea. Canonical names: the field `fencing_epoch` and, in prose, *fencing epoch*; "fencing token" is the general research term (decision T13).
 **Source:** M. Kleppmann, ["How to do distributed locking"](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html) (2016, practitioner essay; there is no normative standard); project field in [forensics](agent-forensics-and-fingerprints.md).
-**See:** [movement-vs-copy](agent-movement-vs-copy-replication-multiplication.md), [open-questions](open-questions.md) (AM-03, E2), [device-matrix](device-compatibility-and-capability-matrix.md)
+**See:** [movement-vs-copy](agent-movement-vs-copy-replication-multiplication.md), [open-questions](open-questions.md) (AM-03, X2), [device-matrix](device-compatibility-and-capability-matrix.md)
 
 ### Fingerprint (definition, artifact/checkpoint, behavioral)
 **[project working definition]** The repository separates three kinds. A *definition/configuration fingerprint* is a hash of the normalized declared configuration, and copies can share it. An *artifact/checkpoint fingerprint* is a content digest of a defined byte representation. A *behavioral fingerprint* is made of noisy observed patterns: weak evidence, never identity proof. "A fingerprint is not necessarily an identity."
@@ -179,18 +179,18 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **Source:** project working definition, [movement-vs-copy](agent-movement-vs-copy-replication-multiplication.md) ("Related but distinct").
 **See:** [forensics](agent-forensics-and-fingerprints.md) (`lineage_relation: fork`), [open-questions](open-questions.md) (AM-12)
 
-### Handoff (weak movement)
-**[project working definition]** Hand explicit task context to another agent, which may start its own execution. It is *not* a lossless runtime migration. The repository uses the word both as a synonym of delegation and as "weak movement" (see the inconsistencies section).
-**Source:** project working definition, [README](../README.md) (item 1); [movement-vs-copy §1](agent-movement-vs-copy-replication-multiplication.md) ("weak movement / handoff").
+### Handoff
+**[project working definition]** The generic, informal word for passing work from one agent to another by any operation (delegation, task-context transfer or relocation), as in "handoff envelope" or "safe handoff". It is not the name of a specific operation; where the operation matters, name it (decision T4). *Weak movement (task-context transfer)* is the operation in which explicit task context goes to another agent, which may start its own execution; it is *not* a lossless runtime migration.
+**Source:** project working definition, [movement-vs-copy §1](agent-movement-vs-copy-replication-multiplication.md) ("weak movement (task-context transfer)").
 **See:** [how-it-works](how-it-works.md), [top-20](top-20-human-impact-questions-for-agentic-ai.md), [forensics](agent-forensics-and-fingerprints.md)
 
 ### Handoff envelope (task envelope, movement envelope)
-**[project working definition]** A proposed small, versioned, policy-checked package that crosses an agent boundary. It holds the schema version, movement and task IDs, origin and destination, a goal, classified context and artifact references, an optional checkpoint reference, an idempotency key, approval and grant *references* (never raw credentials), a trace context and an integrity digest. **It is a conceptual schema, not a published or interoperable wire format.**
+**[project working definition]** A proposed small, versioned, policy-checked package that crosses an agent boundary. It holds the schema version, movement and task IDs, origin and destination, a goal, classified context and artifact references, an optional checkpoint reference, an idempotency key, approval and grant *references* (never raw credentials), a trace context and an integrity digest. **It is a conceptual schema, not a published or interoperable wire format.** Its single canonical name is deferred to issue #33 (decision T6).
 **Source:** project working definition, [how-it-works](how-it-works.md) ("Proposed versioned envelope").
-**See:** [README](../README.md), [research-landscape](research-landscape.md), [roadmap](roadmap.md), [open-questions](open-questions.md) (E1)
+**See:** [README](../README.md), [research-landscape](research-landscape.md), [roadmap](roadmap.md), [open-questions](open-questions.md) (X1)
 
 ### Host profile (H0–H4)
-**[project working definition]** A normalized candidate *maximum* hosting class for a device. H0 is a peripheral or tool only, H1 a tiny embedded module, H2 a thin client or proxy, H3 an app-class host and H4 a durable compute host. It is not a migration level or a safety ranking.
+**[project working definition]** A normalized candidate *maximum* hosting class for a device. H0 is a peripheral or tool only, H1 a tiny embedded module, H2 a thin client or proxy, H3 an app-class host and H4 a durable compute host. It is not a migration level or a safety ranking. H-codes are reserved for these profiles across the repository (decision T12).
 **Source:** project working definition, [device-matrix](device-compatibility-and-capability-matrix.md); data in [device-targets.csv](../data/device-targets.csv).
 **See:** [device-matrix](device-compatibility-and-capability-matrix.md)
 
@@ -290,7 +290,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **See:** [README](../README.md), [forensics](agent-forensics-and-fingerprints.md), [roadmap](roadmap.md)
 
 ### Portable task context
-**[project working definition]** An explicit, policy-checked package of goals, inputs and artifact references, plus resumable checkpoints when supported, that can cross an agent boundary.
+**[project working definition]** An explicit, policy-checked package of goals, inputs and artifact references that can cross an agent boundary. A resumable checkpoint is a separate, versioned contract; the package may carry a *reference* to it (as the envelope's `checkpoint_ref` does) but does not contain it (decision T8).
 **Source:** project working definition, [README](../README.md) (item 2).
 **See:** [movement-vs-copy](agent-movement-vs-copy-replication-multiplication.md), [top-20](top-20-human-impact-questions-for-agentic-ai.md)
 
@@ -310,7 +310,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 **See:** [forensics](agent-forensics-and-fingerprints.md)
 
 ### Reconciliation and the "unknown/reconcile" state
-**[project working definition]** After a timeout or partition, query the actual task and target-system status instead of blindly retrying. Outcomes that remain ambiguous are recorded as **unknown/reconcile**, which is neither success nor failure.
+**[project working definition]** After a timeout or partition, query the actual task and target-system status instead of blindly retrying. Outcomes that remain ambiguous are recorded as **unknown/reconcile**, which is neither success nor failure. *unknown/reconcile* is the canonical prose label; the [lifecycle document](agent-lifecycle-liveness-and-death.md)'s formal state name is `UNKNOWN_REQUIRES_RECONCILIATION`. It is a movement-outcome state, not an A2A task state (decision T11).
 **Source:** project working definition, [how-it-works](how-it-works.md) (step 8); [roadmap](roadmap.md) (Phase 2); [open-questions](open-questions.md) (AM-04).
 **See:** [security-and-trust](security-and-trust.md), [forensics](agent-forensics-and-fingerprints.md), [top-20](top-20-human-impact-questions-for-agentic-ai.md)
 
@@ -327,7 +327,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 ### Safe boundary
 **[project working definition]** A point in execution at which a checkpoint can be taken and resumed elsewhere without leaving partially applied side effects that cannot be reconciled.
 **Source:** project working definition, [README](../README.md) (item 3); [how-it-works](how-it-works.md) (step 5).
-**See:** [device-matrix](device-compatibility-and-capability-matrix.md), [open-questions](open-questions.md) (E2)
+**See:** [device-matrix](device-compatibility-and-capability-matrix.md), [open-questions](open-questions.md) (X2)
 
 ### Semantic compatibility (semantic continuity)
 **[project working definition]** Whether a destination runtime or model actually understands and preserves the intent, policies, constraints and quality expectations of unfinished work. Schema and version match alone do not establish it.
@@ -336,7 +336,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 
 ### Side-effect ledger (effect ledger)
 **[project working definition]** A durable record of intended, committed and uncertain external effects, keyed by operation or effect ID. Ideally it is confirmed on the target side. It is used to prevent and detect duplicate actions after handoff or restore.
-**Source:** project working definition, [open-questions](open-questions.md) ("continuation contract", E2); [forensics](agent-forensics-and-fingerprints.md). Comparable research mechanism: AMP-070 (recording irreversible tool effects).
+**Source:** project working definition, [open-questions](open-questions.md) ("continuation contract", X2); [forensics](agent-forensics-and-fingerprints.md). Comparable research mechanism: AMP-070 (recording irreversible tool effects).
 **See:** [top-20](top-20-human-impact-questions-for-agentic-ai.md) (Q19)
 
 ### SPIFFE, SPIFFE ID and trust domain
@@ -386,31 +386,74 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 
 ---
 
-## Inconsistent usage found
+## Terminology decisions (2026-10-16)
 
-The following conflicts were observed in the documents at commit `d9a1423`. The source files have **not** been edited. File paths are relative to the repository root.
+Issue #45 settled the 13 cross-document inconsistencies that this section used to list (observed at commit `d9a1423`). Each decision changes wording only; no claim changed its meaning. The decisions prefer standards' terms (A2A v1.0 task states, checked against the [A2A v1.0.0 specification §4.1.3](https://a2a-protocol.org/v1.0.0/specification/#413-taskstate) on 2026-10-16) and the repository's own definitions. Code identifiers and serialized field values are unchanged. Paths are relative to the repository root.
 
-1. **Is delegation a kind of "movement"?**
-   - It is one of the four movement operations in `README.md:11-13`.
-   - The envelope in `docs/how-it-works.md:26` uses `"operation": "delegate"`, and `docs/agent-forensics-and-fingerprints.md:57` treats `delegate` as a movement lineage relation.
-   - `docs/research-landscape.md:3,7` lists delegation as one of "five different notions of movement".
-   - It is separated from movement in `docs/agent-movement-vs-copy-replication-multiplication.md:11-12` (separate rows) and `:64` ("Related but distinct").
-   - It is excluded in `docs/device-compatibility-and-capability-matrix.md:80` ("Delegation rather than full movement").
-   - `docs/open-questions.md:11` defines movement as a "transfer of task ownership", which ordinary delegation does not do.
-2. **Are copy, replication and multiplication kinds of movement?** `docs/research-landscape.md:3,8-9` lists "Copy / replication" and "Multiplication / scaling" as "notions of movement". `docs/agent-movement-vs-copy-replication-multiplication.md:25` says these words must not be used interchangeably, and `docs/open-questions.md:41` (AM-12) says of these operations "None is automatically a move".
-3. **Copy vs replication.** `docs/research-landscape.md:8` merges "Copy / replication" into one mode. `docs/agent-movement-vs-copy-replication-multiplication.md:15,17,38-54` defines them as different primitives: an independent instance from a definition, and N managed instances of one logical service.
-4. **"Handoff" has two meanings.** It is a synonym of delegation in `README.md:13` ("Delegation / handoff") and `docs/agent-movement-vs-copy-replication-multiplication.md:11` ("Task delegation / handoff"). It is a form of movement in `docs/agent-movement-vs-copy-replication-multiplication.md:31` ("Weak movement / handoff"). `docs/device-compatibility-and-capability-matrix.md:108` uses it for checkpoint transfer ("app checkpoint handoff").
-5. **"Migration" for lossy reconstruction vs live state transfer.** `README.md:16` calls lossy adapter-based reconstruction "Cross-framework migration". `README.md:18`, `README.md:68`, `docs/device-compatibility-and-capability-matrix.md:101` ("never falsely label it migration") and `docs/open-questions.md:108` ("cross-framework reconstruction") reserve or avoid "migration" for stronger claims. `docs/top-20-human-impact-questions-for-agentic-ai.md:159` uses "cross-framework migration" again.
-6. **Several names for one envelope.** "portable handoff envelope" (`README.md:33`), "Portable task envelope" (`README.md:41`), "task envelope" (`README.md:68`, `docs/research-landscape.md:54`, `docs/roadmap.md:5`, `docs/open-questions.md:75`), "versioned envelope" (`docs/how-it-works.md:20`), "movement envelope" (`docs/sources.md:22`) and "policy envelope" (`docs/top-20-human-impact-questions-for-agentic-ai.md:176`). "Envelope" also has unrelated meanings: "resource envelope" (`docs/device-compatibility-and-capability-matrix.md:17`) and "runtime safety envelopes" (`docs/top-20-human-impact-questions-for-agentic-ai.md:125`).
-7. **Several names for relocation.** "Runtime relocation" (`README.md:15`), "Checkpoint relocation / resume" (`docs/agent-movement-vs-copy-replication-multiplication.md:13`), "Checkpoint-resume relocation" (`docs/research-landscape.md:10`), "Task relocation (M)" (`docs/device-compatibility-and-capability-matrix.md:11`), and "checkpoint migration" (`docs/roadmap.md:72`, `docs/open-questions.md:78`). The descriptions match closely, but readers cannot tell whether these names mean the same thing.
-8. **Does portable task context include checkpoints?** `README.md:14` includes "resumable checkpoints" in portable task context. `docs/open-questions.md:25` (AM-01) asks for *separate* contracts for a delegated task and a resumable checkpoint, and `docs/device-compatibility-and-capability-matrix.md:80,82` lists task intent and workflow checkpoint as separate components.
-9. **Clone vs fork are defined in terms of each other.** `docs/agent-movement-vs-copy-replication-multiplication.md:16` says clone = "Fork a permitted … snapshot into a new identity". `:65` says fork = "Clone an approved snapshot into independent branches". `docs/agent-forensics-and-fingerprints.md:57` treats `clone` and `fork` as distinct lineage values.
-10. **"Attestation" has several meanings.** Workload-identity attestation (SPIRE) and supply-chain attestation (in-toto/Sigstore) appear in `docs/agent-forensics-and-fingerprints.md:224,226`. A generic signing sense appears in `docs/device-compatibility-and-capability-matrix.md:52`. "Capability attestation" appears in `docs/top-20-human-impact-questions-for-agentic-ai.md:53` and "retention/deletion attestations" in `docs/top-20-human-impact-questions-for-agentic-ai.md:65`; neither is defined. `docs/agent-forensics-and-fingerprints.md:197` uses "public attestations" in yet another sense.
-11. **Outcome state vocabulary differs.** `docs/security-and-trust.md:31` uses request received / accepted / executing / completed / failed / canceled / **unknown**. `docs/open-questions.md:100` uses *complete* / failed / canceled / **unknown/reconcile**. `docs/roadmap.md:40` uses "unknown/reconcile". A2A v1.0 has its own set of task states (see [A2A Task](#a2a-task)).
-12. **Colliding labels.** The same short codes mean different things in different documents:
-    - **E1–E3** are experiments in `docs/open-questions.md:72,80,88` but evidence grades (E0–E3) in `docs/agent-forensics-and-fingerprints.md:39-42`.
-    - **H1–H3** are experiments in `docs/top-20-human-impact-questions-for-agentic-ai.md:176-178` but host profiles (H0–H4) in `docs/device-compatibility-and-capability-matrix.md:19-23`.
-    - **P0–P4** are implementation stages in `docs/agent-movement-vs-copy-replication-multiplication.md:115-121`, question priority in `docs/open-questions.md:21`, and demonstration priority in `docs/device-compatibility-and-capability-matrix.md:107-114`. "Phase 0–4" in `docs/roadmap.md:16-49` is a fourth staging scheme.
-13. **Fencing token naming.** "epoch/fencing token" (`docs/open-questions.md:83`), `fencing_epoch` (`docs/agent-forensics-and-fingerprints.md:60`) and "fence token" (`docs/device-compatibility-and-capability-matrix.md:82`). These are probably synonyms, but this is not stated.
+**T1. Is delegation a kind of movement?**
+- **Decision:** *Agent movement* is the umbrella research term and covers delegation (README's four operations, the landscape taxonomy, the envelope's `"operation": "delegate"` and the `delegate` lineage relation). A **move**, or movement in the strict sense, means ownership of the same logical task transfers to a different executor. Delegation is in scope but is not a move.
+- **Rationale:** Both groups of documents were right about different things. The umbrella reading matches the project's definition and the envelope and lineage schemas. The strict reading matches the definition in open-questions, movement-vs-copy §1 and the lifecycle document ("Full 'movement' claims should require the stronger relocation semantics"). "Strong movement" was not used as the strict-sense name because *strong migration* already means live process migration, following the strong/weak mobility distinction of AMP-008.
+- **Files changed:** `README.md` (definition paragraph), `docs/open-questions.md` (executive answer), `docs/agent-movement-vs-copy-replication-multiplication.md` (Related but distinct), `docs/device-compatibility-and-capability-matrix.md` (component table), `docs/research-landscape.md` (taxonomy note), this glossary ([Agent movement](#agent-movement), [Delegation](#delegation)).
+
+**T2. Are copy, replication and multiplication kinds of movement?**
+- **Decision:** They are in the research scope but are never automatically a move. They create additional executions; they do not transfer ownership of one task.
+- **Rationale:** Follows AM-12 ("None is automatically a move") and movement-vs-copy, which defines them as different primitives. The landscape heading "five different notions of movement" was the only conflicting text.
+- **Files changed:** `docs/research-landscape.md` (heading renamed to "six operations in the agent-movement research scope", with a note naming the two strict-sense moves).
+
+**T3. Copy vs replication.**
+- **Decision:** Copy (and clone, when it starts from a snapshot) and replication are separate primitives, as movement-vs-copy §2–§4 defines them.
+- **Rationale:** movement-vs-copy is the repository's vocabulary document, and its definitions have different identity and state semantics: an independent instance versus N managed instances of one logical service. The landscape row is split in two, and its cells restate those definitions.
+- **Files changed:** `docs/research-landscape.md` (taxonomy table).
+
+**T4. "Handoff" has two meanings.**
+- **Decision:** *Handoff* is the generic, informal word for passing work between agents by any operation (as in "handoff envelope" or "safe handoff"). It is never the name of a specific operation. The operation formerly called "weak movement / handoff" is **weak movement (task-context transfer)**.
+- **Rationale:** The generic use is the most frequent one in the repository, and replacing every generic "handoff" would churn many claims. Removing the word from the operation names removes the ambiguity. "Task-context transfer" is the name movement-vs-copy already uses in its capability matrix.
+- **Files changed:** `README.md` (operation 1), `docs/agent-movement-vs-copy-replication-multiplication.md` (matrix row, §1 bullet), `docs/device-compatibility-and-capability-matrix.md` (proof-of-concept matrix), this glossary ([Handoff](#handoff)).
+
+**T5. "Migration" for lossy reconstruction vs live state transfer.**
+- **Decision:** Lossy, adapter-based rebuilding on another runtime is **cross-framework reconstruction**. Unqualified "migration" is kept only for live process migration (strong migration), which the project does not claim, and in negative statements such as "do not claim migration".
+- **Rationale:** The README itself says not to claim "agent migration" before recovery tests, and the device matrix says "never falsely label it migration". Calling a lossy rebuild "migration" contradicted both. open-questions already used "cross-framework reconstruction". The verb in AM-07 ("Can a checkpoint migrate across frameworks") is kept because that sentence is an open question, not a claim.
+- **Files changed:** `README.md` (operation 4), `docs/top-20-human-impact-questions-for-agentic-ai.md` (contribution section), this glossary ([Cross-framework reconstruction](#cross-framework-reconstruction-formerly-cross-framework-migration)).
+
+**T6. Several names for one envelope. Deferred to issue #33.**
+- **Decision:** Deferred. Issue #33 defines the canonical handoff envelope and chooses its single name. Until then, "portable handoff envelope", "task envelope", "versioned envelope" and "movement envelope" all refer to the conceptual schema in how-it-works. "Policy envelope" (top-20) is that same envelope with its policy fields stressed. "Resource envelope" (device matrix) and "runtime safety envelope" (top-20) are ordinary-language uses that do not mean the handoff envelope, and they need no rename.
+- **Rationale:** Choosing the name separately from the schema would risk a second rename once #33 fixes the fields.
+- **Files changed:** this glossary only ([Handoff envelope](#handoff-envelope-task-envelope-movement-envelope)).
+
+**T7. Several names for relocation.**
+- **Decision:** The canonical name is **checkpoint relocation**. "Runtime relocation", "checkpoint-resume relocation", "task relocation" and "checkpoint migration" are retired. The device matrix keeps its letter code "M".
+- **Rationale:** It is the name used by movement-vs-copy (matrix and §1), how-it-works, the `relocate` lineage value in forensics and the lifecycle document. It says what moves (a checkpoint) and avoids "migration" (T5).
+- **Files changed:** `README.md` (operation 3, layer table), `docs/research-landscape.md`, `docs/device-compatibility-and-capability-matrix.md` (operation list), `docs/roadmap.md` (decision needed), `docs/open-questions.md` (X1 "Do not claim"), `docs/agent-movement-vs-copy-replication-multiplication.md` (open design decisions).
+
+**T8. Does portable task context include checkpoints?**
+- **Decision:** No. Portable task context carries goals, inputs and artifact references. A resumable checkpoint is a separate, versioned contract that the context may *reference*.
+- **Rationale:** AM-01 asks for separate contracts for a delegated task and a resumable checkpoint. The device matrix lists task intent and workflow checkpoint as separate components. The envelope sketch in how-it-works already holds only a `checkpoint_ref`.
+- **Files changed:** `README.md` (operation 2), this glossary ([Portable task context](#portable-task-context)).
+
+**T9. Clone vs fork are defined in terms of each other.**
+- **Decision:** A **clone** creates *one* new identity from an approved snapshot. A **fork** branches one approved snapshot into *several* independently evolving branches, keeping parent-child provenance. The definitions no longer refer to each other.
+- **Rationale:** This keeps the distinct `clone` and `fork` values of `lineage_relation` in forensics meaningful, and it matches the movement-vs-copy matrix rows ("Clone agent from snapshot" versus "Fork divergent work").
+- **Files changed:** `docs/agent-movement-vs-copy-replication-multiplication.md` (matrix row, Related but distinct).
+
+**T10. "Attestation" has several meanings.**
+- **Decision:** Always name the kind: *workload attestation* (SPIRE), *supply-chain or provenance attestation* (in-toto, Sigstore) or *hardware/remote attestation*. Unqualified, the word means a signed, verifiable claim by an identified issuer, which is trusted only after its signer, trust root and statement are validated. The project's *capability attestation* and *retention/deletion attestation* are signed claims by a destination, not proof of its behaviour.
+- **Rationale:** This follows the NIST, SPIRE and in-toto definitions already cited in [Attestation](#attestation). The undefined project uses are given a definition instead of being renamed, because both describe proposed research, not a mechanism.
+- **Files changed:** `docs/device-compatibility-and-capability-matrix.md` (capability dimension 5), `docs/agent-forensics-and-fingerprints.md` (privacy guidance: "publicly shared attestations"), this glossary ([Attestation](#attestation)).
+
+**T11. Outcome state vocabulary.**
+- **Decision:** For A2A tasks, use the A2A v1.0 TaskState names: submitted, working, input-required, auth-required, completed, failed, canceled and rejected. "Executing" becomes **working**, "request received" becomes **submitted**, and "complete" becomes **completed**. Two movement-outcome states that A2A does not define are kept: **accepted** (the receiver took ownership) and **unknown/reconcile**. *unknown/reconcile* is the canonical prose label for an ambiguous outcome; the lifecycle document's formal name is `UNKNOWN_REQUIRES_RECONCILIATION`. Neither maps to A2A `TASK_STATE_UNSPECIFIED`, which the specification describes as "an unknown or indeterminate state", an unset value rather than a reconciliation outcome.
+- **Rationale:** A2A is the repository's delegation interface, and the lifecycle document (§2.5) already requires its exact wire enums. A2A defines no state for "outcome uncertain after a timeout, reconcile before retry". Mapping that state to FAILED would invite a blind retry, which open-questions AM-04 and lifecycle invariant I4 forbid. Serialized values in code (for example the receipt outcome `"unknown"`) are unchanged.
+- **Files changed:** `docs/security-and-trust.md` (state list), `docs/open-questions.md` (evaluation record), `docs/top-20-human-impact-questions-for-agentic-ai.md` ("unknown/reconcile" spelling), this glossary ([A2A Task](#a2a-task), [Reconciliation](#reconciliation-and-the-unknownreconcile-state)).
+
+**T12. Colliding labels.**
+- **Decision:** **E0–E3** are reserved for forensic evidence grades, and **H0–H4** for host profiles. Both sets are serialized: `evidence_grade` (lifecycle document) and the prototype receipt `grade` use E-codes, and the `data/device-targets.csv` profile column uses H-codes. Experiment labels therefore change: the open-questions experiments E1–E3 become **X1–X3**, and the top-20 experiments H1–H3 become **HX1–HX3**. **P0–P4** always mean a priority tier (lower means earlier), scoped to the list it appears in. The staged plan is **Phase 0–4** in the roadmap.
+- **Rationale:** The serialized code sets cannot change without breaking data, so the free-text experiment labels move instead. The P-codes in open-questions, the device matrix and movement-vs-copy are all priority tiers (movement-vs-copy assigns P1 and P2 to two items each, so its codes cannot be stages). One note now says so.
+- **Files changed:** `docs/open-questions.md`, `docs/evidence-map.md` (one reference to X1), `docs/top-20-human-impact-questions-for-agentic-ai.md`, `docs/agent-movement-vs-copy-replication-multiplication.md` (P-tier note), this glossary (open-questions references).
+- **Generated file:** `tools/corpus_analysis.py` now labels the gap hypotheses in `docs/corpus-analysis/coverage.md` G1, G2, … instead of H1, H2, …, so they no longer collide with host profiles H0–H4, and it calls operation 1 "Delegation" (decision T4). The file was regenerated.
+
+**T13. Fencing token naming.**
+- **Decision:** The field is `fencing_epoch` and the prose term is **fencing epoch**: a monotonic fencing token issued by the coordinator. "Epoch/fencing token", "fence token" and "fence epoch" are retired. "Fencing token" stays the general research term (Kleppmann 2016).
+- **Rationale:** `fencing_epoch` is the field in forensics, the lifecycle document and the prototype movement-receipt schema, so the prose follows the serialized name.
+- **Files changed:** `docs/open-questions.md` (X2), `docs/device-compatibility-and-capability-matrix.md` (component table), `docs/agent-forensics-and-fingerprints.md` (investigation table), this glossary ([Fencing](#fencing-fencing-token-fencing-epoch-and-split-brain)).
 
 Related documents: [README](../README.md), [movement vs copy](agent-movement-vs-copy-replication-multiplication.md), [research landscape](research-landscape.md), [sources](sources.md).
