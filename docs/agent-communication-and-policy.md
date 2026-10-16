@@ -236,7 +236,7 @@ Example (all values synthetic; the artifact digest is the placeholder artifact u
 - *Chaos tests:* drop acknowledgments, network partitions, delayed cancellation, policy service outage, audit service outage, restart mid-side-effect.
 - *Evidence:* capture sanitized decision events and tool/device receipts, compare them with packet-level egress counters and independent audit records.
 
-The associated [communication conformance case matrix](../data/agent-communication-conformance-cases.csv) specifies expected outcomes. These are **planned tests, not passing tests**. A passing set of synthetic tests cannot prove safety against a compromised runtime, undocumented out-of-band channels, covert exfiltration or unforeseen behaviors; prefer bounded threat-model claims over "agents can never violate rules."
+The associated [communication conformance case matrix](../data/agent-communication-conformance-cases.csv) specifies expected outcomes, boundaries and evidence for cases COM-T001 to COM-T028. Whether a case has a test is recorded only in the single [test registry](../data/test-registry.csv): each case is a registry row, or, where it duplicates another list's case, an alias of that row (the matrix's `registry_id` column names it). Many cases are still **planned tests, not passing tests**. A passing set of synthetic tests cannot prove safety against a compromised runtime, undocumented out-of-band channels, covert exfiltration or unforeseen behaviors; prefer bounded threat-model claims over "agents can never violate rules."
 
 ## 8. Research questions for the next five years
 

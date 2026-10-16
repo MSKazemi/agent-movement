@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -9,6 +10,7 @@ import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Sequence
 
 from .core import SCHEMA_VERSION, EffectGateway, PolicyDenied, SQLiteStore
 
@@ -24,7 +26,11 @@ def handoff(url: str, message: dict) -> tuple[int, dict]:
             return exc.code, json.load(exc)
 
 
-def main() -> None:
+def main(argv: Sequence[str] = ()) -> None:
+    """Run the demo. ``argv`` holds command-line options; the demo itself takes none."""
+    argparse.ArgumentParser(description="Core local handoff demo: a loopback receiver process, an approved "
+                            "handoff, an idempotent replay, a denied request and stale-epoch fencing. "
+                            "Synthetic, stdlib-only, not A2A.").parse_args(list(argv))
     with tempfile.TemporaryDirectory(prefix="agent-movement-") as root:
         process = subprocess.Popen([
             sys.executable, "-m", "agent_movement.http", "--db", str(Path(root) / "ledger.sqlite")
@@ -79,4 +85,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
