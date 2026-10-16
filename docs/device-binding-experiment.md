@@ -17,7 +17,7 @@ An unauthorised clone knows the complete allowlisted synthetic task snapshot, ma
 Python 3.11+ and pytest; no optional cryptography dependency needed:
 
 ~~~sh
-python -m pip install -e . "pytest>=9"
+python -m pip install -e . "pytest>=9.1"
 python -m agent_movement.device_binding_demo
 python -m pytest -q tests/test_device_binding.py
 ~~~
