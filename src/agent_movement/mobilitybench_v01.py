@@ -7,14 +7,19 @@
 A scripted interpreter executes frozen synthetic plans; there are no model calls,
 network requests or real side effects. Effects are simulated commits to the PR #6
 fenced SQLite gateway, and the local delegate baseline uses the PR #6
-HandoffReceiver in-process. This is NOT A2A, checkpoint relocation or
-cross-framework reconstruction: those baselines are reported as unavailable.
+HandoffReceiver in-process. Two baselines need an optional extra and are scored
+only when it is installed (see mobilitybench_optional): B2 delegates over the
+official A2A v1 SDK to a loopback worker (extra ``a2a``), and B3 relocates a LangGraph
+checkpoint on one pinned runtime (extra ``relocation``). Without its extra, a mode
+is emitted as an explicit ``unavailable`` record, as is cross-framework
+reconstruction (B4), which is not implemented.
 Protocol, rubrics and validity threats: docs/mobilitybench-v0.1.md.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import platform
 import re
@@ -26,10 +31,12 @@ import tempfile
 import textwrap
 import time
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 from .core import (ID, SCHEMA_VERSION, Approval, Conflict, ContractError, EffectGateway,
                    HandoffReceiver, PolicyDenied, SQLiteStore, canonical, digest, parse_json)
@@ -37,7 +44,10 @@ from .mobilitybench import CANARY, exception_outcome
 
 SUITE_VERSION = "mobilitybench-v0.1"
 SUITES = {"v0.1": SUITE_VERSION}
-HARNESS_VERSION = "0.1.0"
+# 0.2.0 (issue #31): B2 (A2A) and B3 (checkpoint relocation) are scored when their extra is
+# installed. Tasks, rubrics, interpreter and ground truth are unchanged, so the frozen
+# fixture release (and SUITE_VERSION) stays the same.
+HARNESS_VERSION = "0.2.0"
 EXECUTOR = "deterministic-interpreter-v0.1"
 MODEL = "none"
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures"
@@ -47,17 +57,69 @@ FAMILIES = ("document", "coding", "tools")
 FAULT_KINDS = ("none", "origin_preempted", "effect_ack_lost", "duplicate_delivery", "stale_origin_returns")
 TRANSFERABLE = ("synthetic", "public")
 
-# Baseline modes. Unavailable modes are emitted as explicit records, never dropped.
-MODES: dict[str, dict[str, str]] = {
-    "keep_on_origin": {"baseline": "B0", "status": "implemented", "tracking": "-"},
-    "restart_on_destination": {"baseline": "B1", "status": "implemented", "tracking": "-"},
-    "local_delegate": {"baseline": "B2-local", "status": "implemented",
-                       "tracking": "PR #6 HandoffReceiver, in-process; not A2A"},
-    "a2a_delegate": {"baseline": "B2", "status": "unavailable", "tracking": "issue #7"},
-    "checkpoint_relocate": {"baseline": "B3", "status": "unavailable", "tracking": "issue #9"},
-    "cross_framework_reconstruct": {"baseline": "B4", "status": "unavailable",
+# Optional extras a baseline needs: pyproject extra -> import names and distributions to report.
+EXTRAS: dict[str, dict[str, tuple[str, ...]]] = {
+    "a2a": {"modules": ("a2a", "httpx", "starlette", "uvicorn", "google.protobuf"),
+            "distributions": ("a2a-sdk",)},
+    "relocation": {"modules": ("langgraph", "langgraph.checkpoint.sqlite"),
+                   "distributions": ("langgraph", "langgraph-checkpoint", "langgraph-checkpoint-sqlite")},
+}
+# Baseline modes. `extra` names the optional extra a mode needs; `implemented: False` marks a
+# baseline with no implementation. Unavailable modes are emitted as explicit records, never dropped.
+MODE_SPECS: dict[str, dict[str, Any]] = {
+    "keep_on_origin": {"baseline": "B0", "tracking": "-"},
+    "restart_on_destination": {"baseline": "B1", "tracking": "-"},
+    "local_delegate": {"baseline": "B2-local", "tracking": "PR #6 HandoffReceiver, in-process; not A2A"},
+    "a2a_delegate": {"baseline": "B2", "extra": "a2a",
+                     "tracking": "issue #31: issue #7 A2A v1 adapter (official a2a-sdk), loopback HTTP"},
+    "checkpoint_relocate": {"baseline": "B3", "extra": "relocation",
+                            "tracking": "issue #31: issue #9 fenced LangGraph checkpoint relocation"},
+    "cross_framework_reconstruct": {"baseline": "B4", "implemented": False,
                                     "tracking": "not scheduled (AM-14; after issue #9)"},
 }
+
+
+def extra_available(extra: str) -> bool:
+    """True when every module the extra provides can be found."""
+    try:
+        return all(importlib.util.find_spec(name) is not None for name in EXTRAS[extra]["modules"])
+    except (ImportError, ValueError):  # a parent package is missing or broken
+        return False
+
+
+def mode_table(available: Callable[[str], bool] = extra_available) -> dict[str, dict[str, str]]:
+    """Resolve each mode's status in this environment; `available(extra)` is injectable for tests."""
+    table = {}
+    for mode, spec in MODE_SPECS.items():
+        extra = spec.get("extra")
+        if spec.get("implemented", True) is False:
+            status, reason = "unavailable", "baseline_not_implemented"
+        elif extra is not None and not available(extra):
+            status, reason = "unavailable", f"extra_not_installed:{extra}"
+        else:
+            status, reason = "implemented", None
+        row = {"baseline": spec["baseline"], "status": status, "tracking": spec["tracking"]}
+        if extra is not None:
+            row["extra"] = extra
+        if reason is not None:
+            row["unavailable_reason"] = reason
+        table[mode] = row
+    return table
+
+
+MODES: dict[str, dict[str, str]] = mode_table()
+
+
+def extras_versions() -> dict[str, dict[str, str] | None]:
+    """Installed distribution versions per extra (None when the extra is missing), for run_version."""
+    found: dict[str, dict[str, str] | None] = {}
+    for extra, spec in EXTRAS.items():
+        try:
+            found[extra] = ({name: metadata.version(name) for name in spec["distributions"]}
+                            if extra_available(extra) else None)
+        except metadata.PackageNotFoundError:
+            found[extra] = None
+    return found
 
 # Pure ops that map onto the PR #6 0.1.0-draft envelope task kinds.
 DELEGABLE = {"count_words": "word_count", "count_words_out": "word_count",
@@ -410,6 +472,22 @@ def run_keep(att: Attempt) -> Outcome:
     return origin, "completed", None
 
 
+def stale_origin_retry(att: Attempt, origin_epoch: int) -> None:
+    """After ownership moved, the old-epoch origin retries its next effect: fenced or accepted."""
+    att.fault_applied = True
+    effect_steps = [i for i, op in enumerate(att.plan) if op["op"] in ("effect", "reserve")]
+    later = [i for i in effect_steps if i >= att.m]
+    step = later[0] if later else effect_steps[-1]
+    try:
+        att.gateway.commit(att.gw_task, "agent-a", origin_epoch, f"{att.gw_task}.e{step}",
+                           "stale origin retry")
+        att.metrics["stale_commits_accepted"] += 1
+        att.committed.append({"step": step, "tool": att.plan[step].get("tool", "reserve"),
+                              "to": "stale-origin", "payload": "stale origin retry"})
+    except PolicyDenied:
+        att.metrics["stale_commits_fenced"] += 1
+
+
 def run_restart(att: Attempt) -> Outcome:
     """B1: destination re-runs the original request from step 0; session context is lost."""
     origin = att.run_origin_until_movement()
@@ -427,18 +505,7 @@ def run_restart(att: Attempt) -> Outcome:
     if att.fault == "origin_preempted":
         att.fault_applied = True  # origin is gone, restart does not depend on it
     if att.fault == "stale_origin_returns":
-        att.fault_applied = True
-        effect_steps = [i for i, op in enumerate(att.plan) if op["op"] in ("effect", "reserve")]
-        later = [i for i in effect_steps if i >= att.m]
-        step = later[0] if later else effect_steps[-1]
-        try:
-            att.gateway.commit(att.gw_task, "agent-a", origin.epoch, f"{att.gw_task}.e{step}",
-                               "stale origin retry")
-            att.metrics["stale_commits_accepted"] += 1
-            att.committed.append({"step": step, "tool": att.plan[step].get("tool", "reserve"),
-                                  "to": "stale-origin", "payload": "stale origin retry"})
-        except PolicyDenied:
-            att.metrics["stale_commits_fenced"] += 1
+        stale_origin_retry(att, origin.epoch)
     dest = AgentState("agent-b", att.task, epoch)
     for step in range(len(att.plan)):
         att.hear(dest, step, min_at=att.m)  # only live events after the movement reach B
@@ -447,8 +514,49 @@ def run_restart(att: Attempt) -> Outcome:
     return dest, "completed", None
 
 
-def run_local_delegate(att: Attempt) -> Outcome:
-    """B2-local: origin keeps ownership and delegates the pure remainder via PR #6 handoffs."""
+def delegation_envelope(att: Attempt, step: int, kind: str, text: str) -> dict[str, Any]:
+    """The PR #6 0.1.0-draft envelope delegating one pure plan step (shared by B2-local and B2)."""
+    tid = att.gw_task
+    return {
+        "schema_version": SCHEMA_VERSION, "movement_id": f"{tid}.m{step}",
+        "logical_task_id": tid, "operation": "delegate",
+        "origin": {"agent_id": "agent-a"}, "destination": {"agent_id": "agent-b"},
+        "task": {"kind": kind, "text": text},
+        "context": {"classification": att.task["classification"]},
+        "authority": {"approval_ref": f"approval-{tid}"},
+        "execution": {"idempotency_key": f"{tid}.k{step}"},
+        "observability": {"trace_id": f"{tid}.t{step}"},
+    }
+
+
+def delegation_approvals(att: Attempt) -> list[Approval]:
+    """Receiver-side grants: one per pure task kind, scoped to this task and these two agents."""
+    tid = att.gw_task
+    approval_class = att.task["classification"] if att.task["classification"] in TRANSFERABLE else "synthetic"
+    return [Approval(f"approval-{tid}", tid, "agent-a", "agent-b", kind, classification=approval_class)
+            for kind in ("word_count", "sha256")]
+
+
+def check_receipts(att: Attempt, envelope: dict[str, Any], receipts: list[dict[str, Any]]) -> int | str:
+    """The first receipt must answer `envelope`; every duplicate delivery must replay it."""
+    first = receipts[0]
+    if (first["status"] != "completed" or first["replayed"]
+            or first["artifact_digest"] != digest(first["artifact"])
+            or first["envelope_digest"] != digest(envelope)):
+        raise RuntimeError("receipt failed verification")
+    for extra in receipts[1:]:
+        if not extra["replayed"] or extra["artifact"] != first["artifact"]:
+            raise RuntimeError("duplicate delivery executed twice")
+        att.metrics["duplicate_deliveries_suppressed"] += 1
+    return first["artifact"]["value"]
+
+
+def delegate_tail(att: Attempt, remote_for: Callable[[Attempt], Any]) -> Outcome:
+    """Shared B2 shape: the origin keeps ownership and delegates the pure remainder.
+
+    `remote_for(att)` is a context manager yielding `remote(step, kind, text) -> value`. It is
+    entered only after the refusal and pre-emption checks, so nothing is set up or sent before.
+    """
     origin = att.run_origin_until_movement()
     blocked = sorted({att.plan[i]["op"] for i in range(att.m, len(att.plan))
                       if att.plan[i]["op"] not in DELEGABLE})
@@ -457,43 +565,11 @@ def run_local_delegate(att: Attempt) -> Outcome:
     if att.fault == "origin_preempted":
         att.fault_applied = True
         return origin, "incomplete", "origin_preempted_owner_not_transferred"
-    tid = att.gw_task
-    approval_class = att.task["classification"] if att.task["classification"] in TRANSFERABLE else "synthetic"
-    receiver = HandoffReceiver("agent-b", SQLiteStore(att.workdir / "receiver.sqlite"), [
-        Approval(f"approval-{tid}", tid, "agent-a", "agent-b", kind, classification=approval_class)
-        for kind in ("word_count", "sha256")])
-
-    def remote(step: int, kind: str, text: str) -> int | str:
-        envelope = {
-            "schema_version": SCHEMA_VERSION, "movement_id": f"{tid}.m{step}",
-            "logical_task_id": tid, "operation": "delegate",
-            "origin": {"agent_id": "agent-a"}, "destination": {"agent_id": "agent-b"},
-            "task": {"kind": kind, "text": text},
-            "context": {"classification": att.task["classification"]},
-            "authority": {"approval_ref": f"approval-{tid}"},
-            "execution": {"idempotency_key": f"{tid}.k{step}"},
-            "observability": {"trace_id": f"{tid}.t{step}"},
-        }
-        copies = att.send(envelope)
-        receipts = [receiver.receive(json.loads(canonical(envelope))) for _ in range(copies)]
-        for receipt in receipts:
-            att.metrics["transfer_bytes"] += len(canonical(receipt).encode("utf-8"))
-            att.metrics["transfer_messages"] += 1
-        first = receipts[0]
-        if (first["status"] != "completed" or first["replayed"]
-                or first["artifact_digest"] != digest(first["artifact"])
-                or first["envelope_digest"] != digest(envelope)):
-            raise RuntimeError("receipt failed verification")
-        for extra in receipts[1:]:
-            if not extra["replayed"] or extra["artifact"] != first["artifact"]:
-                raise RuntimeError("duplicate delivery executed twice")
-            att.metrics["duplicate_deliveries_suppressed"] += 1
-        return first["artifact"]["value"]
-
     try:
-        for step in range(att.m, len(att.plan)):
-            att.hear(origin, step)
-            att.run_step(origin, step, pure=remote)
+        with remote_for(att) as remote:
+            for step in range(att.m, len(att.plan)):
+                att.hear(origin, step)
+                att.run_step(origin, step, pure=remote)
     except ContractError:
         return origin, "refused", "contract_rejected"
     except PolicyDenied:
@@ -503,11 +579,41 @@ def run_local_delegate(att: Attempt) -> Outcome:
     return origin, "completed", None
 
 
+@contextmanager
+def _local_remote(att: Attempt) -> Iterator[Pure]:
+    receiver = HandoffReceiver("agent-b", SQLiteStore(att.workdir / "receiver.sqlite"),
+                               delegation_approvals(att))
+
+    def remote(step: int, kind: str, text: str) -> int | str:
+        envelope = delegation_envelope(att, step, kind, text)
+        copies = att.send(envelope)
+        receipts = [receiver.receive(json.loads(canonical(envelope))) for _ in range(copies)]
+        for receipt in receipts:
+            att.metrics["transfer_bytes"] += len(canonical(receipt).encode("utf-8"))
+            att.metrics["transfer_messages"] += 1
+        return check_receipts(att, envelope, receipts)
+
+    yield remote
+
+
+def run_local_delegate(att: Attempt) -> Outcome:
+    """B2-local: origin keeps ownership and delegates the pure remainder via PR #6 handoffs."""
+    return delegate_tail(att, _local_remote)
+
+
 RUNNERS: dict[str, Callable[[Attempt], Outcome]] = {
     "keep_on_origin": run_keep,
     "restart_on_destination": run_restart,
     "local_delegate": run_local_delegate,
 }
+
+
+def runner_for(mode: str) -> Callable[[Attempt], Outcome]:
+    """Stdlib runners live here; optional-extra runners are imported only when their mode runs."""
+    if mode in RUNNERS:
+        return RUNNERS[mode]
+    from .mobilitybench_optional import OPTIONAL_RUNNERS
+    return OPTIONAL_RUNNERS[mode]
 
 
 # --------------------------------------------------------------------------- evaluation
@@ -596,7 +702,7 @@ def run_attempt(task: dict[str, Any], truth: dict[str, Any] | None, mode: str, f
     record: dict[str, Any] = {"task_id": task["task_id"], "family": task["family"], "mode": mode,
                               "baseline": info["baseline"], "mode_status": info["status"],
                               "tracking": info["tracking"], "fault": fault, "fault_applied": False,
-                              "outcome": "unavailable", "reason": "baseline_not_implemented",
+                              "outcome": "unavailable", "reason": info.get("unavailable_reason"),
                               "model_calls": 0}
     record.update({k: None for k in METRIC_KEYS})
     t0 = time.perf_counter_ns()
@@ -604,7 +710,7 @@ def run_attempt(task: dict[str, Any], truth: dict[str, Any] | None, mode: str, f
         try:
             workdir.mkdir(parents=True, exist_ok=False)
             att = Attempt(task, fault, workdir)
-            state, outcome, reason = RUNNERS[mode](att)
+            state, outcome, reason = runner_for(mode)(att)
             if _ledger_rows(workdir / "effects.sqlite") != len(att.committed):
                 raise RuntimeError("harness effect list disagrees with ledger")
             record.update(outcome=outcome, reason=reason, fault_applied=att.fault_applied)
@@ -853,7 +959,8 @@ def run_suite(suite: str = "v0.1", subset: str = "full", seeds: list[int] | None
     schedule = fault_schedule([t["task_id"] for t in fx.tasks], seeds)
     run_version = {"suite_version": SUITE_VERSION, "fixture_release_digest": fx.manifest["release_digest"],
                    "contract_version": SCHEMA_VERSION, "harness_version": HARNESS_VERSION,
-                   "executor": EXECUTOR, "model": MODEL, "python": platform.python_version()}
+                   "executor": EXECUTOR, "model": MODEL, "python": platform.python_version(),
+                   "extras": extras_versions()}
     run_id = digest({"run_version": run_version, "subset": subset, "seeds": seeds, "repeats": repeats})[:16]
     records: list[dict[str, Any]] = [{
         "record_type": "run_manifest", "run_id": run_id, "run_version": run_version, "subset": subset,
@@ -932,6 +1039,14 @@ def outcome_digest(records: list[dict[str, Any]]) -> str:
     return digest({"attempts": attempts, "security": security})
 
 
+def run_modes(records: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
+    """Mode table of the run that produced `records` (not of the environment rendering them)."""
+    manifest = next((r for r in records if r.get("record_type") == "run_manifest"), {})
+    modes = manifest.get("modes") or MODES
+    order = list(MODE_SPECS)  # JSONL keys are sorted; report in baseline order (B0, B1, B2-local, ...)
+    return {m: modes[m] for m in sorted(modes, key=lambda m: (order.index(m) if m in order else len(order), m))}
+
+
 def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     attempts = _attempts(records)
     security = [r for r in records if r.get("record_type") == "security"]
@@ -942,7 +1057,7 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
         "outcome_digest": outcome_digest(records),
         "attempts_repeat0": len(attempts),
         "harness_errors": sum(r["outcome"] == "harness_error" for r in _attempts(records, None)),
-        "modes": {m: mode_summary([r for r in attempts if r["mode"] == m]) for m in MODES},
+        "modes": {m: mode_summary([r for r in attempts if r["mode"] == m]) for m in run_modes(records)},
         "security": {v: sum(r["verdict"] == v for r in security) for v in VERDICTS},
         "security_total": len(security),
         "reproducibility": {"repeats": repro["repeats"], "groups": repro["groups"],
@@ -970,6 +1085,7 @@ def build_report(records: list[dict[str, Any]]) -> str:
         raise ValueError("results have no run_manifest record")
     attempts = _attempts(records)
     summary = summarize(records)
+    modes = run_modes(records)
     rv = manifest["run_version"]
     lines = [
         f"# MobilityBench v0.1 report — run `{manifest['run_id']}`",
@@ -983,7 +1099,7 @@ def build_report(records: list[dict[str, Any]]) -> str:
         "## Run manifest",
         "",
         "| field | value |", "| --- | --- |",
-        *[f"| {k} | `{v}` |" for k, v in rv.items()],
+        *[f"| {k} | `{canonical(v) if isinstance(v, (dict, list)) else v}` |" for k, v in rv.items()],
         f"| subset | `{manifest['subset']}` |",
         f"| seeds | `{', '.join(map(str, manifest['seeds']))}` |",
         f"| repeats | `{manifest['repeats']}` |",
@@ -994,7 +1110,7 @@ def build_report(records: list[dict[str, Any]]) -> str:
         "## Denominators",
         "",
         f"- Attempt records (all repeats): **{len(_attempts(records, None))}**; summary tables use repeat 0 only: "
-        f"**{len(attempts)}** = {len(manifest['tasks'])} tasks × {len(manifest['seeds'])} seeds × {len(MODES)} modes.",
+        f"**{len(attempts)}** = {len(manifest['tasks'])} tasks × {len(manifest['seeds'])} seeds × {len(modes)} modes.",
         f"- Implemented-mode attempts (repeat 0): **{sum(r['mode_status'] == 'implemented' for r in attempts)}**; "
         f"unavailable-mode records: **{sum(r['mode_status'] == 'unavailable' for r in attempts)}** (not scored).",
         f"- Harness errors (all repeats): **{summary['harness_errors']}**.",
@@ -1012,7 +1128,7 @@ def build_report(records: list[dict[str, Any]]) -> str:
         "stale fenced | transfer bytes | refused | incomplete | median ms |",
         "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
-    for mode, info in MODES.items():
+    for mode, info in modes.items():
         s = summary["modes"][mode]
         if info["status"] != "implemented":
             lines.append(f"| {mode} | {info['baseline']} | **UNAVAILABLE** ({info['tracking']}) | – | "
@@ -1025,7 +1141,7 @@ def build_report(records: list[dict[str, Any]]) -> str:
             f"{s['duplicate_effects']} | {s['unexpected_effects']} | "
             f"{s['unknown_events']}→{s['reconciled_events']} | {s['stale_commits_fenced']} | "
             f"{s['transfer_bytes']} | {s['refused']} | {s['incomplete']} | {_cell(s['median_elapsed_ms'])} |")
-    implemented = [m for m, i in MODES.items() if i["status"] == "implemented"]
+    implemented = [m for m, i in modes.items() if i["status"] == "implemented"]
     for title, key, values in (("By fault (repeat 0): correct / attempts", "fault", FAULT_KINDS),
                                ("By family (repeat 0): correct / attempts", "family", FAMILIES)):
         lines += ["", f"## {title}", "", "| mode | " + " | ".join(values) + " |",
@@ -1042,9 +1158,14 @@ def build_report(records: list[dict[str, Any]]) -> str:
               "| mode | outcome | reason | count |", "| --- | --- | --- | ---: |"]
     lines += [f"| {m} | {o} | `{why}` | {n} |" for (m, o, why), n in sorted(reasons.items())] or ["| – | – | – | 0 |"]
     lines += ["", "## Unavailable baselines", "",
-              "| mode | baseline | tracking | records |", "| --- | --- | --- | ---: |"]
-    lines += [f"| {m} | {i['baseline']} | {i['tracking']} | {summary['modes'][m]['unavailable']} |"
-              for m, i in MODES.items() if i["status"] != "implemented"]
+              "An unavailable mode is never scored. `extra_not_installed:<extra>` means the run's environment "
+              "lacked that optional extra (`pip install -e '.[<extra>]'`); `baseline_not_implemented` means "
+              "no implementation exists.", "",
+              "| mode | baseline | reason | tracking | records |", "| --- | --- | --- | --- | ---: |"]
+    unavailable = [f"| {m} | {i['baseline']} | `{i.get('unavailable_reason', 'baseline_not_implemented')}` | "
+                   f"{i['tracking']} | {summary['modes'][m]['unavailable']} |"
+                   for m, i in modes.items() if i["status"] != "implemented"]
+    lines += unavailable or ["| – | – | – | – | 0 |"]
     security = [r for r in records if r.get("record_type") == "security"]
     lines += ["", "## Negative and security fixtures", "",
               "A `known_gap` reproduces a deliberately documented missing control; it is **not** a pass. "
