@@ -1,6 +1,6 @@
 # Standards and protocol version tracker
 
-**Accessed:** 2026-10-16. **Machine-readable copy:** [`data/standards-tracker.csv`](../data/standards-tracker.csv) (28 rows, same content plus notes).
+**Accessed:** 2026-10-16. **Machine-readable copy:** [`data/standards-tracker.csv`](../data/standards-tracker.csv) (31 rows, same content plus notes).
 
 This page records, for each standard or protocol this repository relies on, the latest version, its release date, its maturity, who governs it, and where to watch for changes. Every row cites a primary source: a specification site, an official repository release or tag, a standards-body page, or the IETF datatracker. Where a fact could not be confirmed from a primary source it is marked **unverified**.
 
@@ -26,6 +26,9 @@ This page records, for each standard or protocol this repository relies on, the 
 | AP2 | identity/authz (payment mandates) | v0.2.0 | 2026-04-28 | pre-1.0 | Google origin; site states donation to FIDO Alliance (date unverified) | [site](https://ap2-protocol.org/) | [releases](https://github.com/google-agentic-commerce/AP2/releases) |
 | Agentic Commerce Protocol | agent-to-merchant | 2026-04-17 (dated spec) | 2026-04-17 | beta | OpenAI and Stripe | [site](https://agenticcommerce.dev/) | [changelog](https://github.com/agentic-commerce-protocol/agentic-commerce-protocol/tree/main/changelog) |
 | AGENTS.md | agent configuration | unversioned | unverified | living format | AAIF / Linux Foundation | [repo](https://github.com/agentsmd/agents.md) | [commits](https://github.com/agentsmd/agents.md/commits/main) |
+| Agent Skills | agent configuration (procedural packaging) | unversioned (no tags or releases) | unverified (spec file last changed 2026-08-04) | living format; `allowed-tools` field experimental | Open community repository; originally developed by Anthropic | [spec](https://agentskills.io/specification) | [commits](https://github.com/agentskills/agentskills/commits/main) |
+| WebMCP | agent-to-web (browser tools) | Draft Community Group Report | 2026-10-15 | draft (W3C Community Group; not on the W3C Standards Track) | W3C Web Machine Learning Community Group | [report](https://webmachinelearning.github.io/webmcp/) | [repo](https://github.com/webmachinelearning/webmcp/commits/main) |
+| WebDriver BiDi | browser automation | W3C Working Draft | 2026-10-08 | draft (Working Draft) | W3C Browser Testing and Tools WG | [TR](https://www.w3.org/TR/webdriver-bidi/) | [history](https://www.w3.org/standards/history/webdriver-bidi/) |
 | LangGraph persistence | durability | `langgraph-checkpoint` 4.3.0; `langgraph` 1.2.15; `langgraph-checkpoint-postgres` 3.2.0 | 2026-10-12 / 2026-10-12 / 2026-10-14 | stable | LangChain Inc. | [docs](https://docs.langchain.com/oss/python/langgraph/persistence) | [releases](https://github.com/langchain-ai/langgraph/releases) |
 | Temporal Server | durability | v1.32.1 | 2026-10-08 | stable | Temporal Technologies | [docs](https://docs.temporal.io/workflow-execution) | [releases](https://github.com/temporalio/temporal/releases) |
 | Temporal SDKs | durability | Go v1.50.0; Python 1.34.0 | 2026-10-15 / 2026-09-30 | stable | Temporal Technologies | [Go release](https://github.com/temporalio/sdk-go/releases/tag/v1.50.0) | [Python releases](https://github.com/temporalio/sdk-python/releases) |
@@ -63,6 +66,15 @@ This page records, for each standard or protocol this repository relies on, the 
 - **Agentic Commerce Protocol** (OpenAI and Stripe) is in beta. It publishes dated spec snapshots, the latest being 2026-04-17. It is a vendor-maintained interop spec for one class of side-effecting action, checkout. It is relevant to idempotency and authority, not to general movement.
 - **AGENTS.md** is an unversioned format for repository-level instructions to coding agents. It is tracked only because it is an AAIF project. It moves guidance, not state or authority.
 
+### Procedural packaging and browser interfaces
+
+These rows were added on 2026-10-16. The comparison, with sources, is in [research-landscape: procedural packaging and browser/computer-use interfaces](research-landscape.md#procedural-packaging-and-browsercomputer-use-interfaces-added-2026-10-16).
+
+- **Agent Skills** packages instructions, reference files and executable scripts in a folder with a `SKILL.md` file ([spec](https://agentskills.io/specification)). The spec page has no version number and the repository has no tags or releases. The [overview](https://agentskills.io/home) says the format was "originally developed by Anthropic, released as an open standard". It is not listed on the [AAIF projects page](https://aaif.io/projects/). A skill moves a procedure and possibly code, so treat it as software supply chain. It does not move state or authority.
+- **WebMCP** lets a web page register JavaScript tools for agents through `document.modelContext.registerTool()`. The [Draft Community Group Report](https://webmachinelearning.github.io/webmcp/) (2026-10-15) states that it is "not a W3C Standard nor … on the W3C Standards Track". Tools run in the page with the user's session, so authority stays with the browser.
+- **WebDriver BiDi** is the W3C [Working Draft](https://www.w3.org/TR/webdriver-bidi/) (2026-10-08) for bidirectional remote control of browsers. Its `storage` module can read and set cookies, so a controller can copy a logged-in session. That is an authority-transfer path that needs policy.
+- Not tracked as rows: the **Chrome DevTools Protocol**, which its maintainers say "is not a public or supported API for Chrome" ([CDP](https://chromedevtools.github.io/devtools-protocol/)); **Playwright MCP**, which is an MCP server implementation; and the **Anthropic and OpenAI computer-use tools**, which are vendor APIs. All are compared in research-landscape.
+
 ### Durability and deployment
 
 - **LangGraph** checkpoints let a graph resume on another worker that runs compatible LangGraph code and the same saver backend. They are not a cross-framework format. The persistence docs do not state whether checkpoints remain compatible across library versions, so pin versions in any experiment.
@@ -93,9 +105,10 @@ Run these checks, update both the CSV and this page, and set the access date. Gi
 4. **IETF drafts:** `curl -s "https://datatracker.ietf.org/api/v1/doc/document/<draft-name>/?format=json"` returns `rev`, `time` and `states`. Resolve each state with `/api/v1/doc/state/<id>/`. Check for replacements with `/api/v1/doc/relateddocument/?target__name=<draft-name>&relationship=replaces`. When a draft becomes an RFC, replace the row with the RFC number.
 5. **Python packages:** `https://pypi.org/pypi/<package>/json` (`langgraph`, `langgraph-checkpoint`, `temporalio`).
 6. **npm packages:** `https://registry.npmjs.org/@ag-ui/core` (`dist-tags.latest` and `time`).
-7. **W3C:** the status line at the top of each `https://www.w3.org/TR/<shortname>/` page.
+7. **W3C:** the status line at the top of each `https://www.w3.org/TR/<shortname>/` page (also WebDriver BiDi). For WebMCP, read the status line of <https://webmachinelearning.github.io/webmcp/>.
 8. **Kubernetes:** <https://kubernetes.io/releases/> for supported minors and EOL dates.
 9. **Governance:** <https://aaif.io/projects/> for AAIF membership, and CNCF project pages for maturity.
+   For AGENTS.md and Agent Skills, which have no releases, check the latest commit on the repository (`gh api "repos/<owner>/<repo>/commits?per_page=1"`) and the spec page.
 10. Record any new conflict under "Discrepancies" instead of silently overwriting.
 
 ## Discrepancies with other repo docs
@@ -105,8 +118,9 @@ Checked against `README.md`, `docs/research-landscape.md` and `docs/sources.md`,
 1. **MCP 2026-07-28: confirmed.** It is the "Current" revision. None of the three docs mention that this revision removed sessions and the `initialize` handshake, moved tasks to an extension, or deprecated Roots, Sampling and Logging. Each of these affects movement design.
 2. **A2A v1.0.0: confirmed, but out of date at patch level.** v1.0.0 is the first stable spec and the version the spec site labels as latest released. A **v1.0.1** bug-fix tag exists (2026-05-28). The docs also do not record governance: A2A moved from a Linux Foundation project (June 2025) to an **AAIF hosted project on 2026-08-17**.
 3. **OpenTelemetry GenAI link was stale (fixed 2026-10-16: README, research-landscape, sources and security-and-trust now link the new repository).** README, research-landscape and sources (and `docs/security-and-trust.md`) link `https://opentelemetry.io/docs/specs/semconv/gen-ai/`. That page now only states that the conventions moved to `open-telemetry/semantic-conventions-genai`. The conventions are **Development** status and have no tagged release. `docs/agent-forensics-and-fingerprints.md` already uses the new repository.
-4. **AG-UI version not recorded.** The docs link only the GitHub repository. AG-UI reached a 1.0 SDK line on 2026-09-17.
+4. **AG-UI version not recorded (fixed 2026-10-16: the protocol catalog and primary sources now record `@ag-ui/core` 1.0.x).** The docs link only the GitHub repository. AG-UI reached a 1.0 SDK line on 2026-09-17.
 5. **IBM ACP and ANP absent.** research-landscape does not mention that IBM ACP was merged into A2A and archived, or that ANP exists as a DID-based alternative. This is an omission, not a contradiction.
 6. **LangGraph and Temporal unversioned.** sources.md asks readers to "verify specific upstream release dates". The versions above fill that gap. Neither upstream docs page states cross-version checkpoint or replay compatibility.
 7. **Kubernetes upstream inconsistency (not a repo error).** kubernetes.io/releases dates 1.37.1 to 2026-09-15, but the GitHub release object was published 2026-09-23. The table uses the kubernetes.io date and notes both.
 8. **Review date.** The other docs say "reviewed 2026-10-15". This tracker was accessed on 2026-10-16. No version claimed in those docs changed between the two dates.
+9. **Procedural packaging and browser interfaces absent (fixed 2026-10-16).** research-landscape did not cover Agent Skills, AGENTS.md, WebMCP, WebDriver BiDi, CDP or computer-use APIs. It now has a comparison section, and three rows were added here.

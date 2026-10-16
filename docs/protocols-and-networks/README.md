@@ -9,7 +9,7 @@ Software does not physically travel: bytes are transmitted or stored; execution 
 | Operation | Unit transferred | Destination behavior | A typical stack | What this is NOT |
 | --- | --- | --- | --- | --- |
 | R: remote capability use | Tool call / result | Tool runs remotely; agent stays put | MCP via local stdio or HTTPS | Agent migration |
-| D: delegation / handoff | Task, bounded context, artifact references | A different agent handles work | A2A over HTTPS (JSON-RPC, gRPC or HTTP+JSON) | Identity or checkpoint transfer |
+| D: delegation | Task, bounded context, artifact references | A different agent handles work | A2A over HTTPS (JSON-RPC, gRPC or HTTP+JSON) | Identity or checkpoint transfer |
 | P: partial deployment | Specific module / skill / proxy | Only authorized component runs there | OCI/HTTPS; app install; signed firmware; robot middleware | Whole-agent transfer |
 | C: copy / replication | Versioned package and permitted config | New instance with **new** identity and authority | OCI registry + orchestrator; signed artifact + HTTPS | A single continuing execution |
 | M: application checkpoint relocation | Exportable task checkpoint + references | Compatible runtime resumes **one logical task** after origin is fenced | Durable store + HTTPS/queue + lease protocol | Live arbitrary process migration |
