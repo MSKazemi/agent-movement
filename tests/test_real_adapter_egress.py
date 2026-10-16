@@ -72,7 +72,7 @@ class TestActualLegacyAdapterBoundary(unittest.TestCase):
             self.assertEqual(json.load(response)["artifact"]["value"], 3)
         self.assertEqual(
             [e["event_type"] for e in self.store.audit() if e["movement_id"] == "movement-1"],
-            ["handoff.completed"],
+            ["handoff.accepted", "handoff.completed"],
         )
 
     @unittest.skipUnless(supported(), "Linux x86_64 seccomp required for actual-listener egress test")
