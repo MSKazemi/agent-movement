@@ -40,7 +40,6 @@ from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from .continuity_runtime import ContinuityRuntime
-from .sender_gate import OutboundGate
 from .core import (
     MAX_TEXT,
     SCHEMA_VERSION,
@@ -55,6 +54,7 @@ from .core import (
     parse_json,
     validate_envelope,
 )
+from .sender_gate import OutboundGate
 from .trust import (
     CLASSIFICATIONS,
     HPKE_SUITE,
