@@ -30,6 +30,14 @@ REVOKED_AT = "2026-10-15T08:30:00Z"
 REVOCATION_REF = jcs_digest({"notice": "synthetic-revocation", "key_id": "synthetic-agent-r-2026",
                              "revoked_at": REVOKED_AT})
 USE_KEY = object()
+# Privacy canaries derive from a PUBLIC seed: reproducible, unique per label, letters
+# only and obviously synthetic. They are shaped to trip the verifier's redaction
+# (TOKEN_LIKE values, SENSITIVE_KEY names) but not real credential formats: no provider
+# prefixes, no high-entropy values, and JWT-shaped segments that are neither base64 JSON
+# nor long enough for secret scanners (see test_committed_files_match_no_secret_scanner_rule).
+CANARY_SEED = "agent-movement/SYNTHETIC-PRIVACY-CANARY/v1"
+CANARY_PREFIX = "SYNTHETIC-CANARY-"
+_HEX_TO_LETTERS = str.maketrans("0123456789abcdef", "abcdefghijklmnop")
 
 
 def salted(label: str, value: Any) -> dict[str, Any]:
@@ -57,6 +65,27 @@ def signer(name: str) -> Ed25519Signer:
 def hexid(label: str, size: int) -> str:
     value = hashlib.sha256(label.encode()).hexdigest()[:size]
     return value if value[0].isalpha() else "f" + value[1:]
+
+
+def canary_marker(label: str, seed: str = CANARY_SEED) -> str:
+    """Deterministic marker ``SYNTHETIC-CANARY-`` + 8 letters, derived from a public seed."""
+    letters = hashlib.sha256(f"{seed}/{label}".encode()).hexdigest()[:8].translate(_HEX_TO_LETTERS)
+    return CANARY_PREFIX + letters
+
+
+def privacy_canaries(seed: str = CANARY_SEED) -> dict[str, str]:
+    """The credential-SHAPED, never credential-VALUED strings planted in ``08-privacy-canaries``."""
+    def m(label: str) -> str:
+        return canary_marker(label, seed)
+    return {
+        "jwt_shaped": f"eyJ{m('jwt-header')}.{m('jwt-payload')}.{m('jwt-signature')}",
+        "prompt_field": f"{m('prompt-field')} prompt text: must never be exported",
+        "bearer_value": f"Bearer {m('bearer-value')}",
+        "prompt_attribute": f"{m('prompt-attribute')} prompt: do not export",
+        "cookie": f"session: {m('cookie')}",
+        "api_key_assignment": f"api_key: {m('api-key')}",
+        "span_name": f"Bearer {m('span-name')}",
+    }
 
 
 def at(seconds: int) -> str:
@@ -407,31 +436,32 @@ def scenario_fork() -> Scenario:
     return s
 
 
-def scenario_privacy() -> Scenario:
+def scenario_privacy(seed: str = CANARY_SEED) -> Scenario:
+    """Canaries come from :func:`privacy_canaries`; tests also build this with other seeds at runtime."""
     s = Scenario("08-privacy-canaries")
+    canary = privacy_canaries(seed)
     dispatch, accept, trace = _delegation(s, "mov-privacy-1", "task-privacy-1")
     s.add(seal("agent-a", dispatch))
     s.add(seal("agent-b", accept))
-    jwt_shaped = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzeW50aGV0aWMiOiJjYW5hcnkifQ.c3ludGhldGlj"
     leaky = s.body("agent-b", "rcpt-mov-privacy-1-leaky", "execution.started", 3, task="task-privacy-1",
                    movement=("mov-privacy-1", None, "delegate"),
                    execution={"execution_id": "exec-b-p", "parent_execution_id": None,
                               "agent_instance_id": None, "definition_digest": None}, trace=trace)
-    leaky["execution"]["agent_instance_id"] = jwt_shaped  # token-shaped value smuggled into an ID field
+    leaky["execution"]["agent_instance_id"] = canary["jwt_shaped"]  # token-shaped value in an ID field
     s.add(seal_unchecked("agent-b", leaky))
     chatty = {**s.body("agent-b", "rcpt-mov-privacy-1-chatty", "execution.completed", 4, task="task-privacy-1",
                        movement=("mov-privacy-1", None, "delegate"),
                        execution={"execution_id": "exec-b-p", "parent_execution_id": None,
                                   "agent_instance_id": None, "definition_digest": None}, trace=trace),
-              "prompt": "synthetic canary prompt text: must never be exported"}
+              "prompt": canary["prompt_field"]}
     s.add(seal_unchecked("agent-b", chatty))
     s.span("t1", "tool.call", 3, trace, {
-        "agent.claimed_id": "agent-b", "movement_id": "Bearer synthetic-canary-not-a-credential",
-        "authorization": "Bearer synthetic-canary-not-a-credential",
-        "gen_ai.prompt": "synthetic canary prompt: do not export",
-        "http.request.header.cookie": "session=synthetic-canary-cookie",
-        "db.statement": "api_key=synthetic-canary-value"})
-    s.span("t2", "Bearer synthetic-canary-span-name", 4, trace, {"agent.claimed_id": "agent-b"})
+        "agent.claimed_id": "agent-b", "movement_id": canary["bearer_value"],
+        "authorization": canary["bearer_value"],
+        "gen_ai.prompt": canary["prompt_attribute"],
+        "http.request.header.cookie": canary["cookie"],
+        "db.statement": canary["api_key_assignment"]})
+    s.span("t2", canary["span_name"], 4, trace, {"agent.claimed_id": "agent-b"})
     return s
 
 

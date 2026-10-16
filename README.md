@@ -55,7 +55,7 @@ The origin retains ownership of the user's intent and consent. Delegated privile
 
 ## Run the local experiments
 
-The [local proof of concept](docs/local-implementation.md) uses two separate processes, a strict synthetic handoff envelope, a preconfigured receiver-side approval, SQLite-backed audit/receipt deduplication, and a separate simulated stale-worker fencing exercise. The core demo uses a **custom loopback HTTP interface, not A2A**. The optional [A2A v1 adapter](docs/a2a-adapter.md) carries the same envelope over the official A2A SDK.
+The [local proof of concept](docs/local-implementation.md) uses two separate processes, a strict synthetic handoff envelope, a preconfigured receiver-side approval, SQLite-backed audit/receipt deduplication, and a separate simulated stale-worker fencing exercise. The core demo uses a **custom loopback HTTP interface, not A2A**. The optional [A2A v1 adapter](docs/a2a-adapter.md) carries the same envelope over the official A2A SDK, as specified by the [agent-movement A2A profile extension](docs/a2a-profile-extension.md).
 
 The core needs Python 3.11+ and only the standard library. Each optional extra adds one experiment:
 
@@ -117,6 +117,7 @@ Experimental code (synthetic, local, not production):
 - [`agent-movement` CLI reference: every subcommand, flag, optional extra and exit code](docs/cli.md)
 - [Language and SDK strategy (public proposal; Python-first, with what is implemented so far)](docs/language-and-sdk-strategy.md)
 - [Optional A2A v1 adapter on the official SDK: delegation, not migration; experimental, unauthenticated](docs/a2a-adapter.md)
+- [A2A profile extension spec: the resolvable extension URI, envelope ↔ A2A field mapping, error codes and the server-generated contextId policy](docs/a2a-profile-extension.md)
 - [Peer authentication and pre-disclosure authorization (synthetic, local; `python -m agent_movement.peer_demo`)](docs/peer-authentication.md)
 - [Same-runtime checkpoint relocation (pinned LangGraph) with a 30-row crash/duplicate fault matrix](docs/checkpoint-relocation.md) (optional extra: `pip install -e '.[relocation]'`)
 - [Signed movement receipts and offline forensic verifier (experimental, synthetic fixtures)](docs/movement-receipts.md)
