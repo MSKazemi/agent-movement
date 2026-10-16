@@ -125,7 +125,7 @@ def test_wrong_or_tampered_grant_or_intent_fails_before_enrollment(lane):
     )
     with pytest.raises(Unauthorized):
         gated.enroll(intent(rig, grant=wrong_audience), wrong_audience)
-    with pytest.raises(Unauthorized):
+    with pytest.raises(PolicyDenied):
         gated.enroll(intent(rig, signer=HmacKey.generate("a")), rig.grant)
     with pytest.raises(Unauthorized):
         gated.enroll(intent(rig, destination="agent-c"), rig.grant)
@@ -183,7 +183,7 @@ def test_unsupported_or_forged_operator_notice_refused(lane):
     rig, _, gated = lane
     enroll(rig, gated)
     fake = notify(rig, "guarded-unknown", key=HmacKey.generate("user"))
-    with pytest.raises(Unauthorized):
+    with pytest.raises(PolicyDenied):
         gated.mark_unknown(fake)
     with pytest.raises(Unauthorized):
         gated.cancel(notify(rig, "guarded-cancel", movement="different"))
