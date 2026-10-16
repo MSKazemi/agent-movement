@@ -619,7 +619,9 @@ class SealedDeliveryCases:
 
     def test_hpke_ciphertext_cannot_move_to_another_admission(self):
         client, first, first_secret = self.preflight()
-        _, second, _ = self.preflight(client=client, movement_id="movement-2", idempotency_key="op-2")
+        # A second movement needs its own grant: grants are single-use by default (issue #29).
+        _, second, _ = self.preflight(client=client, movement_id="movement-2", idempotency_key="op-2",
+                                      grant=self.w.grant(grant_id="grant-2"))
         body = self.delivery(client, first, first_secret)
         moved = self.resign(client, body, lambda p: p.update(admission_id=second["admission_id"]))
         self.assert_rejected_unused(moved, 401, "delivery_decrypt_failed")
