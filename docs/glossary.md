@@ -112,7 +112,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 ### Compensation (compensating action)
 **[research term]** An action that semantically undoes a completed step when a long-running transaction cannot be rolled back atomically. The concept comes from the saga model. The repository uses "compensation" once, as one of the human-control checkpoints, and does not use the word "saga".
 **Source:** Garcia-Molina & Salem, "Sagas", SIGMOD 1987, [doi:10.1145/38713.38742](https://doi.org/10.1145/38713.38742).
-**See:** [top-20](top-20-human-impact-questions-for-agentic-ai.md) (Q1)
+**See:** [top-20](top-20-human-impact-questions-for-agentic-ai.md) (HQ-01)
 
 ### Content digest (message digest, hash)
 **[standard term]** "The result of applying a hash function to a message." In the repository, a digest proves consistency with a trusted reference value. It does not prove authorship, correctness or that the content is benign.
@@ -132,7 +132,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 ### Cross-framework migration (cross-framework reconstruction)
 **[project working definition]** Rebuild a workflow on a different runtime or framework using an adapter and a portable representation, with explicitly documented loss of features. It is not byte-for-byte state transfer.
 **Source:** project working definition, [README](../README.md) (item 4); [open-questions](open-questions.md) (E3, "cross-framework reconstruction").
-**See:** [top-20](top-20-human-impact-questions-for-agentic-ai.md) (Q19), [roadmap](roadmap.md) (Phase 3)
+**See:** [top-20](top-20-human-impact-questions-for-agentic-ai.md) (HQ-19), [roadmap](roadmap.md) (Phase 3)
 
 ### Delegation
 **[research term]** One agent asks another to perform a task. The delegator normally keeps oversight and need not expose or move its internals. In the literature, delegation also transfers authority, responsibility and accountability (AMP-067). It has roots in Contract Net task allocation (AMP-001). RFC 8693 separately distinguishes *delegation* (the actor keeps its own identity) from *impersonation*.
@@ -151,7 +151,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 
 ### Exactly-once, at-least-once, at-most-once
 **[research term]** Delivery and execution guarantees. At-least-once may repeat an action on retry, which is safe only for idempotent operations. At-most-once refuses to re-run an interrupted attempt. The repository treats exactly-once external side effects as **unproven** without cooperation from the target system.
-**Source:** [AWS Durable Execution SDK: idempotency and retries](https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/) (cited as S8 in open-questions).
+**Source:** [AWS Durable Execution SDK: idempotency and retries](https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/) (cited as [SRC-8] in open-questions).
 **See:** [security-and-trust](security-and-trust.md), [open-questions](open-questions.md) (AM-04), [movement-vs-copy](agent-movement-vs-copy-replication-multiplication.md)
 
 ### Fencing (fencing token, fencing epoch) and split-brain
@@ -252,7 +252,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 ### Multiplication (agent multiplication, spawning, fan-out)
 **[project working definition]**. "Agent multiplication" is an **informal project term**. The conventional concepts are dynamic spawning, fan-out, worker-pool scaling and multi-agent orchestration. A coordinator creates a bounded number of child agents or tasks, each a separate execution, and then aggregates their results.
 **Source:** project working definition, [movement-vs-copy §5](agent-movement-vs-copy-replication-multiplication.md).
-**See:** [open-questions](open-questions.md) (AM-12), [top-20](top-20-human-impact-questions-for-agentic-ai.md) (Q18)
+**See:** [open-questions](open-questions.md) (AM-12), [top-20](top-20-human-impact-questions-for-agentic-ai.md) (HQ-18)
 
 ### OCI image
 **[standard term]** "An OCI Image, consisting of an image manifest, an image index (optional), a set of filesystem layers, and a configuration." It makes *deployment* portable. It does not carry agent state, memory or identity.
@@ -287,7 +287,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 ### Prompt injection (indirect prompt injection, tool poisoning)
 **[standard term]**, with OWASP as the reference definition. A prompt injection occurs "when user prompts alter the LLM's behavior or output in unintended ways". *Indirect* injections come through external content such as websites, files, tool output or Agent Cards. *Tool poisoning* hides instructions in MCP tool metadata.
 **Source:** [OWASP LLM01:2025 Prompt Injection](https://genai.owasp.org/llmrisk/llm01-prompt-injection/); AMP-025, AMP-031, AMP-039; AMN-003, AMN-072.
-**See:** [security-and-trust](security-and-trust.md), [open-questions](open-questions.md), [top-20](top-20-human-impact-questions-for-agentic-ai.md) (Q4)
+**See:** [security-and-trust](security-and-trust.md), [open-questions](open-questions.md), [top-20](top-20-human-impact-questions-for-agentic-ai.md) (HQ-04)
 
 ### Provenance
 **[standard term]** "Information about entities, activities, and people involved in producing a piece of data or thing" (W3C PROV-DM). The repository applies it to data, tools, artifacts, checkpoints and model-dependent decisions.
@@ -312,7 +312,7 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 ### Replication (agent replication; active/passive, active/active)
 **[project working definition]**, adapting conventional distributed-systems terms. A controller keeps the desired number of equivalent agent workers for one logical service, for availability or throughput. In *active/passive* replication, one replica writes, and a standby takes over after failover from durable state. In *active/active* replication, several replicas work at the same time, which needs partitioning and a conflict policy. Replicating container processes is not replicating conversational memory, workflow ownership or side effects.
 **Source:** project working definition, [movement-vs-copy §4](agent-movement-vs-copy-replication-multiplication.md).
-**See:** [research-landscape](research-landscape.md), [open-questions](open-questions.md) (AM-12), [top-20](top-20-human-impact-questions-for-agentic-ai.md) (Q18)
+**See:** [research-landscape](research-landscape.md), [open-questions](open-questions.md) (AM-12), [top-20](top-20-human-impact-questions-for-agentic-ai.md) (HQ-18)
 
 ### Safe boundary
 **[project working definition]** A point in execution at which a checkpoint can be taken and resumed elsewhere without leaving partially applied side effects that cannot be reconciled.
@@ -321,13 +321,13 @@ Corpus IDs (AMP-xxx, AMN-xxx) refer to [paper-corpus/papers.jsonl](paper-corpus/
 
 ### Semantic compatibility (semantic continuity)
 **[project working definition]** Whether a destination runtime or model actually understands and preserves the intent, policies, constraints and quality expectations of unfinished work. Schema and version match alone do not establish it.
-**Source:** project working definition, [open-questions](open-questions.md) (AM-08, AM-11); related cross-agent study cited there as S7.
-**See:** [README](../README.md), [top-20](top-20-human-impact-questions-for-agentic-ai.md) (Q19)
+**Source:** project working definition, [open-questions](open-questions.md) (AM-08, AM-11); related cross-agent study cited there as [SRC-7].
+**See:** [README](../README.md), [top-20](top-20-human-impact-questions-for-agentic-ai.md) (HQ-19)
 
 ### Side-effect ledger (effect ledger)
 **[project working definition]** A durable record of intended, committed and uncertain external effects, keyed by operation or effect ID. Ideally it is confirmed on the target side. It is used to prevent and detect duplicate actions after handoff or restore.
 **Source:** project working definition, [open-questions](open-questions.md) ("continuation contract", E2); [forensics](agent-forensics-and-fingerprints.md). Comparable research mechanism: AMP-070 (recording irreversible tool effects).
-**See:** [top-20](top-20-human-impact-questions-for-agentic-ai.md) (Q19)
+**See:** [top-20](top-20-human-impact-questions-for-agentic-ai.md) (HQ-19)
 
 ### SPIFFE, SPIFFE ID and trust domain
 **[standard term]** SPIFFE is a standard for workload identity. A *SPIFFE ID* "is a string that uniquely and specifically identifies a workload". The *trust domain* "corresponds to the trust root of a system". SPIRE is its reference implementation.

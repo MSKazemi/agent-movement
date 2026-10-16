@@ -4,7 +4,7 @@
 
 > Central thesis: communication between agents is becoming commoditized. The unusually valuable scientific question is whether intent, authority, memory integrity and causal accountability can remain *measurably continuous* through movement, forking, interruptions and long delegation chains.
 
-This report extends, rather than duplicates, [the existing open questions](open-questions.md), [human-impact research questions](top-20-human-impact-questions-for-agentic-ai.md), [forensics research](agent-forensics-and-fingerprints.md), and [roadmap](roadmap.md).
+This report extends, rather than duplicates, [the existing open questions](open-questions.md), [human-impact research questions](top-20-human-impact-questions-for-agentic-ai.md), [forensics research](agent-forensics-and-fingerprints.md), and [roadmap](roadmap.md). Questions are FM-01…FM-20 and flagship studies FS-1…FS-4; the [question ID crosswalk](question-id-crosswalk.md) lists which FM questions restate existing AM- or SQ- questions and which ID to cite.
 
 ## 1. What is already studied (the novelty reality check)
 
@@ -67,7 +67,7 @@ The rankings are the author's **subjective strategic judgment**, not measured sc
 
 ## 3. Four concrete flagship studies
 
-### Study S1 — ContinuityBench: multi-hop semantic conservation
+### Study FS-1 — ContinuityBench: multi-hop semantic conservation
 
 **Research question:** What measurable fraction of *explicit task invariants* survives heterogeneous transfers, and which safeguards improve survival without introducing needless transfers or unacceptable disclosure?
 
@@ -79,7 +79,7 @@ The rankings are the author's **subjective strategic judgment**, not measured sc
 - **Secondary:** correctness, unsafe/duplicate synthetic effects, false confidence, unknown detection, disclosure bytes, total runtime, compute and monetary cost.
 - **Critical falsifier:** if a restart/single-agent baseline wins on cost-adjusted quality or the "proof" misses known synthetic invariant violations, mobility-first framing should be abandoned for those classes.
 
-### Study S2 — AuthorityMap: authorization coverage and descendant closure
+### Study FS-2 — AuthorityMap: authorization coverage and descendant closure
 
 **Research question:** Can a user or auditor establish a bounded answer to "what still has permission to act on my behalf?" after delegated work has forked?
 
@@ -89,7 +89,7 @@ The rankings are the author's **subjective strategic judgment**, not measured sc
 - **Measures:** discovered child recall/precision under a known fixture oracle, root authority exposure, forbidden post-revocation acceptances, quiescence latency, unaccounted queued operations and cost overhead.
 - **Critical falsifier:** success in a coordinator-only test but failure under an independently instrumented tool/queue sink. Do not claim global inactivity for unobserved systems.
 
-### Study S3 — MemoryGenome: synthetic belief propagation, fork/merge and erasure
+### Study FS-3 — MemoryGenome: synthetic belief propagation, fork/merge and erasure
 
 **Research question:** How do *benign false beliefs* and stale constraints spread when context is copied between distinct models or independently updated agent branches?
 
@@ -99,7 +99,7 @@ The rankings are the author's **subjective strategic judgment**, not measured sc
 - **Measures:** false-belief inheritance rate, generations-to-extinction, correction persistence, unsupported citation rate, derived-memory erasure recall and useful information lost to defense.
 - **Critical falsifier:** a control that suppresses false facts by simply erasing all useful task memory is not a satisfactory success.
 
-### Study S4 — EdgeMove Safety Lab: disconnection and deadline-aware authority
+### Study FS-4 — EdgeMove Safety Lab: disconnection and deadline-aware authority
 
 **Research question:** What changes when an agent's destination is a low-power device with intermittent connectivity and time-bounded physical obligations?
 
