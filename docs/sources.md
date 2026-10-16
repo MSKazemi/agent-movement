@@ -31,6 +31,20 @@ This file indexes every external reference cited in the README and the core rese
 | Temporal child workflows | https://docs.temporal.io/child-workflows | Parent/child workflow composition | taxonomy |
 | AWS Durable Execution SDK: idempotency and retries | https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/ | At-least-once vs at-most-once per retry attempt; neither is end-to-end exactly-once by itself | questions [SRC-8] |
 
+## Distributed algorithms and formal foundations
+
+**Added to the research bibliography on 2026-10-16.** These are prior-art starting points for [the algorithmic foundations agenda](algorithms-and-cs-foundations.md), not evidence that this repository's implementation inherits the corresponding guarantees. Where only the publisher or author reference has been inspected, do not interpret the citation as a new empirical replication.
+
+| Topic | Primary source | Evidence scope | Cited in |
+|---|---|---|---|
+| Distributed snapshot (Chandy & Lamport, 1985) | https://doi.org/10.1145/214451.214456 | Consistent distributed global state under message delivery; not live private runtime export | algorithms-and-cs-foundations |
+| Asynchronous crash consensus limits (Fischer, Lynch & Paterson, 1985) | https://doi.org/10.1145/3149.214121 | Impossibility of deterministic guaranteed consensus termination in the fully asynchronous crash model | algorithms-and-cs-foundations |
+| Compensating workflows / sagas (Garcia-Molina & Salem, 1987) | https://doi.org/10.1145/38713.38742 | Compensating transactions and long-running workflows, not automatic reversal | algorithms-and-cs-foundations |
+| Partial synchrony consensus (Dwork, Lynch & Stockmeyer, 1988) | https://doi.org/10.1145/42282.42283 | Conditions under which distributed consensus progress may be established | algorithms-and-cs-foundations |
+| Linearizability (Herlihy & Wing, 1990) | https://doi.org/10.1145/78969.78972 | Correctness of atomic concurrent operations; relevant to ownership and effect gateways | algorithms-and-cs-foundations |
+| Idempotent API design (AWS Builders' Library, Featonby, 2021) | https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/ | Stable request identity, parameter mismatch and late retries | algorithms-and-cs-foundations |
+| TLA+ / TLC and Specifying Systems (Lamport, 2002) | https://lamport.azurewebsites.net/tla/book.html | Formal state-machine specification, fairness, model checking and proof assumptions | algorithms-and-cs-foundations |
+
 ## Packaging and scheduling
 
 | Topic | Primary source | Evidence scope | Cited in |
@@ -116,7 +130,7 @@ Related documents: [landscape](research-landscape.md), [questions](open-question
 
 Every external URL cited in the README and in `docs/`, grouped by the citing document. Corpus records and generated files are excluded; see `EXCLUDE_GLOBS` in [`tools/sources_index.py`](../tools/sources_index.py). *Cited in* lists every document that cites the URL. *Accessed* is the date stated next to the citation (basis `citation`), else in its section heading (`section`), else in the document header (`document`), else the default 2026-10-15 (`default`). A date stated in a document is the date the source was reviewed for that document. It is not a fresh link check. `make sources` fails when a cited URL is missing here.
 
-**Documents:** 35 · **Citations (document, URL):** 452 · **Unique URLs:** 270
+**Documents:** 36 · **Citations (document, URL):** 467 · **Unique URLs:** 282
 
 ### [README](../README.md)
 
@@ -130,9 +144,9 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://kubernetes.io/docs/concepts/workloads/controllers/job/> | README, protocols-and-networks/primary-sources, research-landscape, sources | 2026-10-16 | document |
 | <https://modelcontextprotocol.io/specification/2026-07-28> | README, 2031-frontier-research-agenda, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
 | <https://specs.opencontainers.org/image-spec/> | README, glossary, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker | 2026-10-16 | document |
-| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
+| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, device-and-hardware-binding, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
 | <https://www.openpolicyagent.org/docs> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker | 2026-10-16 | document |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
 
 ### [2031-frontier-research-agenda](2031-frontier-research-agenda.md)
 
@@ -181,10 +195,10 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://github.com/open-telemetry/semantic-conventions-genai> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | section |
 | <https://modelcontextprotocol.io/specification/2026-07-28> | README, 2031-frontier-research-agenda, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | section |
 | <https://modelcontextprotocol.io/specification/2026-07-28/server/tools> | agent-communication-and-policy, cross-agent-prompt-injection | 2026-10-16 | citation |
-| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | section |
+| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, device-and-hardware-binding, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | section |
 | <https://www.nist.gov/artificial-intelligence/ai-agent-standards-initiative> | agent-communication-and-policy | 2026-10-15 | section |
 | <https://www.openpolicyagent.org/docs> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker | 2026-10-15 | section |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | section |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | section |
 
 ### [agent-forensics-and-fingerprints](agent-forensics-and-fingerprints.md)
 
@@ -198,7 +212,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-agent-spans.md> | agent-forensics-and-fingerprints, sources | 2026-10-15 | section |
 | <https://opentelemetry.io/docs/specs/otel/trace/sdk/> | agent-forensics-and-fingerprints, sources | 2026-10-15 | section |
 | <https://spiffe.io/docs/latest/deploying/svids/> | agent-forensics-and-fingerprints, agent-lifecycle-liveness-and-death, glossary, movement-receipts, sources | 2026-10-15 | section |
-| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | section |
+| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, device-and-hardware-binding, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | section |
 | <https://www.rfc-editor.org/rfc/rfc8785.html> | agent-forensics-and-fingerprints, glossary, movement-receipts, sources | 2026-10-15 | section |
 | <https://www.w3.org/TR/baggage/> | agent-forensics-and-fingerprints, glossary, movement-receipts, sources | 2026-10-15 | section |
 | <https://www.w3.org/TR/trace-context/> | agent-forensics-and-fingerprints, glossary, how-it-works, movement-receipts, sources | 2026-10-15 | section |
@@ -225,7 +239,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/> | agent-movement-vs-copy-replication-multiplication, glossary, sources | 2026-10-15 | document |
 | <https://modelcontextprotocol.io/specification/2026-07-28> | README, 2031-frontier-research-agenda, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://spiffe.io/docs/latest/spiffe-specs/spiffe_workload_api/> | agent-movement-vs-copy-replication-multiplication, sources | 2026-10-15 | document |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 
 ### [checkpoint-relocation](checkpoint-relocation.md)
 
@@ -266,6 +280,19 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 |---|---|---|---|
 | <https://docs.astral.sh/ruff/> | development | 2026-10-16 | manual |
 | <https://mypy.readthedocs.io/> | development | 2026-10-16 | manual |
+
+### [device-and-hardware-binding](device-and-hardware-binding.md)
+
+| URL | Cited in | Accessed | Date basis |
+|---|---|---|---|
+| <https://csrc.nist.gov/pubs/sp/800/207/final> | device-and-hardware-binding | 2026-10-16 | document |
+| <https://developer.apple.com/documentation/security/protecting-keys-with-the-secure-enclave> | device-and-hardware-binding | 2026-10-16 | document |
+| <https://docs.aws.amazon.com/enclaves/latest/user/kms.html> | device-and-hardware-binding | 2026-10-16 | document |
+| <https://learn.microsoft.com/en-us/windows/security/hardware-security/tpm/trusted-platform-module-overview> | device-and-hardware-binding | 2026-10-16 | document |
+| <https://source.android.com/docs/security/features/keystore/attestation> | device-and-hardware-binding | 2026-10-16 | document |
+| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, device-and-hardware-binding, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
+| <https://www.rfc-editor.org/rfc/rfc9334.html> | device-and-hardware-binding | 2026-10-16 | document |
 
 ### [device-compatibility-and-capability-matrix](device-compatibility-and-capability-matrix.md)
 
@@ -345,7 +372,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://docs.langchain.com/oss/python/langgraph/persistence> | README, agent-movement-vs-copy-replication-multiplication, checkpoint-relocation, glossary, local-implementation, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker, strategic-target-and-scientific-agenda | 2026-10-16 | document |
 | <https://docs.temporal.io/workflow-execution> | README, glossary, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker, strategic-target-and-scientific-agenda | 2026-10-16 | document |
 | <https://doi.org/10.1109/32.685258> | glossary | 2026-10-16 | document |
-| <https://doi.org/10.1145/38713.38742> | glossary | 2026-10-16 | document |
+| <https://doi.org/10.1145/38713.38742> | glossary, sources | 2026-10-16 | document |
 | <https://doi.org/10.1145/74850.74870> | glossary | 2026-10-16 | document |
 | <https://genai.owasp.org/llmrisk/llm01-prompt-injection/> | cross-agent-prompt-injection, glossary | 2026-10-16 | document |
 | <https://github.com/OpenLineage/OpenLineage/blob/main/spec/OpenLineage.md> | agent-forensics-and-fingerprints, glossary, sources | 2026-10-16 | document |
@@ -363,10 +390,10 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://specs.opencontainers.org/image-spec/> | README, glossary, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker | 2026-10-16 | document |
 | <https://spiffe.io/docs/latest/deploying/svids/> | agent-forensics-and-fingerprints, agent-lifecycle-liveness-and-death, glossary, movement-receipts, sources | 2026-10-16 | document |
 | <https://spiffe.io/docs/latest/spiffe-about/spiffe-concepts/> | glossary | 2026-10-16 | document |
-| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
+| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, device-and-hardware-binding, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
 | <https://webmachinelearning.github.io/webmcp/> | glossary, research-landscape, standards-tracker | 2026-10-16 | document |
 | <https://www.openpolicyagent.org/docs> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker | 2026-10-16 | document |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
 | <https://www.rfc-editor.org/rfc/rfc8785.html> | agent-forensics-and-fingerprints, glossary, movement-receipts, sources | 2026-10-16 | document |
 | <https://www.rfc-editor.org/rfc/rfc9110.html> | glossary | 2026-10-16 | document |
 | <https://www.w3.org/TR/baggage/> | agent-forensics-and-fingerprints, glossary, movement-receipts, sources | 2026-10-16 | document |
@@ -428,7 +455,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://doi.org/10.1145/3786335.3813130> | 2031-frontier-research-agenda, mobilitybench-experiment-protocol, open-questions, sources, strategic-target-and-scientific-agenda | 2026-10-15 | document |
 | <https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/> | agent-communication-and-policy, human-impact-research-lab, mobilitybench-experiment-protocol, security-and-trust, strategic-target-and-scientific-agenda, top-20-human-impact-questions-for-agentic-ai | 2026-10-15 | document |
 | <https://modelcontextprotocol.io/specification/2026-07-28> | README, 2031-frontier-research-agenda, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 
 ### [movement-receipts](movement-receipts.md)
 
@@ -462,7 +489,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 
 | URL | Cited in | Accessed | Date basis |
 |---|---|---|---|
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
 | <https://www.rfc-editor.org/rfc/rfc9180> | peer-authentication | 2026-10-15 | default |
 | <https://www.rfc-editor.org/rfc/rfc9266> | peer-authentication | 2026-10-15 | default |
 | <https://www.rfc-editor.org/rfc/rfc9458> | peer-authentication | 2026-10-15 | default |
@@ -503,7 +530,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://opcfoundation.org/about/opc-technologies/opc-ua/> | protocols-and-networks/primary-sources | 2026-10-15 | document |
 | <https://registry.npmjs.org/@ag-ui/core> | protocols-and-networks/primary-sources, protocols-and-networks/protocol-catalog, standards-tracker | 2026-10-16 | citation |
 | <https://specs.opencontainers.org/image-spec/> | README, glossary, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker | 2026-10-15 | document |
-| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
+| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, device-and-hardware-binding, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://www.bluetooth.com/learn-about-bluetooth/tech-overview/> | protocols-and-networks/primary-sources | 2026-10-15 | document |
 | <https://www.openpolicyagent.org/docs> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker | 2026-10-15 | document |
 | <https://www.rfc-editor.org/rfc/rfc6455> | protocols-and-networks/primary-sources | 2026-10-15 | document |
@@ -513,7 +540,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://www.rfc-editor.org/rfc/rfc8445> | protocols-and-networks/primary-sources | 2026-10-15 | document |
 | <https://www.rfc-editor.org/rfc/rfc8446> | protocols-and-networks/primary-sources | 2026-10-15 | document |
 | <https://www.rfc-editor.org/rfc/rfc8656> | protocols-and-networks/primary-sources | 2026-10-15 | document |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://www.rfc-editor.org/rfc/rfc8705> | protocols-and-networks/primary-sources | 2026-10-15 | document |
 | <https://www.rfc-editor.org/rfc/rfc8831> | protocols-and-networks/primary-sources | 2026-10-15 | document |
 | <https://www.rfc-editor.org/rfc/rfc9000> | protocols-and-networks/primary-sources | 2026-10-15 | document |
@@ -558,10 +585,10 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview> | glossary, research-landscape | 2026-10-16 | section |
 | <https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool> | research-landscape | 2026-10-16 | section |
 | <https://specs.opencontainers.org/image-spec/> | README, glossary, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker | 2026-10-15 | document |
-| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
+| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, device-and-hardware-binding, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://webmachinelearning.github.io/webmcp/> | glossary, research-landscape, standards-tracker | 2026-10-16 | section |
 | <https://www.openpolicyagent.org/docs> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker | 2026-10-15 | document |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://www.w3.org/TR/webdriver-bidi/> | glossary, research-landscape, standards-tracker | 2026-10-16 | section |
 
 ### [security-and-trust](security-and-trust.md)
@@ -574,9 +601,9 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/> | agent-communication-and-policy, human-impact-research-lab, mobilitybench-experiment-protocol, security-and-trust, strategic-target-and-scientific-agenda, top-20-human-impact-questions-for-agentic-ai | 2026-10-16 | citation |
 | <https://github.com/open-telemetry/semantic-conventions-genai> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
 | <https://modelcontextprotocol.io/specification/2026-07-28> | README, 2031-frontier-research-agenda, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
-| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
+| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, device-and-hardware-binding, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
 | <https://www.openpolicyagent.org/docs> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker | 2026-10-15 | default |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
 
 ### [sources](sources.md)
 
@@ -585,6 +612,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://a2a-protocol.org/v1.0.0/specification/> | README, 2031-frontier-research-agenda, a2a-adapter, agent-forensics-and-fingerprints, agent-lifecycle-liveness-and-death, agent-movement-vs-copy-replication-multiplication, cross-agent-prompt-injection, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, local-implementation, mobilitybench-experiment-protocol, open-questions, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda | 2026-10-15 | document |
 | <https://arxiv.org/abs/2510.04173> | glossary, open-questions, sources | 2026-10-15 | document |
 | <https://arxiv.org/abs/2608.21208> | open-questions, sources, strategic-target-and-scientific-agenda | 2026-10-15 | document |
+| <https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/> | sources | 2026-10-16 | manual |
 | <https://blog.modelcontextprotocol.io/posts/2026-07-28/> | language-and-sdk-strategy, open-questions, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://csrc.nist.gov/pubs/sp/800/86/final> | agent-forensics-and-fingerprints, glossary, movement-receipts, sources | 2026-10-15 | document |
 | <https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/> | glossary, open-questions, sources | 2026-10-15 | document |
@@ -593,7 +621,12 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://docs.temporal.io/child-workflows> | agent-movement-vs-copy-replication-multiplication, sources | 2026-10-15 | document |
 | <https://docs.temporal.io/workflow-execution> | README, glossary, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker, strategic-target-and-scientific-agenda | 2026-10-15 | document |
 | <https://docs.temporal.io/workflows> | agent-movement-vs-copy-replication-multiplication, sources | 2026-10-15 | document |
+| <https://doi.org/10.1145/214451.214456> | sources | 2026-10-16 | manual |
+| <https://doi.org/10.1145/3149.214121> | sources | 2026-10-16 | manual |
 | <https://doi.org/10.1145/3786335.3813130> | 2031-frontier-research-agenda, mobilitybench-experiment-protocol, open-questions, sources, strategic-target-and-scientific-agenda | 2026-10-15 | document |
+| <https://doi.org/10.1145/38713.38742> | glossary, sources | 2026-10-16 | manual |
+| <https://doi.org/10.1145/42282.42283> | sources | 2026-10-16 | manual |
+| <https://doi.org/10.1145/78969.78972> | sources | 2026-10-16 | manual |
 | <https://github.com/OpenLineage/OpenLineage/blob/main/spec/OpenLineage.md> | agent-forensics-and-fingerprints, glossary, sources | 2026-10-15 | document |
 | <https://github.com/ag-ui-protocol/ag-ui> | README, glossary, protocols-and-networks/primary-sources, research-landscape, sources | 2026-10-15 | document |
 | <https://github.com/in-toto/attestation> | agent-forensics-and-fingerprints, glossary, movement-receipts, sources | 2026-10-15 | document |
@@ -602,14 +635,15 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/> | agent-movement-vs-copy-replication-multiplication, glossary, sources | 2026-10-15 | document |
 | <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/> | agent-movement-vs-copy-replication-multiplication, glossary, sources | 2026-10-15 | document |
 | <https://kubernetes.io/docs/concepts/workloads/controllers/job/> | README, protocols-and-networks/primary-sources, research-landscape, sources | 2026-10-15 | document |
+| <https://lamport.azurewebsites.net/tla/book.html> | sources | 2026-10-16 | manual |
 | <https://modelcontextprotocol.io/specification/2026-07-28> | README, 2031-frontier-research-agenda, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://opentelemetry.io/docs/specs/otel/trace/sdk/> | agent-forensics-and-fingerprints, sources | 2026-10-15 | document |
 | <https://specs.opencontainers.org/image-spec/> | README, glossary, protocols-and-networks/primary-sources, research-landscape, sources, standards-tracker | 2026-10-15 | document |
 | <https://spiffe.io/docs/latest/deploying/svids/> | agent-forensics-and-fingerprints, agent-lifecycle-liveness-and-death, glossary, movement-receipts, sources | 2026-10-15 | document |
 | <https://spiffe.io/docs/latest/spiffe-specs/spiffe_workload_api/> | agent-movement-vs-copy-replication-multiplication, sources | 2026-10-15 | document |
-| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
+| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, device-and-hardware-binding, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://www.openpolicyagent.org/docs> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker | 2026-10-15 | document |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://www.rfc-editor.org/rfc/rfc8785.html> | agent-forensics-and-fingerprints, glossary, movement-receipts, sources | 2026-10-15 | document |
 | <https://www.w3.org/TR/baggage/> | agent-forensics-and-fingerprints, glossary, movement-receipts, sources | 2026-10-15 | document |
 | <https://www.w3.org/TR/trace-context/> | agent-forensics-and-fingerprints, glossary, how-it-works, movement-receipts, sources | 2026-10-15 | document |
@@ -682,7 +716,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://webmachinelearning.github.io/webmcp/> | glossary, research-landscape, standards-tracker | 2026-10-16 | document |
 | <https://www.linuxfoundation.org/press/linux-foundation-announces-the-formation-of-the-agentic-ai-foundation> | standards-tracker | 2026-10-16 | document |
 | <https://www.openpolicyagent.org/docs> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker | 2026-10-16 | document |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-16 | document |
 | <https://www.w3.org/TR/did-1.1/> | standards-tracker | 2026-10-16 | document |
 | <https://www.w3.org/TR/did-core/> | standards-tracker | 2026-10-16 | document |
 | <https://www.w3.org/TR/vc-data-model-2.0/> | standards-tracker | 2026-10-16 | document |
@@ -705,9 +739,9 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://github.com/open-telemetry/semantic-conventions-genai> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
 | <https://github.com/oracle/agent-spec> | strategic-target-and-scientific-agenda | 2026-10-15 | default |
 | <https://modelcontextprotocol.io/specification/2026-07-28> | README, 2031-frontier-research-agenda, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
-| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
+| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, device-and-hardware-binding, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
 | <https://www.nist.gov/news-events/news/2026/02/announcing-ai-agent-standards-initiative-interoperable-and-secure> | human-impact-research-lab, strategic-target-and-scientific-agenda, top-20-human-impact-questions-for-agentic-ai | 2026-10-15 | default |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | default |
 
 ### [top-20-human-impact-questions-for-agentic-ai](top-20-human-impact-questions-for-agentic-ai.md)
 
@@ -742,7 +776,7 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 | <https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/> | unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://github.com/open-telemetry/semantic-conventions-genai> | README, agent-communication-and-policy, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 | <https://modelcontextprotocol.io/specification/2026-07-28> | README, 2031-frontier-research-agenda, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-compatibility-and-capability-matrix, glossary, human-impact-research-lab, mobilitybench-experiment-protocol, open-questions, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
-| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
-| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
+| <https://spiffe.io/docs/latest/spire-about/spire-concepts/> | README, agent-communication-and-policy, agent-forensics-and-fingerprints, device-and-hardware-binding, glossary, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
+| <https://www.rfc-editor.org/rfc/rfc8693> | README, agent-communication-and-policy, agent-movement-vs-copy-replication-multiplication, device-and-hardware-binding, glossary, mobilitybench-experiment-protocol, peer-authentication, protocols-and-networks/primary-sources, research-landscape, security-and-trust, sources, standards-tracker, strategic-target-and-scientific-agenda, unnoticed-and-unauthorized-agent-movement | 2026-10-15 | document |
 
 <!-- sources-index:end -->
