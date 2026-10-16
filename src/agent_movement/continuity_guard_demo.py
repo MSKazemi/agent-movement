@@ -66,9 +66,11 @@ def cases() -> list[tuple[str, bool, Proposal, Policy, ObservedFacts, int]]:
 
 
 def run() -> dict[str, object]:
-    results = []
+    results: list[dict[str, object]] = []
+    matched = 0
     for case_id, expected_allowed, proposal, policy, facts, now in cases():
         decision = evaluate(proposal, policy, facts, now=now)
+        matched += int(decision.allowed == expected_allowed)
         results.append({"case": case_id, "expected_allowed": expected_allowed,
                         "allowed": decision.allowed, "reasons": list(decision.reasons),
                         "matched_oracle": decision.allowed == expected_allowed})
@@ -77,8 +79,8 @@ def run() -> dict[str, object]:
         "scope": "deterministic_synthetic_decisions_only",
         "not_claimed": "runtime_enforcement_or_real_world_security",
         "cases": len(results),
-        "matched": sum(int(result["matched_oracle"]) for result in results),
-        "unexpected": sum(int(not result["matched_oracle"]) for result in results),
+        "matched": matched,
+        "unexpected": len(results) - matched,
         "results": results,
     }
 
