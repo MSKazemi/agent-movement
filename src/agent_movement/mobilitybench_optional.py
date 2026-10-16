@@ -1,4 +1,4 @@
-"""MobilityBench v0.1 baselines that need an optional extra (deterministic, LLM-free).
+"""MobilityBench v0.1/v0.2 baselines that need an optional extra (deterministic, LLM-free).
 
 * ``a2a_delegate`` (B2, extra ``a2a``): the B2-local shape, but every pure step
   crosses the official A2A v1 SDK. The issue #7 destination worker
@@ -10,6 +10,9 @@
   movement point the issue #9 ``Coordinator`` moves the ownership epoch to the
   destination, which verifies the exported checkpoint and resumes from it with the
   same effect IDs. A pre-empted origin is relocated by failover from the durable head.
+  Under the v0.2 mid-step crashes, a crashed origin is relocated by failover from its
+  last durable checkpoint and a crashed destination resumes from its own; either way
+  the interrupted step runs again under the same effect ID, which the gateway dedups.
 
 ``mobilitybench_v01`` reports a mode as ``unavailable`` when its extra is missing, so
 these runners are only called when their imports can succeed. Each runner imports
@@ -27,10 +30,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterator, TypedDict
 
-from .core import Conflict, ContractError, PolicyDenied, SQLiteStore, canonical
-from .mobilitybench_v01 import (TRANSFERABLE, AgentState, Attempt, Outcome, Pure, check_receipts,
+from .core import Conflict, ContractError, PolicyDenied, SQLiteStore
+from .mobilitybench_v01 import (TRANSFERABLE, AgentState, Attempt, Outcome, Pure, SimulatedCrash,
                                 delegate_tail, delegation_approvals, delegation_envelope,
-                                stale_origin_retry)
+                                deliver_with_receipts, stale_origin_retry)
 
 # --------------------------------------------------------------------------- B2: A2A v1 delegate
 
@@ -90,15 +93,12 @@ def _a2a_remote(att: Attempt) -> Iterator[Pure]:
             envelope = delegation_envelope(att, step, kind, text)
             # The A2A-bound projection is validated client-side before anything is sent.
             mapped = envelope_to_a2a(envelope)
-            copies = att.send({"metadata": mapped["metadata"], "data": mapped["data"]})
-            receipts = []
-            for _ in range(copies):
-                receipt = a2a_receipt(runner.run(delegate(base_url, envelope, binding="JSONRPC",
-                                                          streaming=False)))
-                att.metrics["transfer_bytes"] += len(canonical(receipt).encode("utf-8"))
-                att.metrics["transfer_messages"] += 1
-                receipts.append(receipt)
-            return check_receipts(att, envelope, receipts)
+            # Each copy (and each retry after a lost receipt) is a new A2A task; the
+            # receiver answers a repeat with the replayed receipt.
+            return deliver_with_receipts(
+                att, {"metadata": mapped["metadata"], "data": mapped["data"]},
+                lambda: a2a_receipt(runner.run(delegate(base_url, envelope, binding="JSONRPC", streaming=False))),
+                verify_against=envelope)
 
         yield remote
 
@@ -282,24 +282,39 @@ def run_checkpoint_relocate(att: Attempt) -> Outcome:
     relocation.init_store(path)
     epoch = att.gateway.claim(att.gw_task, "agent-a")
     initial = plan_channels(AgentState("agent-a", att.task, epoch), 0)
+    crashed = False
     with plan_runtime(att, path, "agent-a", epoch) as origin_runtime:
-        origin_runtime.advance(task_input=initial, limit=att.m)
+        try:
+            origin_runtime.advance(task_input=initial, limit=att.m)
+        except SimulatedCrash:  # v0.2: the origin died inside a step; its head is the last boundary
+            crashed = True
         origin = restore_state(att.task, "agent-a", epoch, origin_runtime.values())
     if att.task["classification"] not in TRANSFERABLE:
         return origin, "refused", "classification_not_transferable"
     mode = "cooperative"
-    if att.fault == "origin_preempted":
-        att.fault_applied = True  # the origin is gone: the coordinator fails over from the durable head
-        mode = "failover"
+    if att.fault == "origin_preempted" or crashed:
+        if att.fault == "origin_preempted":
+            att.fault_applied = True
+        mode = "failover"  # the origin is gone: the coordinator fails over from the durable head
     movement_id = f"{att.gw_task}.relocate"
     with plan_runtime(att, path) as view:  # read-only export of the head checkpoint
         manifest = view.manifest(movement_id, "agent-a", epoch, "agent-b", mode)
         exported = view.values()
     coordinator = relocation.Coordinator(path)
-    # Message 1: manifest + checkpoint state (in a cross-host deployment the state bytes travel too).
-    for _ in range(att.send({"manifest": manifest, "state": exported})):
+
+    def request() -> None:
         if coordinator.request(manifest)["replayed"]:  # idempotent by movement ID
             att.metrics["duplicate_deliveries_suppressed"] += 1
+
+    # Message 1: manifest + checkpoint state (in a cross-host deployment the state bytes travel too).
+    message = {"manifest": manifest, "state": exported}
+    copies = att.send(message)
+    late = att.take_late()
+    for _ in range(copies - late):
+        request()
+        if att.reply_lost():  # the origin never learns the request was recorded: it re-sends
+            att.resend(message)
+            request()
     grant = coordinator.transfer(movement_id, receiver_profile())
     if grant["status"] != "transferred":
         return origin, "refused", "incompatible_checkpoint"
@@ -314,9 +329,18 @@ def run_checkpoint_relocate(att: Attempt) -> Outcome:
                 att.metrics["duplicate_deliveries_suppressed"] += 1
     except relocation.Incompatible:
         return origin, "refused", "incompatible_checkpoint"
-    with plan_runtime(att, path, "agent-b", grant["to_epoch"]) as destination:
-        destination.advance()
-        values = destination.values()
+    for _ in range(late):  # the held original arrives after the destination accepted the grant
+        request()
+    for run in (1, 2):
+        with plan_runtime(att, path, "agent-b", grant["to_epoch"]) as destination:
+            try:
+                destination.advance()
+            except SimulatedCrash:
+                if run == 2:
+                    raise RuntimeError("a scheduled crash fired twice") from None
+                continue  # v0.2: the destination process restarts from its own durable head
+            values = destination.values()
+            break
     if values["cursor"] != len(att.plan):
         raise RuntimeError("destination did not finish the plan")
     return restore_state(att.task, "agent-b", grant["to_epoch"], values), "completed", None

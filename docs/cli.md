@@ -71,7 +71,7 @@ positional arguments:
     a2a-demo   A2A v1 delegation demo on the official a2a-sdk
     peer-demo  authenticated peer handoff (HS256; --alg Ed25519 and --delivery hpke need extras)
     relocate   same-runtime LangGraph checkpoint relocation and fault matrix
-    bench      MobilityBench v0.1: verify | run | schedule | report; 'bench smoke' = legacy
+    bench      MobilityBench v0.1/v0.2: verify | run | schedule | report; 'bench smoke' = legacy
                20-case smoke
     receipts   offline verifier for signed movement receipts: verify | timeline | make-fixtures
     purge      delete store rows older than a retention period; keeps fencing and in-flight rows
@@ -268,7 +268,8 @@ options:
 ```text
 usage: python -m agent_movement.mobilitybench [-h] {verify,run,schedule,report} ...
 
-MobilityBench v0.1 (deterministic, LLM-free, synthetic).
+MobilityBench v0.1 and v0.2 (deterministic, LLM-free, synthetic). v0.2 adds mid-step crashes,
+partitions and the restart_stable_ids baseline.
 
 positional arguments:
   {verify,run,schedule,report}
@@ -284,24 +285,25 @@ options:
 ### `agent-movement bench verify`
 
 ```text
-usage: python -m agent_movement.mobilitybench verify [-h] [--suite {v0.1}] [--fixtures FIXTURES]
+usage: python -m agent_movement.mobilitybench verify [-h] [--suite {v0.1,v0.2}]
+                                                     [--fixtures FIXTURES]
 
 options:
   -h, --help           show this help message and exit
-  --suite {v0.1}
+  --suite {v0.1,v0.2}  frozen suite release (default: v0.1)
   --fixtures FIXTURES  fixture directory (default: packaged release)
 ```
 
 ### `agent-movement bench run`
 
 ```text
-usage: python -m agent_movement.mobilitybench run [-h] [--suite {v0.1}] [--fixtures FIXTURES]
+usage: python -m agent_movement.mobilitybench run [-h] [--suite {v0.1,v0.2}] [--fixtures FIXTURES]
                                                   [--subset {full,smoke}] [--seeds SEEDS]
                                                   [--repeats REPEATS] --out OUT [--no-timing]
 
 options:
   -h, --help            show this help message and exit
-  --suite {v0.1}
+  --suite {v0.1,v0.2}   frozen suite release (default: v0.1)
   --fixtures FIXTURES   fixture directory (default: packaged release)
   --subset {full,smoke}
   --seeds SEEDS         comma-separated override of the seed manifest
@@ -313,12 +315,13 @@ options:
 ### `agent-movement bench schedule`
 
 ```text
-usage: python -m agent_movement.mobilitybench schedule [-h] [--suite {v0.1}] [--fixtures FIXTURES]
+usage: python -m agent_movement.mobilitybench schedule [-h] [--suite {v0.1,v0.2}]
+                                                       [--fixtures FIXTURES]
                                                        [--subset {full,smoke}] [--seeds SEEDS]
 
 options:
   -h, --help            show this help message and exit
-  --suite {v0.1}
+  --suite {v0.1,v0.2}   frozen suite release (default: v0.1)
   --fixtures FIXTURES   fixture directory (default: packaged release)
   --subset {full,smoke}
   --seeds SEEDS         comma-separated override of the seed manifest
