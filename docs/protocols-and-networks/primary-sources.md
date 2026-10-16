@@ -8,7 +8,7 @@
 - [A2A source repository](https://github.com/a2aproject/A2A) — implementations and design notes.
 - [MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) — tool and context interoperability.
 - [MCP transport section](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) — stdio and Streamable HTTP; protocol revisions change details.
-- [AG-UI repository](https://github.com/ag-ui-protocol/ag-ui) — frontend/agent event interchange.
+- [AG-UI repository](https://github.com/ag-ui-protocol/ag-ui) — frontend/agent event interchange. SDK line `@ag-ui/core` 1.0.x: 1.0.0 published 2026-09-17, `dist-tags.latest` 1.0.2 published 2026-10-05 ([npm registry](https://registry.npmjs.org/@ag-ui/core), checked 2026-10-16). The repository uses date-tagged GitHub releases rather than version tags; [release/2026-09-17](https://github.com/ag-ui-protocol/ag-ui/releases/tag/release/2026-09-17) lists `@ag-ui/core` 1.0.0. These are package versions; no separately versioned AG-UI protocol specification was found.
 - [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence) — framework-scoped checkpoint facilities.
 - [Temporal workflow execution](https://docs.temporal.io/workflow-execution) — durable workflow execution and recovery semantics.
 

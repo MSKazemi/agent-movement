@@ -8,7 +8,7 @@
 - **Remote use (R):** Origin stays in place and requests an approved capability from a device or gateway. This is *not movement*.
 - **Partial deployment (P):** Install a narrowly scoped tool proxy, perception module, policy filter, planner or inference service; it has its own lifecycle.
 - **Definition copy (C):** Deploy compatible code/configuration to another host and create a **different instance identity**; memory and credentials do not automatically transfer.
-- **Task relocation (M):** Save an application-level, approved checkpoint; fence old executor; resume same logical task on compatible destination with a new runtime execution ID. Requires a durable lease/reconciliation protocol.
+- **Checkpoint relocation (M):** Save an application-level, approved checkpoint; fence old executor; resume same logical task on compatible destination with a new runtime execution ID. Requires a durable lease/reconciliation protocol.
 - **Live migration (L):** Move volatile OS/process execution with minimal interruption. Specialized environment-dependent technique, not generally portable between heterogeneous agent systems.
 - **Robot arm/part transfer:** Move **software controlling an end effector, skill, or perception module** or send commands to a robot. Hardware doesn't teleport. Embedded real-time safety controller retains authority. A modular robot may physically dock a tool, but that is a separate mechanical process.
 
@@ -49,7 +49,7 @@ Never reduce device support to a single yes/no boolean. Record:
 2. **Compute:** ISA (x86-64, ARM64, ARMv7, RISC-V, MCU), CPU/NPU/GPU, RAM, flash/storage, power envelope, OS/ABI.
 3. **State:** stateless request, resumable task context, compatible app checkpoint, source-of-truth external state, mutable artifacts, ephemeral tool state.
 4. **Connectivity:** local IPC, authenticated internet, LAN/VPN, intermittent, offline signed transfer; time and bandwidth.
-5. **Authority/safety:** ownership consent, workload identity, signing/attestation, action allowlists, human approval, safety-critical separation, revocation.
+5. **Authority/safety:** ownership consent, workload identity, artifact signing and attestation (workload, supply-chain or hardware), action allowlists, human approval, safety-critical separation, revocation.
 6. **Observability/assurance:** platform test status, audit trace, fencing, retry reconciliation, resource budgets, physical fail-safe, rollback.
 
 ### Recommended device declaration
@@ -77,9 +77,9 @@ This is illustrative schema content, not an implemented discovery standard; adve
 | Component | Typical host | Portability requirement | Caution |
 |---|---|---|---|
 | Prompt/config/role definition | Almost any agent-capable host | Versioned specification; destination model capability | Copy is a *new instance*, not continued identity |
-| Task intent/plan | Any receiver with interpretable schema | Sanitized task envelope, authorization | Delegation rather than full movement |
+| Task intent/plan | Any receiver with interpretable schema | Sanitized task envelope, authorization | Delegation, not a move |
 | Approved conversation summary/memory | Host with storage and permission | Explicit data classification, export permissions, lineage | No implicit copying of private transcripts or secrets |
-| Workflow checkpoint | Compatible process/runtime | Versioned serializable state, durable store, fence token | External actions require reconciliation |
+| Workflow checkpoint | Compatible process/runtime | Versioned serializable state, durable store, fencing epoch | External actions require reconciliation |
 | Retrieval index/knowledge subset | Sufficient disk/RAM | Format, license, provenance, retention | Access-control and data residency |
 | Tool adapter (MCP, SDK) | OS/app or device gateway | Supported protocol and API | Tool availability differs from actual authority |
 | Vision/speech/inference model | GPU/NPU/CPU device with capacity | Model size, quantization, licenses, driver | Local processing only if resources permit |
@@ -105,7 +105,7 @@ This is illustrative schema content, not an implemented discovery standard; adve
 | Priority | Target | Demonstration | Pass criteria |
 |---|---|---|---|
 | P0 | Two Linux containers/VMs | C and same-runtime M of synthetic task | Independent IDs on copy; exactly one fenced task owner on move; restart + replay tests |
-| P0 | Linux laptop ↔ cloud VM | R, C and app checkpoint handoff | Correct permissions, integrity, revocation and recovery |
+| P0 | Linux laptop ↔ cloud VM | R, C and app checkpoint relocation | Correct permissions, integrity, revocation and recovery |
 | P1 | Raspberry Pi 64-bit ↔ Linux x86 cloud | Multi-arch C and protocol handoff | Correct per-arch artifacts, explicit checkpoint compatibility |
 | P1 | Android + iOS companion app | R and scoped P | No unsupported background assumptions; user-visible consent |
 | P1 | Raspberry Pi/Jetson ↔ simulated robot arm | M of **high-level planning task** and P of skill | Simulated hard safety boundary, E-stop, actuator veto; no direct unsafe motor commands |
