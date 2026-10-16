@@ -72,6 +72,7 @@ class GuardedAuthority:
                     task_id TEXT PRIMARY KEY,
                     movement_id TEXT NOT NULL UNIQUE,
                     origin_id TEXT NOT NULL,
+                    origin_epoch INTEGER NOT NULL,
                     destination_id TEXT NOT NULL,
                     kind TEXT NOT NULL,
                     classification TEXT NOT NULL,
@@ -121,7 +122,7 @@ class GuardedAuthority:
 
     @staticmethod
     def _row(db: sqlite3.Connection, task_id: str) -> dict[str, Any]:
-        names = ("task_id", "movement_id", "origin_id", "destination_id", "kind",
+        names = ("task_id", "movement_id", "origin_id", "origin_epoch", "destination_id", "kind",
                  "classification", "grant_json", "policy_epoch", "status",
                  "budget_limit", "budget_used", "cancelled", "unknown_effect")
         r = db.execute(
@@ -173,18 +174,19 @@ class GuardedAuthority:
                 raise PolicyDenied("existing effects require separate reconciliation")
             row = {
                 "task_id": p["task_id"], "movement_id": p["movement_id"],
-                "origin_id": p["origin_id"], "destination_id": p["destination_id"],
+                "origin_id": p["origin_id"], "origin_epoch": p["expected_epoch"],
+                "destination_id": p["destination_id"],
                 "kind": p["kind"], "classification": p["classification"],
                 "grant_json": canonical(signed_grant), "policy_epoch": p["policy_epoch"],
                 "cancelled": 0, "unknown_effect": 0,
             }
             self._check(db, row, self._now())
             db.execute(
-                "INSERT INTO guarded_tasks (task_id,movement_id,origin_id,destination_id,"
+                "INSERT INTO guarded_tasks (task_id,movement_id,origin_id,origin_epoch,destination_id,"
                 "kind,classification,grant_json,policy_epoch,status,budget_limit,budget_used)"
-                " VALUES(?,?,?,?,?,?,?,?,?,?,0)",
-                (p["task_id"], p["movement_id"], p["origin_id"], p["destination_id"],
-                 p["kind"], p["classification"], canonical(signed_grant),
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?,0)",
+                (p["task_id"], p["movement_id"], p["origin_id"], p["expected_epoch"],
+                 p["destination_id"], p["kind"], p["classification"], canonical(signed_grant),
                  p["policy_epoch"], "prepared", self.budget_limit),
             )
             db.commit()
@@ -199,9 +201,9 @@ class GuardedAuthority:
                 raise Conflict("unexpected guarded movement or phase")
             self._check(db, row, self._now())
             owner = db.execute("SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)).fetchone()
-            if owner is None or owner[0] != row["origin_id"]:
-                raise Conflict("source no longer owns task")
-            next_epoch = owner[1] + 1
+            if owner != (row["origin_id"], row["origin_epoch"]):
+                raise Conflict("source owner/epoch changed since signed intent")
+            next_epoch = row["origin_epoch"] + 1
             modified = db.execute(
                 "UPDATE owners SET agent_id=?,epoch=? WHERE task_id=? AND agent_id=? AND epoch=?",
                 (row["destination_id"], next_epoch, task_id, owner[0], owner[1]),
