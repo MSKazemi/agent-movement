@@ -1,9 +1,9 @@
 # As-built architecture of the `agent_movement` package
 
 **Status:** Describes the code as it is, not as it is planned. The package is a research-stage set of **synthetic, local prototypes**, not production software.
-**Last verified against commit `326e65e`** (2026-10-16). Every module, class, function, command, table and column named here was checked against that commit with `grep` or by importing it, and every demo was run (see the [development guide](development.md#the-agent_movement-package) for the commands and their exit codes). If the code has changed since then, the code is authoritative.
+**Last verified against commit `dac5f62`** (2026-10-16). Every module, class, function, command, table and column named here was checked against that commit with `grep` or by importing it, and every demo was run (see the [development guide](development.md#the-agent_movement-package) for the commands and their exit codes). If the code has changed since then, the code is authoritative.
 
-> **Snapshot notice.** `src/` keeps changing under the follow-up issues #18–#42. This document describes `326e65e` only. It was first written against `b21da27` and refreshed after the work on issues #18–#22, #29–#32, #39, #41 and #43 landed. Check `git log -- src/agent_movement` for later changes before relying on a detail.
+> **Snapshot notice.** `src/` keeps changing under the follow-up issues #18–#42. This document describes `dac5f62` only. It was first written against `b21da27` and refreshed after the work on issues #18–#22, #29–#32, #38, #39, #41 and #43 landed. Check `git log -- src/agent_movement` for later changes before relying on a detail.
 
 For the reasons behind each slice, see the topic documents: [local implementation](local-implementation.md), [data retention](data-retention.md), [A2A adapter](a2a-adapter.md) and its [profile extension spec](a2a-profile-extension.md), [peer authentication](peer-authentication.md), [checkpoint relocation](checkpoint-relocation.md), [movement receipts](movement-receipts.md) and [MobilityBench v0.1](mobilitybench-v0.1.md). Every command is listed in the [CLI reference](cli.md). For setup, tests and CI, see the [development guide](development.md#the-agent_movement-package).
 
@@ -31,9 +31,9 @@ Every experiment is reachable through the `agent-movement` console script (`[pro
 |---|---|---|---|
 | `__init__.py` | core | none | Re-exports `Approval`, `Conflict`, `ContractError`, `EffectGateway`, `HandoffReceiver`, `PolicyDenied` and `SQLiteStore`. |
 | `cli.py`, `__main__.py` | core | `agent-movement <command>`, `python -m agent_movement` | Subcommands `demo`, `a2a-demo`, `peer-demo`, `relocate`, `bench` (with the added `smoke`), `receipts`, `purge` and the built-in `version`. A missing extra (`EXTRAS`, `required_extras`) gives an install hint and exit 2 (`MISSING_EXTRA_EXIT`). |
-| `core.py` | core | none | `SCHEMA_VERSION = "0.1.0-draft"` (envelope) and `STORE_SCHEMA_VERSION = 2` (store layout, `StoreSchemaError`). `SQLiteStore.keyed_digest` and `fingerprint` (keyed commitments), `build_receipt`, `RECEIPT_CONTENT_FIELDS`. `parse_json` (strict: rejects duplicate keys and NaN, 16 KiB limit), `canonical`, `digest`, `validate_envelope`. `Approval`, `SQLiteStore`, `HandoffReceiver`, `EffectGateway`. Exceptions: `ContractError`, `PolicyDenied`, `Conflict`. |
-| `http.py` | core (`--receipts-log` needs `signing`) | `python -m agent_movement.http --db PATH [--port 0] [--receipts-log FILE]` | `LocalServer` (a `ThreadingHTTPServer`) and `make_server`. Routes: `GET /health` and `POST /v0/handoffs`. Errors map to 400, 403, 409, 413, 415 and 500. |
-| `demo.py` | core (`--receipts` needs `signing`) | `agent-movement demo [--receipts OUTDIR]` | Starts `agent_movement.http` as a child process, then sends a handoff, an exact replay and an unapproved request. Finally runs an in-process `EffectGateway` stale-epoch check. With `--receipts` it also signs live receipts and verifies the exported bundle ([§3.7](#37-receipt-verification-offline)). |
+| `core.py` | core | none | `SCHEMA_VERSION = "0.1.0-draft"` (envelope) and `STORE_SCHEMA_VERSION = 2` (store layout, `StoreSchemaError`). `SQLiteStore.keyed_digest` and `fingerprint` (keyed commitments), `build_receipt`, `RECEIPT_CONTENT_FIELDS`. Runtime approval revocation: `HandoffReceiver.revoke`, `SQLiteStore.revoke_approval`, `ApprovalRevoked`, `RevocationRejected`. `parse_json` (strict: rejects duplicate keys and NaN, 16 KiB limit), `canonical`, `digest`, `validate_envelope`. `Approval`, `SQLiteStore`, `HandoffReceiver`, `EffectGateway`. Exceptions: `ContractError`, `PolicyDenied`, `Conflict`. |
+| `http.py` | core (`--receipts-log` needs `signing`) | `python -m agent_movement.http --db PATH [--port 0] [--revocation-authority FILE] [--receipts-log FILE]` | `LocalServer` (a `ThreadingHTTPServer`), `make_server` and `load_authorities`. Routes: `GET /health`, `POST /v0/handoffs` and `POST /v0/revocations`. Errors map to 400, 401, 403, 404, 409, 413, 415 and 500. |
+| `demo.py` | core (`--receipts` needs `signing`) | `agent-movement demo [--receipts OUTDIR]` | Starts `agent_movement.http` as a child process with a synthetic HS256 revocation authority, then sends a handoff, an exact replay and an unapproved request, runs an in-process `EffectGateway` stale-epoch check, and revokes the approval at runtime (`revocation_scenario`, checked against `EXPECTED_REVOCATION`). With `--receipts` it also signs live receipts and verifies the exported bundle ([§3.7](#37-receipt-verification-offline)). |
 | `retention.py` | core | `agent-movement purge --db FILE --older-than DURATION [--retain TABLE=DURATION] [--dry-run]` | Time-to-live purge of one store file: one rule per table in `POLICY` (purged by age or retained), `purge`, `purge_log`, `parse_duration`. Never deletes fencing state, effect ledgers, revocations, live admissions or grant uses, recent nonces, the store secret or relocation tables. Uses `secure_delete` and a WAL `TRUNCATE` checkpoint, and records each run in `retention_purges`. See [data retention](data-retention.md). |
 | `jcs.py` | core | none | `canonicalize` and `jcs_digest`: a documented subset of RFC 8785 that rejects floats. |
 | `trust.py` | core (`ed25519` for asymmetric keys, `hpke` for sealed delivery) | none | `HmacKey`, `Ed25519Key`, `generate_key`, `import_key`, `seal`/`unseal` (signatures domain-separated by purpose), `TrustStore`, `issue_card`/`verify_card` (optional `enc_key`), grants (`issue_grant` with a signed `max_uses`, `verify_grant`, `check_grant_live`, `check_grant_scope`), revocations, `commitment`. HPKE: `HPKE_SUITE`, `hpke_available`, `HpkeKey`, `import_enc_key`, `delivery_info`, `seal_response`/`open_response`. |
@@ -48,7 +48,7 @@ Every experiment is reachable through the `agent-movement` console script (`[pro
 | `relocation_bundle.py` | `relocation` (module itself is stdlib) | none | Bundle format `BUNDLE_FORMAT`: `read_payload`, `describe`, `encode`, `write_atomic`, `copy`, `parse`, `corrupt_sections`, `decode_checkpoint`, `insert_payload`, `BundleRejected`. Knows nothing about owners or epochs. |
 | `relocation_demo.py` | `relocation` (POSIX `os.fork`) | `agent-movement relocate [--two-store] [--json FILE]`, `agent-movement relocate reconcile ...` | A headline relocation plus a 30-row crash, duplicate and version fault matrix (`run_matrix`), followed by the operator-reconciliation rows; each actor action runs in a forked child (`run_actor`). `--two-store` hands over to `relocation_demo_two_store`; `reconcile` hands over to `relocation_reconcile`. |
 | `relocation_demo_two_store.py` | `relocation` | `agent-movement relocate --two-store` (or `python -m agent_movement.relocation_demo_two_store`) | `TwoStoreRun`, a two-store headline and an 11-row copy fault matrix (`MATRIX`, rows B1–B11: crashes around export and import, a checkpoint after the export request, truncated, altered or ungranted bundles, duplicate and superseded imports, and a partitioned origin that keeps stepping in its own store). |
-| `relocation_reconcile.py` | `relocation` | `agent-movement relocate reconcile {list,decide,resume,log,example}` or `python -m agent_movement.relocation_reconcile` | Operator CLI for parked effects ([§3.6](#36-operator-reconciliation-of-parked-effects)). Exits 0 (done or identical replay), 1 (denied) or 2 (usage error or missing extra). |
+| `relocation_reconcile.py` | `relocation` | `agent-movement relocate reconcile {list,decide,resume,log,example}` or `python -m agent_movement.relocation_reconcile` | Operator CLI for parked effects ([§3.6](#36-operator-reconciliation-of-parked-effects-issue-30)). Exits 0 (done or identical replay), 1 (denied) or 2 (usage error or missing extra). |
 | `relocation_demo_reconcile.py` | `relocation` | printed by `agent-movement relocate` after the fault matrix | Nine operator rows: C13a, C13d, C14d and C14a resolve the effects that rows C13/C14 park with a true or a FALSE decision, and R1–R5 cover stale-epoch, replayed, conflicting and unparked decisions; `MATRIX`, `run_matrix`. |
 | `live_receipts.py` | `signing` | through `agent-movement demo --receipts OUTDIR` or `http --receipts-log FILE` | Opt-in signed receipts on the live HTTP path: `ReceiptEmitter`, `RecordingEffectGateway`, `trust_document`, `export_run` (bundle `live-run/` plus a separate `trust-anchors.json`). Ephemeral synthetic keys; emission never changes a handoff's outcome. |
 | `receipts.py` | `signing` for signature checks | `agent-movement receipts {verify,timeline,make-fixtures}` | Receipt schema `agent-movement.receipt/0.1-draft`. `validate_body`, `Ed25519Signer`, `commitment`, `body_from_handoff`, `load_trust`, `load_trust_anchors`, `resolve_trust`, revocation notices (`verify_notice`, `apply_notices`), `ReplayGuard`, `verify_bundle` and `render_text`. Exit codes in [§3.7](#37-receipt-verification-offline). |
@@ -56,7 +56,7 @@ Every experiment is reachable through the `agent-movement` console script (`[pro
 | `mobilitybench.py` | core | `agent-movement bench smoke [--output FILE] [--no-timing]` | The local smoke suite `mobilitybench-local-smoke-v0.2`: case declarations from a packaged fixture (`load_cases`, `validate_case`, `CaseFixtureError`), one evaluator per case (`case_*`, collected into `EVALUATORS`), `verdict_for`, `run_suite`, `outcome_digest`, `summarize`. Exits 1 if a case fails and 2 if the case fixture is invalid. The subcommands `run`, `report`, `verify` and `schedule` go to `mobilitybench_v01`. |
 | `mobilitybench_v01.py` | core (two modes need `a2a` or `relocation`) | `agent-movement bench {run,report,verify,schedule}` | A frozen-fixture loader with a SHA-256 manifest check (`verify_fixtures`), a scripted interpreter (`AgentState`, `Attempt`), baselines (`MODE_SPECS`, `mode_table`, `MODES`, `RUNNERS`, `EXTRAS`, `extra_available`), security-case handlers (`SECURITY`), `fault_schedule`, `run_suite`, `summarize` and `build_report`. `run` exits 1 on a harness error, a failed security case or a reproducibility mismatch, and 2 if the fixtures fail verification. |
 | `mobilitybench_optional.py` | `a2a` or `relocation` (each imported lazily) | through `bench run` | `run_a2a_delegate` (B2: every pure step over the official A2A SDK to a loopback worker thread) and `run_checkpoint_relocate` (B3: fenced LangGraph checkpoint relocation in one shared file), in `OPTIONAL_RUNNERS`. |
-| `fixtures/mobilitybench-local-smoke/` | package data | none | `cases.jsonl`: the 20 smoke-case declarations (17 `pass`, 3 `known_gap`). |
+| `fixtures/mobilitybench-local-smoke/` | package data | none | `cases.jsonl`: the 20 smoke-case declarations (18 `pass`, 2 `known_gap`). |
 | `fixtures/mobilitybench-v0.1/` | package data | none | `tasks.jsonl` (18), `ground_truth.jsonl` (18), `negative.jsonl` (12), `seeds.json` and `MANIFEST.json`. |
 
 Related scripts outside the package: `tools/mobilitybench_freeze.py` recomputes or checks (`--check`) the v0.1 ground truth and manifest; `tools/schema_subset.py` validates documentation examples against [`schemas/handoff-envelope.schema.json`](../schemas/handoff-envelope.schema.json) (see [§6](#6-versioned-identifiers)); `tools/cli_reference.py` writes or checks [`docs/cli.md`](cli.md); `tools/check_test_registry.py` checks [`data/test-registry.csv`](../data/test-registry.csv) against `tests/`.
@@ -79,6 +79,8 @@ flowchart LR
     retention[retention] --> core
     http[http] --> core
     demo[demo] --> core
+    demo --> trust
+    core -. "lazy, revocation" .-> trust
     demo -. subprocess .-> http
     trust[trust] --> core
     peer[peer] --> core
@@ -129,6 +131,7 @@ flowchart LR
     receipt_fixtures --> jcs
     receipt_fixtures --> core
     mobilitybench[mobilitybench] --> core
+    mobilitybench --> trust
     mobilitybench -. "lazy, v0.1 subcommands" .-> mobilitybench_v01
     mobilitybench_v01[mobilitybench_v01] --> mobilitybench
     mobilitybench_v01 --> core
@@ -178,6 +181,31 @@ sequenceDiagram
 ```
 
 A malformed body or envelope returns 400 `invalid_contract` before any of this runs.
+
+**Runtime approval revocation (issue #38).** `POST /v0/revocations` takes a signed notice in the issue #8 format (`trust.issue_revocation(authority_key, approval_ref, revoked_at)`), whose `grant_id` names the approval. `HandoffReceiver.revoke` verifies it with `trust.verify_revocation` against the authorities pinned with `http --revocation-authority FILE` (HS256 keys, or Ed25519 with the extra); without a pinned authority every notice is refused. A verified notice is written to `approval_revocations` in one `BEGIN IMMEDIATE` transaction, the same write lock that `receive` and `EffectGateway.commit` take, so whichever commits first wins. From then on new handoffs and replays under that approval are denied (403), and every effect commit of a task delivered under it is denied inside the commit transaction (`task_approvals` records which approval each delivered task arrived under; the denial is audited as `effect.denied`). Re-sending the same notice is idempotent (`replayed: true`); there is no un-revoke. Forged, unsigned, tampered or wrong-purpose notices get 401 and a notice for an approval the receiver does not hold gets 404; every rejection is audited as `approval.revocation_rejected`. Expiry is not rechecked at commit.
+
+```mermaid
+sequenceDiagram
+    participant U as user authority, pinned key
+    participant H as http.py, POST /v0/revocations
+    participant R as HandoffReceiver.revoke
+    participant S as SQLiteStore
+    participant G as EffectGateway.commit
+    U->>H: signed revocation notice for approval_ref
+    H->>R: parse_json, revoke
+    R->>R: verify_revocation against pinned authorities
+    alt not verified or unknown approval
+        R->>S: audit approval.revocation_rejected
+        H-->>U: 401 unauthenticated or 404 unknown_approval
+    else verified
+        R->>S: BEGIN IMMEDIATE - insert approval_revocations, audit approval.revoked
+        H-->>U: 200 revoked, replayed false or true
+    end
+    Note over S,G: later, in their own write transactions
+    S->>S: receive under the revoked approval raises ApprovalRevoked, 403
+    G->>S: commit for a task in task_approvals with a revoked approval
+    S-->>G: PolicyDenied, audit effect.denied
+```
 
 **Per-sender idempotency keys (issue #29).** `SQLiteStore.receive(envelope, sender=None)` scopes an idempotency key to a sender: the authenticated origin when the caller knows it (`PeerReceiver` passes `sender=origin.agent_id`), otherwise the envelope's claimed `origin.agent_id` (`HandoffReceiver`, which authenticates nobody). Two senders may use the same key; a `movement_id` stays unique across all senders. The layout is recorded in `PRAGMA user_version`. On open, `_ensure_schema` migrates an older file in one `BEGIN IMMEDIATE` transaction: 0 to 1 copies `deliveries` into a table keyed by `(sender_id, idempotency_key)`, taking the sender from each stored receipt's `origin_agent_id`; 1 to 2 adds the keyed commitments described above. A newer version, or a missing or invalid store secret, raises `StoreSchemaError`.
 
@@ -381,13 +409,13 @@ flowchart TD
 
 **Signed revocation notices (issue #32).** The trust anchor file may pin `revocation_issuers` (Ed25519 public keys only; HS256 is refused because its verifier is a shared secret). Notices in the issue #8 format (`trust.issue_revocation`) are read from the bundle's `revocations.jsonl` and from each `--revocations FILE`. They may travel with the evidence because they are self-authenticating: `verify_notice` checks each one with `trust.verify_revocation` against the pinned issuers, and only a `VALID` notice is applied. It revokes the receipt key whose `key_id` equals the notice's `grant_id` from `revoked_at` on, and a notice can only make a key less trusted (the earliest verified time wins). `revoked_at` is still the issuer's claim, so a receipt backdated before it is not detectable.
 
-**Live receipts (issue #32, opt-in).** `agent-movement demo --receipts OUTDIR` makes the sender sign `movement.dispatched` before it posts, the receiver (`http --receipts-log`) sign `movement.accepted` plus `execution.completed` or `movement.rejected` before it answers, and a `RecordingEffectGateway` sign `tool.effect_recorded` for each fenced effect attempt. `export_run` writes the evidence bundle `OUTDIR/live-run/` and, outside it, `OUTDIR/trust-anchors.json`; the demo then verifies the bundle and fails if the verifier does not exit 0. Keys are fresh synthetic Ed25519 keys held only in memory for the run, and receipts reference salted commitments, never task text. Emission is best effort: a receipt that cannot be signed or written shows up as an absent receipt (`UNKNOWN`), never as a fabricated one.
+**Live receipts (issue #32, opt-in).** `agent-movement demo --receipts OUTDIR` makes the sender sign `movement.dispatched` before it posts, the receiver (`http --receipts-log`) sign `movement.accepted` plus `execution.completed` or `movement.rejected` before it answers, and a `RecordingEffectGateway` sign `tool.effect_recorded` for each fenced effect attempt; the receiver also signs `authority.revoked` when it applies a new runtime revocation, with the notice as a `revocation_notice` subject. `export_run` writes the evidence bundle `OUTDIR/live-run/` and, outside it, `OUTDIR/trust-anchors.json`; the demo then verifies the bundle and fails if the verifier does not exit 0. Keys are fresh synthetic Ed25519 keys held only in memory for the run, and receipts reference salted commitments, never task text. Emission is best effort: a receipt that cannot be signed or written shows up as an absent receipt (`UNKNOWN`), never as a fabricated one.
 
 `_verify_wire` checks the following, in order: the strict JSON wire shape `{receipt, body_digest, signature}`, a credential scan (`contains_token_like`), `validate_body`, the `jcs_digest` match, the signature block against `issuer.key_id`, whether the key is in the trust anchors, Ed25519 over `SIGNATURE_DOMAIN || canonicalize(body)`, the key validity window and revocation at the claimed `issued_at`, the claimed principal, and the signer role (`tool` keys for `tool.effect_recorded`, `agent` keys for everything else). Without the `signing` extra, signatures are reported as `UNCHECKED` and valid bundles exit 3. Evidence grades are `E1` (unverified claim), `E2` (verified signature) and `E3` (an agent claim corroborated by an independent tool record, or both sides of a movement verified). `E0` is never assigned. The committed fixture files are also scanned with a subset of the gitleaks v8.30.1 rules, and with the real `gitleaks` binary when it is available (`tests/test_movement_receipts_secret_scan.py`).
 
 ### 3.8 MobilityBench (core; B2 and B3 need extras)
 
-`mobilitybench.run_suite` runs the cases declared in `fixtures/mobilitybench-local-smoke/cases.jsonl` directly against the core classes. Each declaration names its scenario, the expected observation and an `expectation` (`pass`, `known_gap` or `gap_closed`); `load_cases` requires every declaration to have a `case_<scenario>` evaluator and, for the packaged file, every evaluator to have a declaration. Each case runs in its own temporary directory, so results do not depend on order, and `verdict_for` compares the observation with the declaration: a `known_gap` case that shows its declared `closed_observation` is reported as `gap_closed`, not as a failure. At `326e65e` the 20 cases give 17 `pass` and 3 `known_gap`. With `--no-timing`, `duration_ms` is `null` and two runs are byte-identical; `outcome_digest` hashes the records without timing.
+`mobilitybench.run_suite` runs the cases declared in `fixtures/mobilitybench-local-smoke/cases.jsonl` directly against the core classes. Each declaration names its scenario, the expected observation and an `expectation` (`pass`, `known_gap` or `gap_closed`); `load_cases` requires every declaration to have a `case_<scenario>` evaluator and, for the packaged file, every evaluator to have a declaration. Each case runs in its own temporary directory, so results do not depend on order, and `verdict_for` compares the observation with the declaration: a `known_gap` case that shows its declared `closed_observation` is reported as `gap_closed`, not as a failure. At `dac5f62` the 20 cases give 18 `pass` and 2 `known_gap`. With `--no-timing`, `duration_ms` is `null` and two runs are byte-identical; `outcome_digest` hashes the records without timing.
 
 `mobilitybench_v01.run_suite` first checks the packaged fixtures against `MANIFEST.json`, then runs every selected task in each mode of `MODES` under the seeded `fault_schedule`, then runs the 12 negative cases of `negative.jsonl` through the 10 attack handlers in `SECURITY` (two cases share `classification_gate` and two share `run_task`). `HARNESS_VERSION` is `0.2.0`; the fixture release and `SUITE_VERSION` are unchanged.
 
@@ -429,7 +457,7 @@ flowchart LR
         AUTH[("coordinator file: owners, relocations, manifest_digest")]
     end
     subgraph OOB["Out of band, pinned before the run"]
-        TS["TrustStore: CA, user authority, HS256 peer keys"]
+        TS["TrustStore: CA, user authority, HS256 peer keys; core revocation authorities"]
         TA["receipts trust anchors and revocation issuers, passed with --trust"]
     end
     OC --> GUARD --> W2
@@ -450,7 +478,7 @@ flowchart LR
 |---|---|---|
 | Network bind | All servers bind `127.0.0.1` (`http.make_server`, `peer_http.make_peer_server`, `a2a_server.main`). `peer.HttpTransport` refuses any URL that is not loopback. | TLS, authentication of the HTTP peer, rate limits. |
 | Input parsing | `core.parse_json` rejects duplicate keys and NaN/Infinity and limits the body to 16 KiB. The two stdlib servers (`http`, `peer_http`) require `application/json` and `0 < Content-Length <= 16384`; the A2A server relies on the SDK for framing and then applies `decode_handoff`. Envelope, preflight, delivery and receipt objects must have exact field sets. | A schema language. The checks are hand-written. |
-| Core authorization | `Approval.allows` is a receiver-local allowlist entry with an expiry. | Sender identity. `origin.agent_id` is only a claim. |
+| Core authorization | `Approval.allows` is a receiver-local allowlist entry with an expiry. A runtime revocation must be signed by an authority pinned out of band (`--revocation-authority`) and is rechecked at admission and inside every effect commit of the task. | Sender identity: `origin.agent_id` is only a claim. Expiry at effect commit. The `revoked_at` in a notice is the issuer's claim; the revocation takes effect when it is recorded. |
 | A2A context | A client contextId is rejected unless the server opted in, and then must equal `logical_task_id`; the policy is published on the card. | Authentication of the A2A client. |
 | Peer identity | The card is signed by a pinned CA. The request is signed with the key the card names. Cards are bound to an endpoint. The admission is bound to the client nonce and the preflight digest. | Channel binding. HS256 keys are symmetric, so any verifier can also forge signatures; only Ed25519 rules this out. |
 | Delivery confidentiality | With a CA-signed `enc_key`, the delivery is HPKE-sealed, transcript-bound and never downgraded, and the receipt is encrypted; an on-path relay at the real endpoint sees only ciphertext (`test_on_path_relay_sees_only_ciphertext_with_hpke`). | Any confidentiality in plaintext mode (no `enc_key`, the stdlib default). Metadata in the preflight is never encrypted. |
@@ -469,8 +497,10 @@ All persistent state is SQLite. One file can hold several groups of tables, beca
 | Table | Created by | Columns (key in **bold**) | Contents |
 |---|---|---|---|
 | `deliveries` | `core.SQLiteStore` | **`sender_id`, `idempotency_key`**, `movement_id` (UNIQUE), `envelope_digest` (keyed), `receipt_json` (without content fields), `created_at` | One memoized receipt per (sender, key); purged by age, so the retention period is the retry window. Layout version 2 in `PRAGMA user_version`; older files are migrated on open. |
+| `approval_revocations` | `core.SQLiteStore` | **`approval_ref`**, `issuer`, `claimed_revoked_at`, `notice_digest`, `recorded_at` | Verified runtime revocations of core approvals. `notice_digest` is the plain digest of the public signed notice. Never purged. |
+| `task_approvals` | `core.SQLiteStore` | **`task_id`, `approval_ref`** | Which approval each delivered task arrived under, for the recheck at effect commit. Never purged. |
 | `store_secret` | `core.SQLiteStore` | **`id`** (always 1), `hmac_key`, `created_at` | The per-store HMAC key for keyed commitments. Never exported or purged. |
-| `audit_events` | `core.SQLiteStore` | **`seq`**, `movement_id`, `task_id`, `event_type`, `info_digest` (keyed), `event_time` | `handoff.accepted`, `handoff.completed` and `handoff.denied` events. Stores keyed commitments only, never task text. |
+| `audit_events` | `core.SQLiteStore` | **`seq`**, `movement_id`, `task_id`, `event_type`, `info_digest` (keyed), `event_time` | `handoff.accepted`, `handoff.completed`, `handoff.denied`, `approval.revoked`, `approval.revocation_rejected` and `effect.denied` events. Stores keyed commitments only, never task text. |
 | `owners` | `core.SQLiteStore` | **`task_id`**, `agent_id`, `epoch` | The ownership epoch used by `EffectGateway` and by `relocation`. |
 | `effects` | `core.SQLiteStore` | **`task_id`, `effect_id`**, `payload_digest` (keyed), `epoch` | Simulated, fenced effect commits. |
 | `a2a_correlations` | `a2a_profile.A2ACorrelationLog` | **`seq`**, `a2a_task_id`, `a2a_context_id`, `a2a_message_id`, `movement_id`, `trace_id`, `outcome`, `envelope_digest`, `artifact_digest`, `event_time` | Joins A2A IDs to handoff outcomes. IDs that are not safe tokens are hashed (`safe_token`). |
@@ -525,4 +555,4 @@ Apart from the files named above, all of these files are in temporary directorie
 | `HARNESS_VERSION` | `0.2.0` (v0.1 harness, scores B2 and B3 when their extras are installed) | `mobilitybench_v01.py` |
 | Canonical envelope `schema_version` | `0.2.0-draft` (`const` in the schema) | [`schemas/handoff-envelope.schema.json`](../schemas/handoff-envelope.schema.json) |
 
-None of these is a published standard. They are experimental profile identifiers. The canonical envelope schema (`0.2.0-draft`) and the implemented core contract (`SCHEMA_VERSION = "0.1.0-draft"`) differ: `core.validate_envelope` rejects any other version, so the code at `326e65e` accepts no `0.2.0-draft` envelope. The full list of differences is in [how it works: divergences](how-it-works.md#divergences-from-the-implemented-contract).
+None of these is a published standard. They are experimental profile identifiers. The canonical envelope schema (`0.2.0-draft`) and the implemented core contract (`SCHEMA_VERSION = "0.1.0-draft"`) differ: `core.validate_envelope` rejects any other version, so the code at `dac5f62` accepts no `0.2.0-draft` envelope. The full list of differences is in [how it works: divergences](how-it-works.md#divergences-from-the-implemented-contract).

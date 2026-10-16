@@ -74,7 +74,7 @@ Biblatex cite keys are frozen in the same way. Both tools' `apply-audit` refuse 
 
 ## The `agent_movement` package
 
-`src/agent_movement/` is a research-stage, **synthetic, local** testbed. It is not production software, it calls no model, and it uses only throw-away test keys. Its design is described in the [as-built architecture](architecture.md), and every command, flag and exit code is listed in the [CLI reference](cli.md). The commands in this section were last run against commit `326e65e` on 2026-10-16 (Python 3.15.0rc2 without extras; Python 3.11.16 and 3.13.15 with all extras), and every exit code quoted below is what they returned.
+`src/agent_movement/` is a research-stage, **synthetic, local** testbed. It is not production software, it calls no model, and it uses only throw-away test keys. Its design is described in the [as-built architecture](architecture.md), and every command, flag and exit code is listed in the [CLI reference](cli.md). The commands in this section were last run against commit `dac5f62` on 2026-10-16 (Python 3.15.0rc2 without extras; Python 3.11.16 and 3.13.15 with all extras), and every exit code quoted below is what they returned.
 
 ### Requirements
 
@@ -128,7 +128,7 @@ Without its extra, a command fails closed instead of pretending to work. Through
 
 ### Tests
 
-`python -m pytest -q` runs all of `tests/`, which covers the corpus tools, the docs checks and the package. `make test PYTHON=python` runs the same command. Tests that need an extra are skipped, not failed, when it is missing. At `326e65e` the full run gave **426 passed, 173 skipped** without extras and **596 passed, 3 skipped** with all extras; with the `gitleaks` binary on `PATH` or in `$GITLEAKS` (as in the CI extras job), one more test runs (427/172 and 597/2). All exited 0. With all extras and `gitleaks`, the two remaining skips are tests of the missing-extra path.
+`python -m pytest -q` runs all of `tests/`, which covers the corpus tools, the docs checks and the package. `make test PYTHON=python` runs the same command. Tests that need an extra are skipped, not failed, when it is missing. At `dac5f62` the full run gave **521 passed, 249 skipped** without extras and **762 passed, 8 skipped** with all extras; with the `gitleaks` binary on `PATH` or in `$GITLEAKS` (as in the CI extras job), one more test runs (522/248 and 763/7). All exited 0. With all extras and `gitleaks`, the seven remaining skips are the two missing-extra-path tests and the five JavaScript interop tests, which need `npm ci --prefix interop/js` (see [interop and conformance](a2a-adapter.md#interop-and-conformance-run-locally)).
 
 Run one group with `python -m pytest -q <file>` (counts below were measured with `$GITLEAKS` set):
 
@@ -136,20 +136,27 @@ Run one group with `python -m pytest -q <file>` (counts below were measured with
 |---|---|---|---|
 | `tests/test_core.py` | Envelope contract, approvals, idempotency, `EffectGateway` fencing | core | 13 / 13 |
 | `tests/test_http.py` | Loopback HTTP receiver: success, replay and denial, protocol errors, conflicts, loopback-only bind | core | 4 / 4 |
+| `tests/test_runtime_revocation.py` | Runtime approval revocation: signed notices, pinned authorities, recheck at admission and at effect commit, HTTP endpoint | core; Ed25519 cases need `ed25519` | 16 (2 skipped) / 18 |
+| `tests/test_grant_uses_and_sender_keys.py` | Per-sender idempotency keys, store migration, counted grants (`max_uses`) | core; peer cases need extras | 18 (9 skipped) / 27 |
+| `tests/test_data_retention.py` | Keyed commitments, store layout 2 migration, `purge` policy | core | 20 (1 skipped) / 21 |
 | `tests/test_peer.py` | Trust model, pre-disclosure handoff, attacks, revocation races, HPKE delivery | core; see the classes below | 39 (101 skipped) / 140 |
 | `tests/test_a2a_profile.py` | Envelope to A2A mapping, contextId policy, receipt checks (no SDK) | core | 13 / 13 |
 | `tests/test_a2a_adapter.py` | A2A server and client over the official SDK | `a2a` | 1 (21 skipped) / 21 (1 skipped) |
+| `tests/test_a2a_conformance.py` | A2A v1.0 rules found with the TCK (error types, card caching, routes) | `a2a` | 0 (7 skipped) / 7 |
+| `tests/test_a2a_js_interop.py` | `@a2a-js/sdk` client against the Python server | `a2a` and Node dependencies | 0 (5 skipped) / 0 (5 skipped) |
 | `tests/test_relocation.py` | Single-store relocation and the 30-row fault matrix | `relocation`, `os.fork` | 0 (14 skipped) / 14 |
 | `tests/test_relocation_two_store.py` | Two-store relocation, bundle checks and the 11-row copy fault matrix | `relocation`, `os.fork` | 0 (16 skipped) / 16 |
+| `tests/test_relocation_reconcile.py` | Parked effects, operator decisions, resume, the reconcile CLI | `relocation`, `os.fork` | 0 (19 skipped) / 19 |
 | `tests/test_movement_receipts.py` | Receipt schema, JCS, offline verifier, out-of-band anchors, CLI exit codes, fixtures | `signing` for signature cases | 15 (16 skipped) / 31 |
+| `tests/test_live_receipts.py` | Live receipts on the HTTP path, revocation notices, `demo --receipts` | `signing` for most cases | 5 (20 skipped) / 25 |
 | `tests/test_movement_receipts_secret_scan.py` | Receipt files against a gitleaks v8.30.1 rule subset, and the real `gitleaks` binary if present | core; `gitleaks` binary for one test | 5 / 5 |
-| `tests/test_cli.py` | `agent-movement` dispatch, argument forwarding, extra hints, `docs/cli.md` up to date | core; end-to-end cases need extras | 50 (4 skipped) / 53 (1 skipped) |
-| `tests/test_mobilitybench.py` | Smoke suite: declared verdicts, per-case isolation, order independence, byte-identical `--no-timing` output | core | 15 / 15 |
+| `tests/test_cli.py` | `agent-movement` dispatch, argument forwarding, extra hints, `docs/cli.md` up to date | core; end-to-end cases need extras | 52 (4 skipped) / 55 (1 skipped) |
+| `tests/test_mobilitybench.py` | Smoke suite: declared verdicts, per-case isolation, order independence, byte-identical `--no-timing` output | core | 16 / 16 |
 | `tests/test_mobilitybench_v01.py` | MobilityBench v0.1 fixtures, runner, report | core | 25 / 25 |
+| `tests/test_mobilitybench_optional_modes.py` | B2 (A2A) and B3 (relocation) baselines, and their `unavailable` records without the extras | core; scored cases need `a2a` or `relocation` | 4 (13 skipped) / 17 |
 | `tests/test_review_regressions.py` | Regressions from the PR #6 and #14 review | core | 9 / 9 |
 | `tests/test_handoff_envelope_schema.py` | Marked envelope examples in `docs/` against the envelope schema, and core compatibility | core | 47 / 47 |
-| `tests/test_check_test_registry.py` | `tools/check_test_registry.py` | core | 20 / 20 |
-| `tests/test_check_ids.py`, `tests/test_positioning.py` | Question/study IDs and the positioning statement in the docs | core | 6 + 4 / 6 + 4 |
+| `tests/test_check_test_registry.py`, `tests/test_check_ids.py`, `tests/test_positioning.py`, `tests/test_sources_index.py` | Docs gates: test registry, question/study IDs, the positioning statement, the URL index | core | 20 + 6 + 4 + 29 / same |
 | `tests/test_news_corpus.py`, `tests/test_paper_corpus.py`, `tests/test_cli_determinism_integration.py` | Corpus tools (see above) | core | 161 / 161 |
 
 The peer tests are split by class (`python -m pytest -q tests/test_peer.py::<Class>`): `PeerAuthTests` (HS256, plaintext delivery; 37 / 37), `PeerAuthHpkeTests` (HS256 with HPKE delivery, needs `hpke`; 0 / 48), `PeerAuthEd25519Tests` (needs `ed25519` and `hpke`; 0 / 49), `PeerHttpTests` (2 / 2), `PeerHttpHpkeTests` (0 / 2) and `Rfc9180KnownAnswerTests` (the RFC 9180 Appendix A.2.1 vector, needs `hpke`; 0 / 2). The relay test `test_on_path_relay_sees_only_ciphertext_with_hpke` runs in every `PeerAuth*` class: with HPKE it asserts that the relay sees only ciphertext, and in plaintext mode that it does see the task text.
@@ -164,15 +171,15 @@ Each demo runs locally on `127.0.0.1` (or in-process), keeps its SQLite files in
 
 | Command | Needs | What it shows | Exit code |
 |---|---|---|---|
-| `agent-movement demo` | core | Two processes: a handoff, an exact replay, an unapproved request, and a stale-epoch effect that is fenced | 0 |
+| `agent-movement demo` | core | Two processes: a handoff, an exact replay, an unapproved request, a stale-epoch effect that is fenced, and a runtime revocation of the approval over `POST /v0/revocations` (forged, unsigned and wrong-purpose notices get 401, the signed notice 200 and then `replayed: true`; afterwards a new handoff and a replay get 403 and the task's next effect is denied) | 0 |
 | `agent-movement peer-demo` | core | Authenticated pre-disclosure handoff (HS256): one honest run and nine attacks; plaintext delivery, reported as `no confidentiality` | 0 |
 | `agent-movement peer-demo --alg Ed25519` | `ed25519`, `hpke` | The same with Ed25519 keys; delivery defaults to HPKE | 0 |
 | `agent-movement peer-demo --delivery hpke` | `hpke` | HS256 signatures with HPKE-sealed delivery; the task canary must not appear in any captured bytes | 0 |
 | `agent-movement a2a-demo` | `a2a` | A2A v1 delegation: a server process and seven client processes, including the legacy URN alias and a refused client contextId | 0 |
-| `agent-movement demo --receipts "$OUT/live"` | `signing` | The same demo with signed live receipts; writes `$OUT/live/live-run/` and `$OUT/live/trust-anchors.json` and verifies them (a non-empty `live-run/` exits 2) | 0 |
+| `agent-movement demo --receipts "$OUT/live"` | `signing` | The same demo with signed live receipts (12 `VALID`, including `authority.revoked` with its notice as a matching subject); writes `$OUT/live/live-run/` and `$OUT/live/trust-anchors.json` and verifies them (a non-empty `live-run/` exits 2) | 0 |
 | `agent-movement relocate --json "$OUT/relocation.json"` | `relocation` | Single store: headline relocation, the 30-row fault matrix (`rows: 30, matching expectation: 30`) and 9 operator-reconciliation rows (`reconciliation rows: 9, matching expectation: 9`) | 0 |
 | `agent-movement relocate --two-store --json "$OUT/relocation-two-store.json"` | `relocation` | Two stores: the checkpoint is copied as a digest-verified bundle; 11-row copy fault matrix (`rows: 11, matching expectation: 11`), plus the same 9 reconciliation rows | 0 |
-| `agent-movement bench smoke --output "$OUT/smoke.jsonl"` | core | Smoke suite `mobilitybench-local-smoke-v0.2`: 20 cases, 17 `pass`, 3 `known_gap`, 0 `fail` | 0 |
+| `agent-movement bench smoke --output "$OUT/smoke.jsonl"` | core | Smoke suite `mobilitybench-local-smoke-v0.2`: 20 cases, 18 `pass`, 2 `known_gap`, 0 `fail` | 0 |
 | `agent-movement bench smoke --no-timing --output "$OUT/s1.jsonl"` (twice, then `cmp` the files) | core | Timing-free output is byte-identical across runs | 0, and `cmp` exits 0 |
 
 MobilityBench v0.1 (see [MobilityBench v0.1](mobilitybench-v0.1.md)):
@@ -201,6 +208,8 @@ agent-movement receipts make-fixtures "$OUT/fixtures"   # exit 0; identical to t
 
 With `--trust $R/trust.json`, the nine fixture bundles return 0 for `01`, `05`, `07` and `09`, and 1 for `02`, `03`, `04`, `06` and `08`. Without the `signing` extra (`python -m agent_movement.receipts`), they return 3 for `01`, `05`, `06`, `07` and `09`, and 1 for `02`, `03`, `04` and `08`. `--fixture-trust` instead of `--trust` reads the fixtures' own `trust.json` with a warning; it is for the synthetic fixtures only.
 
+The demo's receiver is `python -m agent_movement.http --db FILE --revocation-authority KEYFILE`: `KEYFILE` holds one key or a list of keys in the `agent_movement.trust` export format whose signed notices may revoke the approval (an HS256 key is a shared secret, so keep the file private; Ed25519 needs the `ed25519` extra). Without the option every notice is refused; an unreadable file exits 2. The flow is in the [architecture](architecture.md#31-delegation-over-loopback-http-core-not-a2a).
+
 ### Operator reconciliation of parked effects
 
 `agent-movement relocate reconcile` (or `python -m agent_movement.relocation_reconcile`, needs `relocation`) resolves effects whose outcome is unknown; the flow is in the [architecture](architecture.md#36-operator-reconciliation-of-parked-effects-issue-30) and every flag in the [CLI reference](cli.md). A walkthrough on a synthetic parked task, as CI runs it:
@@ -226,7 +235,7 @@ The code cannot check the operator's claim: a false `confirmed_done` loses the e
 
 ### CLI reference
 
-[`docs/cli.md`](cli.md) is generated from the live `--help` output. After changing a subcommand, its flags or its help text, run `make cli-docs` (needs every optional extra) and commit the result; `python tools/cli_reference.py --check` (exit 0 at `326e65e`) fails when the file is stale, and CI runs it in the extras job.
+[`docs/cli.md`](cli.md) is generated from the live `--help` output. After changing a subcommand, its flags or its help text, run `make cli-docs` (needs every optional extra) and commit the result; `python tools/cli_reference.py --check` (exit 0 at `dac5f62`) fails when the file is stale, and CI runs it in the extras job.
 
 ### CI layout
 
@@ -246,9 +255,9 @@ There are two suites, and they are extended differently.
 1. A declaration: one JSON line in `src/agent_movement/fixtures/mobilitybench-local-smoke/cases.jsonl` with the fields `scenario`, `question_ids`, `baseline`, `expected`, `expectation` and `description` (checked by `mobilitybench.validate_case`). `expectation` is `pass`, `known_gap` or `gap_closed`. A `known_gap` case must also give `expected_fix` and a `closed_observation` that differs from `expected`; a `gap_closed` case gives `expected_fix` only; a `pass` case gives neither.
 2. An evaluator: a function `case_<scenario>(workdir: Path) -> tuple[str, Evidence]` in `mobilitybench.py`, defined **above** the `EVALUATORS = {...}` line, because that dictionary is built from the module globals at import time. It must create everything it uses inside `workdir` and return `(observed, evidence)`; evidence values must be `str`, `int` or `bool`, and never task text.
 
-If only one part exists, the CLI exits 2 with `case_fixture_invalid`: a declaration without an evaluator is reported as `no evaluator for scenario <name>`, and an evaluator without a declaration as `packaged declarations do not cover every evaluator`. In a rehearsal on a scratch copy of the package with one added `pass` case, the declaration alone and the evaluator alone each exited 2, and both together gave 21 cases (18 `pass`, 3 `known_gap`) with exit 0. `tests/test_mobilitybench.py` derives its counts from the declarations and passed, but `tests/test_mobilitybench_v01.py` (`test_run_smoke_report_verify_and_legacy_entrypoint`) still asserts that the smoke output has exactly 20 lines and failed, so update that number in the same change.
+If only one part exists, the CLI exits 2 with `case_fixture_invalid`: a declaration without an evaluator is reported as `no evaluator for scenario <name>`, and an evaluator without a declaration as `packaged declarations do not cover every evaluator`. In a rehearsal on a scratch copy of the package with one added `pass` case, the declaration alone and the evaluator alone each exited 2, and both together gave 21 cases (19 `pass`, 2 `known_gap`) with exit 0. `tests/test_mobilitybench.py` derives its counts from the declarations and passed, but `tests/test_mobilitybench_v01.py` (`test_run_smoke_report_verify_and_legacy_entrypoint`) still asserts that the smoke output has exactly 20 lines and failed, so update that number in the same change.
 
-**MobilityBench v0.1 (`fixtures/mobilitybench-v0.1/`).** This release is frozen and must not be edited in place: a new task, rubric or ground truth needs a new suite version and a new fixture directory ([versioning rule](mobilitybench-v0.1.md#frozen-release)). At `326e65e` the harness knows one suite (`mobilitybench_v01.SUITES = {"v0.1": ...}`), and `verify_fixtures` requires the manifest's `suite_version` to equal `SUITE_VERSION`. A new release therefore also needs a change in `mobilitybench_v01.py` and in the `package-data` pattern in `pyproject.toml`. You can draft and test a case in a copy without touching the release:
+**MobilityBench v0.1 (`fixtures/mobilitybench-v0.1/`).** This release is frozen and must not be edited in place: a new task, rubric or ground truth needs a new suite version and a new fixture directory ([versioning rule](mobilitybench-v0.1.md#frozen-release)). At `dac5f62` the harness knows one suite (`mobilitybench_v01.SUITES = {"v0.1": ...}`), and `verify_fixtures` requires the manifest's `suite_version` to equal `SUITE_VERSION`. A new release therefore also needs a change in `mobilitybench_v01.py` and in the `package-data` pattern in `pyproject.toml`. You can draft and test a case in a copy without touching the release:
 
 ```bash
 DRAFT=$(mktemp -d)/mobilitybench-draft
