@@ -74,6 +74,7 @@ class Rig:
             principal_verifiers={"human": self.human, "data-owner": self.owner},
             observation_verifiers={"sensor": self.sensor},
             recipient_verifier=self.dest_key,
+            grant_trust=self.trust,
             measure_manifest=lambda: self.manifest,
         )
         self.receiver = PeerReceiver(
@@ -327,6 +328,20 @@ def test_gateway_requires_original_admission_and_grant_binding(rig):
             verify_grant(other_grant, rig.trust), "agent-b", "task-1",
             "movement-1.result", "fake", movement_id="movement-1",
         )
+
+
+
+def test_gateway_rejects_caller_modified_signed_grant(rig):
+    rig.install()
+    rig.handoff()
+    grant = verify_grant(rig.grant, rig.trust)
+    grant["expires_at"] += 100_000  # caller cannot extend what issuer signed
+    with pytest.raises(Unauthorized, match="continuity_unverified_effect_grant"):
+        rig.receiver.effects.commit(
+            grant, "agent-b", "task-1", "movement-1.result",
+            "fake", movement_id="movement-1",
+        )
+    assert len(rig.receiver.ledger.effects()) == 1
 
 
 def test_signed_revocation_cannot_be_forged(rig):
