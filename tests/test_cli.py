@@ -265,7 +265,9 @@ def test_cli_reference_doc_matches_live_help():
     problems, skipped = cli_reference.check()
     assert problems == [], "\n".join(problems) + "\nregenerate with: make cli-docs"
     if importlib.util.find_spec("langgraph") is None:
-        assert skipped == ["agent-movement relocate"]
+        # Without the extra the whole `relocate` subtree (incl. `relocate reconcile ...`) is skipped.
+        assert "agent-movement relocate" in skipped
+        assert all(t == "agent-movement relocate" or t.startswith("agent-movement relocate ") for t in skipped)
 
 
 def test_cli_reference_check_detects_drift():
