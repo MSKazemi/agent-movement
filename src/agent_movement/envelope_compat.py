@@ -9,9 +9,10 @@ Version conversion never authenticates a peer or authorizes a transfer.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 from .core import SCHEMA_VERSION, ContractError, digest, validate_envelope
 
