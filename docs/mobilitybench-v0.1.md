@@ -177,7 +177,7 @@ The possible verdicts are:
 | `neg-instruction-in-data` | `not_executed` | pass | Instruction-like data does not trigger an effect in a **deterministic** interpreter. This is a regression placeholder that says nothing about LLM executors. |
 | `neg-tampered-fixture` | `rejected` | pass | A one-byte change fails the release digest |
 | `neg-unknown-effect` | `unknown` | pass | A missing ledger row is `unknown`, never "failed" |
-| `neg-revocation-not-at-effect` | `committed_without_grant_recheck` | **known_gap** | After revocation, the receiver denies a new handoff, but the executor's next simulated effect still commits. The gateway checks epochs, not grants. |
+| `neg-revocation-not-at-effect` | `committed_without_grant_recheck` | **known_gap** | After revocation, the receiver denies a new handoff, but the executor's next simulated effect still commits. The frozen case revokes with the static `Approval.revoked` flag, which the gateway never sees, so it stays a known gap. A runtime revocation by a signed notice (issue #38) is rechecked at the core effect commit; the local smoke's `grant_revocation_blocks_effect_commit` covers that. |
 
 ## Pilot observations (harness 0.2.0, 2026-10-16, release `920e9a2f…`)
 
