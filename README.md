@@ -118,6 +118,7 @@ Further research notes:
 
 Experimental code (synthetic, local, not production):
 
+- [Continuity Guard v0.1: multi-principal approval, obligations, configuration drift, quarantine and freshness (research-only)](docs/continuity-guard-v0.md) — deterministic 10-case demo and synthetic unit tests
 - [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md) · [As-built architecture of the `agent_movement` package (verified against `dac5f62`)](docs/architecture.md)
 - [`agent-movement` CLI reference: every subcommand, flag, optional extra and exit code](docs/cli.md)
 - [Language and SDK strategy (public proposal; Python-first, with what is implemented so far)](docs/language-and-sdk-strategy.md)
