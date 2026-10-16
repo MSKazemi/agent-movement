@@ -1,7 +1,6 @@
 """Black-box and mutation tests for the independent synthetic tool-side gateway."""
 from __future__ import annotations
 
-import copy
 import json
 import os
 import select
@@ -19,6 +18,7 @@ import pytest
 
 pytest.importorskip("cryptography")
 
+from agent_movement.core import digest
 from agent_movement.tool_authority import (ACTION, RESOURCE, VERSION,
                                            IndependentTool, sign, verified)
 from agent_movement.trust import Ed25519Key
@@ -72,7 +72,6 @@ def ctrl(rig, event_type: str, suffix: str, **kwargs):
 
 def enroll(rig):
     _, _, grant, _ = rig
-    from agent_movement.core import digest
     assert ctrl(rig, "enroll", "enroll", task_id="task-1", movement_id="move-1",
                 owner="agent-a", epoch=1, policy_epoch=1,
                 grant_digest=digest(grant), max_units=3)[0] == 200
@@ -176,8 +175,9 @@ def test_revocation_cancellation_expiry_and_policy_change_at_sink(rig):
         assert independent_effects(fresh[3]) == []
     fresh = make_fresh(rig, "expired")
     service, keys, grant, _ = fresh
+    ready(fresh)
     service.clock = lambda: NOW + 200
-    assert activate(fresh)[0] == 403  # expired even before activation
+    assert effect(fresh)[1]["reason"] == "grant_not_live"
 
 
 def make_fresh(rig, suffix):
@@ -234,7 +234,7 @@ def test_replayed_and_tampered_control_commands(rig):
     enroll(rig)
     assert ctrl(rig, "enroll", "enroll", task_id="task-1", movement_id="move-1",
                 owner="agent-a", epoch=1, policy_epoch=1,
-                grant_digest=__import__("agent_movement.core", fromlist=["digest"]).digest(rig[2]),
+                grant_digest=digest(rig[2]),
                 max_units=3)[1]["decision"] == "replayed"
     assert ctrl(rig, "transfer", "enroll", task_id="task-1", movement_id="move-1",
                 expected_owner="agent-a", expected_epoch=1,
@@ -267,7 +267,10 @@ def post(port: int, channel: str, data: dict[str, Any]) -> tuple[int, dict[str, 
 
 
 def test_real_tool_server_process_and_hostile_raw_client(rig, tmp_path):
-    service, keys, grant, path = rig
+    _, keys, grant, path = rig
+    now = int(time.time())
+    live_payload = {**grant["payload"], "not_before": now - 60, "expires_at": now + 120}
+    live_grant = sign("grant", live_payload, keys["issuer"])
     config = tmp_path / "tool-config.json"
     cfg = {"db": str(path), "operator_public": keys["operator"].export(private=False),
            "issuer_public": keys["issuer"].export(private=False),
@@ -307,10 +310,9 @@ def test_real_tool_server_process_and_hostile_raw_client(rig, tmp_path):
         assert hostile.stdout.strip() == "DENIED 401"
         assert independent_effects(path) == []
 
-        from agent_movement.core import digest
         controls = [
             ("enroll", {"owner": "agent-a", "epoch": 1, "policy_epoch": 1,
-                        "grant_digest": digest(grant), "max_units": 3}),
+                        "grant_digest": digest(live_grant), "max_units": 3}),
             ("transfer", {"expected_owner": "agent-a", "expected_epoch": 1,
                           "new_owner": "agent-b", "policy_epoch": 1}),
         ]
@@ -319,13 +321,45 @@ def test_real_tool_server_process_and_hostile_raw_client(rig, tmp_path):
                     "movement_id": "move-1", "task_id": "task-1", **fields}
             code, response = post(port, "control", sign("control", body, keys["operator"]))
             assert code == 200
-            verified("receipt", response["receipt"], keys["tool"].verifier())
+            assert verified("receipt", response["receipt"], keys["tool"].verifier())["decision"] == "accepted"
+
+        req = {"version": VERSION, "actor": "agent-b", "movement_id": "move-1",
+               "task_id": "task-1", "epoch": 2, "grant": live_grant,
+               "effect_id": "http-effect", "action": ACTION, "resource": RESOURCE, "units": 1}
+        signed = sign("effect", req, keys["b"])
+        assert post(port, "effect", signed)[0] == 403  # not activated
         active = {"version": VERSION, "actor": "agent-b", "movement_id": "move-1",
-                  "task_id": "task-1", "epoch": 2, "grant": grant,
-                  "activation_id": "http-activation", "expires_at": NOW + 50}
-        # The subprocess uses real UTC time, while deterministic fixtures use NOW.
-        # Therefore replace fixture grant with a new real-time-signed grant for an
-        # independent subprocess run below.
+                  "task_id": "task-1", "epoch": 2, "grant": live_grant,
+                  "activation_id": "http-activation", "expires_at": now + 60}
+        code, reply = post(port, "activate", sign("activate", active, keys["b"]))
+        assert code == 200
+        assert verified("receipt", reply["receipt"], keys["tool"].verifier())["decision"] == "activated"
+        # Deliberately ignore the first reply: it could have been lost after commit.
+        assert post(port, "effect", signed)[0] == 200
+        code, reply = post(port, "effect", signed)
+        assert code == 200
+        assert verified("receipt", reply["receipt"], keys["tool"].verifier())["decision"] == "replayed"
+        assert independent_effects(path) == [("task-1", "http-effect", "agent-b", 2, 1)]
+
+        query = {k: req[k] for k in ("version", "actor", "movement_id",
+                                    "task_id", "epoch", "grant", "effect_id")}
+        status, reply = post(port, "reconcile", sign("reconcile", query, keys["b"]))
+        assert status == 200
+        assert verified("receipt", reply["receipt"], keys["tool"].verifier())["decision"] == "committed"
+        query["effect_id"] = "missing-acknowledgement"
+        _, reply = post(port, "reconcile", sign("reconcile", query, keys["b"]))
+        assert verified("receipt", reply["receipt"], keys["tool"].verifier())["decision"] == "unknown"
+
+        revocation = {"version": VERSION, "type": "revoke", "event_id": "http-revocation",
+                      "grant_id": "grant-1"}
+        status, reply = post(port, "control", sign("revoke", revocation, keys["issuer"]))
+        assert status == 200
+        assert verified("receipt", reply["receipt"], keys["tool"].verifier())["decision"] == "accepted"
+        req["effect_id"] = "blocked-after-revoke"
+        status, reply = post(port, "effect", sign("effect", req, keys["b"]))
+        assert status == 403
+        assert verified("receipt", reply["receipt"], keys["tool"].verifier())["reason"] == "grant_revoked"
+        assert len(independent_effects(path)) == 1
     finally:
         proc.terminate()
         try:
