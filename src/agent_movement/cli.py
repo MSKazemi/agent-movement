@@ -74,7 +74,7 @@ COMMANDS: dict[str, Command] = {c.name: c for c in (
             "same-runtime LangGraph checkpoint relocation and fault matrix",
             "agent_movement.relocation_demo", extra="relocation"),
     Command("bench", "agent_movement.mobilitybench:main",
-            "MobilityBench v0.1: verify | run | schedule | report; 'bench smoke' = legacy 20-case smoke",
+            "MobilityBench v0.1/v0.2: verify | run | schedule | report; 'bench smoke' = legacy 20-case smoke",
             "agent_movement.mobilitybench", local_subcommands=("smoke",)),
     Command("receipts", "agent_movement.receipts:main",
             "offline verifier for signed movement receipts: verify | timeline | make-fixtures",
@@ -150,7 +150,7 @@ def _resolve(command: Command, args: list[str]) -> tuple[str, str, list[str]]:
         if args[:1] == ["smoke"]:
             return "agent_movement.mobilitybench:main", f"{prog} smoke", args[1:]
         if not args or args[0] in ("-h", "--help"):
-            # Show the v0.1 suite's subcommands; the legacy smoke parser would list only --output.
+            # Show the v0.1/v0.2 suite subcommands; the legacy smoke parser would list only --output.
             return "agent_movement.mobilitybench_v01:main", prog, args
     return command.target, prog, args
 

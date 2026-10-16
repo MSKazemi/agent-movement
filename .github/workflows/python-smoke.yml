@@ -50,6 +50,15 @@ jobs:
           python -m agent_movement.mobilitybench verify --suite v0.1
           python -m agent_movement.mobilitybench run --suite v0.1 --subset smoke --out mobilitybench-v0.1-smoke.jsonl
           python -m agent_movement.mobilitybench report --in mobilitybench-v0.1-smoke.jsonl --out mobilitybench-v0.1-smoke.md
+      - name: MobilityBench v0.2 (crashes, partitions, restart_stable_ids; two timing-free smoke runs must be byte-identical)
+        run: |
+          python tools/mobilitybench_freeze.py --suite v0.2 --check
+          python -m agent_movement.mobilitybench verify --suite v0.2
+          python -m agent_movement.mobilitybench run --suite v0.2 --subset smoke --out mobilitybench-v0.2-smoke.jsonl
+          python -m agent_movement.mobilitybench report --in mobilitybench-v0.2-smoke.jsonl --out mobilitybench-v0.2-smoke.md
+          python -m agent_movement.mobilitybench run --suite v0.2 --subset smoke --no-timing --out "$RUNNER_TEMP/v02-1.jsonl"
+          python -m agent_movement.mobilitybench run --suite v0.2 --subset smoke --no-timing --out "$RUNNER_TEMP/v02-2.jsonl"
+          cmp "$RUNNER_TEMP/v02-1.jsonl" "$RUNNER_TEMP/v02-2.jsonl"
       - name: Optional features fail closed without their extra
         shell: bash
         run: |
@@ -76,6 +85,7 @@ jobs:
           agent-movement demo
           agent-movement peer-demo
           agent-movement bench verify --suite v0.1
+          agent-movement bench verify --suite v0.2
           fail=0
           check() { want=$1; shift; rc=0; "$@" >/dev/null 2>&1 || rc=$?; echo "exit $rc (want $want): $*"; [ "$rc" = "$want" ] || fail=1; }
           check 2 agent-movement a2a-demo
@@ -92,6 +102,8 @@ jobs:
             mobilitybench-local.jsonl
             mobilitybench-v0.1-smoke.jsonl
             mobilitybench-v0.1-smoke.md
+            mobilitybench-v0.2-smoke.jsonl
+            mobilitybench-v0.2-smoke.md
           if-no-files-found: ignore
           retention-days: 7
 
@@ -178,6 +190,11 @@ jobs:
           python -m agent_movement.mobilitybench report --in mobilitybench-v0.1-extras-smoke.jsonl --out mobilitybench-v0.1-extras-smoke.md
           # With every extra installed only B4 (not implemented) may be unavailable.
           python -c "import json,sys; m=json.loads(open('mobilitybench-v0.1-extras-smoke.jsonl').readline())['modes']; u=sorted(k for k,v in m.items() if v['status']!='implemented'); print('unavailable:', u); sys.exit(u!=['cross_framework_reconstruct'])"
+      - name: MobilityBench v0.2 smoke subset with B2 (A2A) and B3 (relocation) under crashes and partitions
+        run: |
+          python -m agent_movement.mobilitybench run --suite v0.2 --subset smoke --out mobilitybench-v0.2-extras-smoke.jsonl
+          python -m agent_movement.mobilitybench report --in mobilitybench-v0.2-extras-smoke.jsonl --out mobilitybench-v0.2-extras-smoke.md
+          python -c "import json,sys; m=json.loads(open('mobilitybench-v0.2-extras-smoke.jsonl').readline())['modes']; u=sorted(k for k,v in m.items() if v['status']!='implemented'); print('unavailable:', u); sys.exit(u!=['cross_framework_reconstruct'])"
       - name: Movement-receipt fixtures give their expected verifier exit codes
         shell: bash
         run: |
@@ -204,5 +221,7 @@ jobs:
             relocation-two-store-results.json
             mobilitybench-v0.1-extras-smoke.jsonl
             mobilitybench-v0.1-extras-smoke.md
+            mobilitybench-v0.2-extras-smoke.jsonl
+            mobilitybench-v0.2-extras-smoke.md
           if-no-files-found: ignore
           retention-days: 7

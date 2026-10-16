@@ -1,0 +1,18 @@
+{
+  "file_order": [
+    "tasks.jsonl",
+    "ground_truth.jsonl",
+    "negative.jsonl",
+    "seeds.json",
+    "schedule.jsonl"
+  ],
+  "files": {
+    "ground_truth.jsonl": "5f419aad1211864c55b6cf0b3dbf960ab142f1606675449a1c1feeb4ee89c620",
+    "negative.jsonl": "03848608b7e3eae082e37c6622aa2cc1abe21d88b04215c13cc5cd6cc251a14d",
+    "schedule.jsonl": "59bfb99295115fae3d3ae1c569b6c0c1767aac1b3fdc32e6f7f2627d18f759c4",
+    "seeds.json": "0c55da237cd34d8ec85c661871e29d2aa7447bc51adb1a40e88edbfa3f2977bd",
+    "tasks.jsonl": "0062f2134ef67585d2ee55d6e84391fec37993985b0c3a4025d07ca677f7bd0b"
+  },
+  "release_digest": "2408da9a991d5a57c2467df17ca09247b69c3c5faa20099f3725a8210fc1fd63",
+  "suite_version": "mobilitybench-v0.2"
+}

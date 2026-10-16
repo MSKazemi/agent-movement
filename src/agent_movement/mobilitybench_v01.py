@@ -1,7 +1,8 @@
-"""MobilityBench v0.1: frozen synthetic task-continuity baselines (deterministic, LLM-free).
+"""MobilityBench v0.1 and v0.2: frozen synthetic task-continuity baselines (deterministic, LLM-free).
 
   python -m agent_movement.mobilitybench verify --suite v0.1
   python -m agent_movement.mobilitybench run --suite v0.1 --out results.jsonl
+  python -m agent_movement.mobilitybench run --suite v0.2 --out results-v0.2.jsonl
   python -m agent_movement.mobilitybench report --in results.jsonl --out report.md
 
 A scripted interpreter executes frozen synthetic plans; there are no model calls,
@@ -13,7 +14,14 @@ official A2A v1 SDK to a loopback worker (extra ``a2a``), and B3 relocates a Lan
 checkpoint on one pinned runtime (extra ``relocation``). Without its extra, a mode
 is emitted as an explicit ``unavailable`` record, as is cross-framework
 reconstruction (B4), which is not implemented.
-Protocol, rubrics and validity threats: docs/mobilitybench-v0.1.md.
+
+Suite v0.2 (issue #40) runs the same 18 tasks with its own frozen release: five
+more fault kinds (two mid-step crashes inside an effect step, three origin<->destination
+partitions), a frozen seeded schedule (schedule.jsonl), the ``restart_stable_ids``
+variant of B1 that reuses deterministic effect IDs, and an explicit
+``fault_not_applied_reason`` on every record whose mode cannot be faulted that way.
+v0.1 records and fixtures are unchanged.
+Protocol, rubrics and validity threats: docs/mobilitybench-v0.1.md, docs/mobilitybench-v0.2.md.
 """
 from __future__ import annotations
 
@@ -41,13 +49,16 @@ from typing import Any, Callable, Iterator
 from .core import (ID, SCHEMA_VERSION, Approval, Conflict, ContractError, EffectGateway,
                    HandoffReceiver, PolicyDenied, SQLiteStore, canonical, digest, parse_json)
 from .mobilitybench import CANARY, exception_outcome
+from .trust import HmacKey, issue_revocation
 
 SUITE_VERSION = "mobilitybench-v0.1"
-SUITES = {"v0.1": SUITE_VERSION}
+SUITE_VERSION_V02 = "mobilitybench-v0.2"
 # 0.2.0 (issue #31): B2 (A2A) and B3 (checkpoint relocation) are scored when their extra is
 # installed. Tasks, rubrics, interpreter and ground truth are unchanged, so the frozen
 # fixture release (and SUITE_VERSION) stays the same.
-HARNESS_VERSION = "0.2.0"
+# 0.3.0 (issue #40): adds suite v0.2 (its own frozen release). Every v0.1 outcome
+# fingerprint is unchanged; v0.2 records carry the extra fields listed in V02_RECORD_FIELDS.
+HARNESS_VERSION = "0.3.0"
 EXECUTOR = "deterministic-interpreter-v0.1"
 MODEL = "none"
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures"
@@ -55,7 +66,45 @@ FIXTURE_FILES = ("tasks.jsonl", "ground_truth.jsonl", "negative.jsonl", "seeds.j
 MANIFEST_NAME = "MANIFEST.json"
 FAMILIES = ("document", "coding", "tools")
 FAULT_KINDS = ("none", "origin_preempted", "effect_ack_lost", "duplicate_delivery", "stale_origin_returns")
+# v0.2 fault kinds. A crash fires once, inside the first execution of the scheduled effect
+# step that forms an effect intent: before the commit reaches the ledger, or after it is
+# durable but before its acknowledgement reaches the executor. A partition acts once, on the
+# first message between origin and destination (or on the first reply to it).
+CRASH_KINDS = ("crash_before_effect_commit", "crash_after_effect_commit")
+PARTITION_KINDS = ("partition_drop_request", "partition_drop_reply", "partition_delay")
+FAULT_KINDS_V02 = FAULT_KINDS + CRASH_KINDS + PARTITION_KINDS
 TRANSFERABLE = ("synthetic", "public")
+
+
+@dataclass(frozen=True)
+class Suite:
+    """One frozen suite release: its fixture files, fault kinds, extra modes and extra metrics."""
+
+    key: str
+    version: str
+    files: tuple[str, ...]
+    fault_kinds: tuple[str, ...]
+    extra_modes: tuple[str, ...] = ()
+    extra_metrics: tuple[str, ...] = ()
+    doc: str = "docs/mobilitybench-v0.1.md"
+
+
+V02_METRIC_KEYS = ("effect_id_conflicts", "messages_dropped", "messages_delayed", "retries")
+V02_RECORD_FIELDS = ("crash_step", "fault_not_applied_reason") + V02_METRIC_KEYS
+SUITE_SPECS: dict[str, Suite] = {
+    "v0.1": Suite("v0.1", SUITE_VERSION, FIXTURE_FILES, FAULT_KINDS),
+    "v0.2": Suite("v0.2", SUITE_VERSION_V02, FIXTURE_FILES + ("schedule.jsonl",), FAULT_KINDS_V02,
+                  extra_modes=("restart_stable_ids",), extra_metrics=V02_METRIC_KEYS,
+                  doc="docs/mobilitybench-v0.2.md"),
+}
+SUITES = {key: spec.version for key, spec in SUITE_SPECS.items()}
+SUITE_BY_VERSION = {spec.version: spec for spec in SUITE_SPECS.values()}
+
+
+def suite_spec(suite: str) -> Suite:
+    if suite not in SUITE_SPECS:
+        raise FixtureError(f"unknown suite {suite!r}; available: {', '.join(SUITE_SPECS)}")
+    return SUITE_SPECS[suite]
 
 # Optional extras a baseline needs: pyproject extra -> import names and distributions to report.
 EXTRAS: dict[str, dict[str, tuple[str, ...]]] = {
@@ -109,6 +158,27 @@ def mode_table(available: Callable[[str], bool] = extra_available) -> dict[str, 
 
 MODES: dict[str, dict[str, str]] = mode_table()
 
+# Modes a later suite adds after an existing mode (v0.1 runs never include them).
+SUITE_MODE_SPECS: dict[str, dict[str, Any]] = {
+    "restart_stable_ids": {"baseline": "B1-stable", "after": "restart_on_destination",
+                           "tracking": "issue #40: B1 with deterministic effect IDs (ledger wins on conflict)"},
+}
+MODE_ORDER = ("keep_on_origin", "restart_on_destination", "restart_stable_ids", "local_delegate",
+              "a2a_delegate", "checkpoint_relocate", "cross_framework_reconstruct")
+
+
+def modes_for(suite: str = "v0.1") -> dict[str, dict[str, str]]:
+    """The suite's mode table in baseline order; built from MODES, so test patches of it apply."""
+    extra = suite_spec(suite).extra_modes
+    table: dict[str, dict[str, str]] = {}
+    for mode, info in MODES.items():
+        table[mode] = info
+        for added in extra:
+            if SUITE_MODE_SPECS[added]["after"] == mode:
+                spec = SUITE_MODE_SPECS[added]
+                table[added] = {"baseline": spec["baseline"], "status": "implemented", "tracking": spec["tracking"]}
+    return table
+
 
 def extras_versions() -> dict[str, dict[str, str] | None]:
     """Installed distribution versions per extra (None when the extra is missing), for run_version."""
@@ -138,17 +208,25 @@ class FixtureError(ValueError):
     """Frozen fixtures are missing, malformed or do not match the release manifest."""
 
 
+class SimulatedCrash(Exception):
+    """A v0.2 mid-step crash: the executor's process dies inside plan step ``step``."""
+
+    def __init__(self, step: int, kind: str):
+        super().__init__(f"simulated {kind} at step {step}")
+        self.step = step
+        self.kind = kind
+
+
 # --------------------------------------------------------------------------- fixtures
 
 def fixture_dir(suite: str = "v0.1", override: str | Path | None = None) -> Path:
-    if suite not in SUITES:
-        raise FixtureError(f"unknown suite {suite!r}; available: {', '.join(SUITES)}")
+    suite_spec(suite)
     return Path(override) if override is not None else FIXTURE_ROOT / SUITES[suite]
 
 
-def file_digests(directory: Path) -> dict[str, str]:
+def file_digests(directory: Path, files: tuple[str, ...] = FIXTURE_FILES) -> dict[str, str]:
     try:
-        return {name: hashlib.sha256((directory / name).read_bytes()).hexdigest() for name in FIXTURE_FILES}
+        return {name: hashlib.sha256((directory / name).read_bytes()).hexdigest() for name in files}
     except OSError as exc:
         raise FixtureError("missing fixture file") from exc
 
@@ -159,19 +237,20 @@ def release_digest(files: dict[str, str]) -> str:
     return hashlib.sha256(listing.encode("utf-8")).hexdigest()
 
 
-def verify_fixtures(directory: Path) -> dict[str, Any]:
+def verify_fixtures(directory: Path, suite: str = "v0.1") -> dict[str, Any]:
     """Fail closed unless every frozen file matches the committed release manifest."""
+    spec = suite_spec(suite)
     try:
         manifest = json.loads((directory / MANIFEST_NAME).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise FixtureError("missing or unreadable release manifest") from exc
-    if not isinstance(manifest, dict) or manifest.get("suite_version") != SUITE_VERSION:
+    if not isinstance(manifest, dict) or manifest.get("suite_version") != spec.version:
         raise FixtureError("manifest suite version mismatch")
     expected = manifest.get("files")
-    if not isinstance(expected, dict) or set(expected) != set(FIXTURE_FILES):
+    if not isinstance(expected, dict) or set(expected) != set(spec.files):
         raise FixtureError("manifest file list mismatch")
-    actual = file_digests(directory)
-    bad = sorted(name for name in FIXTURE_FILES if actual[name] != expected[name])
+    actual = file_digests(directory, spec.files)
+    bad = sorted(name for name in spec.files if actual[name] != expected[name])
     if bad:
         raise FixtureError("fixture digest mismatch: " + ", ".join(bad))
     if release_digest(actual) != manifest.get("release_digest"):
@@ -224,12 +303,17 @@ class Fixtures:
     truth: dict[str, dict[str, Any]]
     negatives: list[dict[str, Any]]
     seeds: dict[str, Any]
+    suite: str = "v0.1"
+    # v0.2+: the frozen schedule, (seed, task_id) -> {"fault": kind, "crash_step": int | None}.
+    schedule: dict[tuple[int, str], dict[str, Any]] | None = None
 
 
 def load_fixtures(suite: str = "v0.1", directory: str | Path | None = None,
-                  verify: bool = True) -> Fixtures:
+                  verify: bool = True, check_schedule: bool = True) -> Fixtures:
+    """`check_schedule=False` skips comparing schedule.jsonl with the generator (freeze tool only)."""
+    spec = suite_spec(suite)
     root = fixture_dir(suite, directory)
-    manifest = verify_fixtures(root) if verify else {}
+    manifest = verify_fixtures(root, suite) if verify else {}
     tasks = [validate_task(t) for t in _jsonl(root / "tasks.jsonl")]
     ids = [t["task_id"] for t in tasks]
     if len(ids) != len(set(ids)):
@@ -248,9 +332,15 @@ def load_fixtures(suite: str = "v0.1", directory: str | Path | None = None,
         seeds = json.loads((root / "seeds.json").read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise FixtureError("unreadable seed manifest") from exc
-    if tuple(seeds.get("fault_kinds", ())) != FAULT_KINDS:
+    if tuple(seeds.get("fault_kinds", ())) != spec.fault_kinds:
         raise FixtureError("seed manifest fault kinds differ from this harness")
-    return Fixtures(root, manifest, tasks, truth, negatives, seeds)
+    schedule = None
+    if "schedule.jsonl" in spec.files and check_schedule:
+        frozen = _jsonl(root / "schedule.jsonl")
+        if frozen != schedule_rows(tasks, seeds["seeds"], suite):
+            raise FixtureError("frozen fault schedule differs from the seeded generator")
+        schedule = {(row["seed"], row["task_id"]): row for row in frozen}
+    return Fixtures(root, manifest, tasks, truth, negatives, seeds, suite, schedule)
 
 
 # --------------------------------------------------------------------------- interpreter
@@ -349,7 +439,8 @@ Pure = Callable[[int, str, str], "int | str"]
 class Attempt:
     """One (task, mode, fault) attempt with its own ephemeral SQLite ledger."""
 
-    def __init__(self, task: dict[str, Any], fault: str, workdir: Path):
+    def __init__(self, task: dict[str, Any], fault: str, workdir: Path, crash_step: int | None = None,
+                 extra_metrics: tuple[str, ...] = ()):
         self.task = task
         self.plan = task["plan"]
         self.m = task["movement_at"]
@@ -360,10 +451,18 @@ class Attempt:
         self.committed: list[dict[str, Any]] = []
         self.fault_applied = False
         self._ack_dropped = False
+        self.crash_step = crash_step if fault in CRASH_KINDS else None
+        self._crashed = False
+        self._partitioned = False  # a partition fault acts once per attempt
+        self.late_deliveries = 0  # partition_delay: copies the destination receives late
+        # "raise" (default): a different payload under an existing effect ID is a Conflict.
+        # "ledger_wins" (restart_stable_ids): the ledger keeps the first payload; counted.
+        self.conflict_policy = "raise"
+        self.step_runs: Counter[int] = Counter()
         self.metrics = {k: 0 for k in (
             "unknown_events", "reconciled_events", "stale_commits_fenced", "stale_commits_accepted",
             "duplicate_deliveries_suppressed", "transfer_bytes", "transfer_messages",
-            "sensitive_transfers", "steps_executed", "steps_reexecuted")}
+            "sensitive_transfers", "steps_executed", "steps_reexecuted") + extra_metrics}
         self.sensitive = sorted({t for r in all_rules(task) if r["rule"] == "redact_terms" for t in r["terms"]})
 
     def hear(self, state: AgentState, step: int, min_at: int = 0) -> None:
@@ -371,21 +470,76 @@ class Attempt:
             if event["at"] == step and event["at"] >= min_at:
                 state.rules.append(dict(event["rule"]))
 
-    def send(self, message: dict[str, Any]) -> int:
-        """Account one logical transfer; duplicate_delivery delivers it twice."""
-        raw = canonical(message)
-        copies = 2 if self.fault == "duplicate_delivery" else 1
-        if copies == 2:
-            self.fault_applied = True
+    def _account(self, raw: str, copies: int) -> None:
         self.metrics["transfer_bytes"] += len(raw.encode("utf-8")) * copies
         self.metrics["transfer_messages"] += copies
         if any(term in raw for term in self.sensitive):
             self.metrics["sensitive_transfers"] += copies
+
+    def send(self, message: dict[str, Any]) -> int:
+        """Account one logical transfer and return how many copies the destination receives.
+
+        duplicate_delivery delivers every message twice. On the first message only,
+        partition_drop_request loses the original (the sender retries after its timeout:
+        1 copy received, 2 sent) and partition_delay holds it past the timeout (the retry is
+        received first, the original arrives late: 2 copies, the last in `late_deliveries`).
+        """
+        raw = canonical(message)
+        copies = 2 if self.fault == "duplicate_delivery" else 1
+        if copies == 2:
+            self.fault_applied = True
+        sent = copies
+        if self.fault in ("partition_drop_request", "partition_delay") and not self._partitioned:
+            self._partitioned = self.fault_applied = True
+            sent = 2  # the original that was lost or held, plus the sender's retry
+            self.metrics["retries"] += 1
+            if self.fault == "partition_drop_request":
+                self.metrics["messages_dropped"] += 1
+            else:
+                self.metrics["messages_delayed"] += 1
+                copies, self.late_deliveries = 2, 1
+        self._account(raw, sent)
         return copies
+
+    def resend(self, message: dict[str, Any]) -> None:
+        """Account the sender's retry of `message` after its reply was lost."""
+        self._account(canonical(message), 1)
+
+    def reply_lost(self) -> bool:
+        """partition_drop_reply: True for the first reply only (the destination acted; the sender never hears)."""
+        if self.fault != "partition_drop_reply" or self._partitioned:
+            return False
+        self._partitioned = self.fault_applied = True
+        self.metrics["messages_dropped"] += 1
+        self.metrics["retries"] += 1
+        return True
+
+    def take_late(self) -> int:
+        """Copies held by partition_delay that the caller must deliver after the destination acted."""
+        late, self.late_deliveries = self.late_deliveries, 0
+        return late
+
+    def _crash_now(self, step: int) -> str | None:
+        """The scheduled crash kind if this effect intent is the first one formed at the crash step."""
+        if self.crash_step is None or self._crashed or step != self.crash_step:
+            return None
+        self._crashed = self.fault_applied = True
+        return self.fault
 
     def commit(self, state: AgentState, step: int, tool: str, to: str, payload: str, suffix: str) -> None:
         effect_id = f"{self.gw_task}.e{step}{suffix}"
-        new = self.gateway.commit(self.gw_task, state.name, state.epoch, effect_id, payload)
+        crash = self._crash_now(step)
+        if crash == "crash_before_effect_commit":  # intent formed, nothing reached the ledger
+            raise SimulatedCrash(step, crash)
+        try:
+            new = self.gateway.commit(self.gw_task, state.name, state.epoch, effect_id, payload)
+        except Conflict:
+            if self.conflict_policy != "ledger_wins":
+                raise
+            # A deterministic ID already holds a different payload (an earlier owner committed it
+            # with context this executor lost): the ledger wins, nothing is overwritten.
+            self.metrics["effect_id_conflicts"] += 1
+            new = False
         if self.fault == "effect_ack_lost" and not self._ack_dropped:
             # The commit reached the ledger but its acknowledgement was lost: the
             # executor must reconcile, never assume failure and blindly re-send.
@@ -397,11 +551,14 @@ class Attempt:
             self.metrics["reconciled_events"] += 1
         if new:
             self.committed.append({"step": step, "tool": tool, "to": to, "payload": payload})
+        if crash == "crash_after_effect_commit":  # durable in the ledger; the ack dies with the process
+            raise SimulatedCrash(step, crash)
 
     def run_step(self, state: AgentState, step: int, suffix: str = "", pure: Pure | None = None) -> None:
         op = self.plan[step]
         name = op["op"]
         self.metrics["steps_executed"] += 1
+        self.step_runs[step] += 1
         if name in DELEGABLE:
             kind, text, label = pure_input(state, op)
             value = pure(step, kind, text) if pure else pure_value(kind, text)
@@ -463,12 +620,15 @@ Outcome = tuple[AgentState, str, "str | None"]
 def run_keep(att: Attempt) -> Outcome:
     """B0: the origin keeps the task; no transfer. Origin preemption leaves it incomplete."""
     origin = AgentState("agent-a", att.task, att.gateway.claim(att.gw_task, "agent-a"))
-    for step in range(len(att.plan)):
-        if att.fault == "origin_preempted" and step == att.m:
-            att.fault_applied = True
-            return origin, "incomplete", "origin_preempted_no_transfer"
-        att.hear(origin, step)
-        att.run_step(origin, step)
+    try:
+        for step in range(len(att.plan)):
+            if att.fault == "origin_preempted" and step == att.m:
+                att.fault_applied = True
+                return origin, "incomplete", "origin_preempted_no_transfer"
+            att.hear(origin, step)
+            att.run_step(origin, step)
+    except SimulatedCrash:  # v0.2: the only executor died mid-step and nothing recovers the task
+        return origin, "incomplete", "origin_crashed_no_recovery"
     return origin, "completed", None
 
 
@@ -488,29 +648,64 @@ def stale_origin_retry(att: Attempt, origin_epoch: int) -> None:
         att.metrics["stale_commits_fenced"] += 1
 
 
-def run_restart(att: Attempt) -> Outcome:
-    """B1: destination re-runs the original request from step 0; session context is lost."""
-    origin = att.run_origin_until_movement()
+def run_restart(att: Attempt, stable_ids: bool = False) -> Outcome:
+    """B1: destination re-runs the original request from step 0; session context is lost.
+
+    B1 issues fresh effect IDs (``…r1``; ``…r2`` after a destination crash) because it
+    cannot know the origin's. ``stable_ids=True`` is the v0.2 ``restart_stable_ids``
+    variant: the same deterministic IDs as the origin, so the gateway deduplicates a
+    re-issued effect and keeps the first payload when the re-issued one differs.
+    v0.2 crashes: an origin crash inside step k moves the task at once (events up to k
+    are lost with the origin); a destination crash restarts it from step 0 (no checkpoint).
+    """
+    origin = AgentState("agent-a", att.task, att.gateway.claim(att.gw_task, "agent-a"))
+    heard_until = att.m  # B hears only the session events that arrive after the movement
+    try:
+        for step in range(att.m):
+            att.hear(origin, step)
+            att.run_step(origin, step)
+    except SimulatedCrash as crash:
+        heard_until = crash.step + 1  # the crashed origin had already heard the events up to k
     if att.task["classification"] not in TRANSFERABLE:
         return origin, "refused", "classification_not_transferable"
     request = {"movement_id": f"restart-{att.gw_task}", "task_id": att.gw_task,
                "classification": att.task["classification"], "input": att.task["input"],
                "initial_constraints": att.task["initial_constraints"], "plan": att.plan}
     intake: set[str] = set()
-    for _ in range(att.send(request)):
+
+    def receive_request() -> None:
         if request["movement_id"] in intake:  # destination intake dedup by movement ID
             att.metrics["duplicate_deliveries_suppressed"] += 1
         intake.add(request["movement_id"])
+
+    copies = att.send(request)
+    late = att.take_late()
+    for _ in range(copies - late):
+        receive_request()
     epoch = att.gateway.transfer(att.gw_task, "agent-a", origin.epoch, "agent-b")
     if att.fault == "origin_preempted":
         att.fault_applied = True  # origin is gone, restart does not depend on it
     if att.fault == "stale_origin_returns":
         stale_origin_retry(att, origin.epoch)
-    dest = AgentState("agent-b", att.task, epoch)
-    for step in range(len(att.plan)):
-        att.hear(dest, step, min_at=att.m)  # only live events after the movement reach B
-        att.run_step(dest, step, suffix=".r1")  # fresh run: no knowledge of origin's effect IDs
-    att.metrics["steps_reexecuted"] = att.m
+    if stable_ids:
+        att.conflict_policy = "ledger_wins"
+    run = 1
+    while True:
+        dest = AgentState("agent-b", att.task, epoch)
+        try:
+            for step in range(len(att.plan)):
+                att.hear(dest, step, min_at=heard_until)  # only live events after the movement reach B
+                # fresh run: no knowledge of origin's effect IDs (unless stable_ids)
+                att.run_step(dest, step, suffix="" if stable_ids else f".r{run}")
+            break
+        except SimulatedCrash as crash:
+            if run > 1:
+                raise RuntimeError("a scheduled crash fired twice")
+            # Same owner and epoch, new process, from step 0; the events the crashed
+            # process heard (up to the crash step) are lost with it.
+            run, heard_until = 2, max(heard_until, crash.step + 1)
+    for _ in range(late):  # the held original arrives after B already started
+        receive_request()
     return dest, "completed", None
 
 
@@ -537,18 +732,51 @@ def delegation_approvals(att: Attempt) -> list[Approval]:
             for kind in ("word_count", "sha256")]
 
 
-def check_receipts(att: Attempt, envelope: dict[str, Any], receipts: list[dict[str, Any]]) -> int | str:
-    """The first receipt must answer `envelope`; every duplicate delivery must replay it."""
+def check_receipts(att: Attempt, envelope: dict[str, Any], receipts: list[dict[str, Any]],
+                   reply_lost: bool = False) -> int | str:
+    """The first receipt must answer `envelope`; every duplicate delivery must replay it.
+
+    `reply_lost` (v0.2 partition_drop_reply): the first receipt never reached the origin,
+    which re-sent the same envelope, so the first receipt it holds must be a replay.
+    """
     first = receipts[0]
-    if (first["status"] != "completed" or first["replayed"]
+    if (first["status"] != "completed" or first["replayed"] is not reply_lost
             or first["artifact_digest"] != digest(first["artifact"])
             or first["envelope_digest"] != digest(envelope)):
         raise RuntimeError("receipt failed verification")
+    if reply_lost:
+        att.metrics["duplicate_deliveries_suppressed"] += 1
     for extra in receipts[1:]:
         if not extra["replayed"] or extra["artifact"] != first["artifact"]:
             raise RuntimeError("duplicate delivery executed twice")
         att.metrics["duplicate_deliveries_suppressed"] += 1
     return first["artifact"]["value"]
+
+
+def deliver_with_receipts(att: Attempt, message: dict[str, Any], call: Callable[[], dict[str, Any]],
+                          verify_against: dict[str, Any] | None = None) -> int | str:
+    """Deliver one delegation message over the faulted channel and verify its receipts.
+
+    `call()` delivers one copy of `message` to the destination and returns its receipt;
+    receipts are verified against `verify_against` (default: `message`, the envelope).
+    Shared by B2-local and B2 (A2A); see Attempt.send for the copies and partition rules.
+    """
+    envelope = message if verify_against is None else verify_against
+    copies = att.send(message)
+    att.take_late()  # a held original is the last copy: it arrives after the retry was answered
+    receipts, lost = [], False
+    for _ in range(copies):
+        receipt = call()
+        att.metrics["transfer_bytes"] += len(canonical(receipt).encode("utf-8"))
+        att.metrics["transfer_messages"] += 1
+        if not lost and att.reply_lost():  # the receipt never reaches the origin; it retries
+            lost = True
+            att.resend(message)
+            receipt = call()
+            att.metrics["transfer_bytes"] += len(canonical(receipt).encode("utf-8"))
+            att.metrics["transfer_messages"] += 1
+        receipts.append(receipt)
+    return check_receipts(att, envelope, receipts, reply_lost=lost)
 
 
 def delegate_tail(att: Attempt, remote_for: Callable[[Attempt], Any]) -> Outcome:
@@ -557,7 +785,10 @@ def delegate_tail(att: Attempt, remote_for: Callable[[Attempt], Any]) -> Outcome
     `remote_for(att)` is a context manager yielding `remote(step, kind, text) -> value`. It is
     entered only after the refusal and pre-emption checks, so nothing is set up or sent before.
     """
-    origin = att.run_origin_until_movement()
+    try:
+        origin = att.run_origin_until_movement()
+    except SimulatedCrash:  # v0.2: the owner died before the movement point; nothing took over
+        return AgentState("agent-a", att.task, 1), "incomplete", "origin_crashed_owner_not_transferred"
     blocked = sorted({att.plan[i]["op"] for i in range(att.m, len(att.plan))
                       if att.plan[i]["op"] not in DELEGABLE})
     if blocked:
@@ -586,12 +817,7 @@ def _local_remote(att: Attempt) -> Iterator[Pure]:
 
     def remote(step: int, kind: str, text: str) -> int | str:
         envelope = delegation_envelope(att, step, kind, text)
-        copies = att.send(envelope)
-        receipts = [receiver.receive(json.loads(canonical(envelope))) for _ in range(copies)]
-        for receipt in receipts:
-            att.metrics["transfer_bytes"] += len(canonical(receipt).encode("utf-8"))
-            att.metrics["transfer_messages"] += 1
-        return check_receipts(att, envelope, receipts)
+        return deliver_with_receipts(att, envelope, lambda: receiver.receive(json.loads(canonical(envelope))))
 
     yield remote
 
@@ -601,9 +827,15 @@ def run_local_delegate(att: Attempt) -> Outcome:
     return delegate_tail(att, _local_remote)
 
 
+def run_restart_stable_ids(att: Attempt) -> Outcome:
+    """B1-stable (v0.2): B1 with the origin's deterministic effect IDs."""
+    return run_restart(att, stable_ids=True)
+
+
 RUNNERS: dict[str, Callable[[Attempt], Outcome]] = {
     "keep_on_origin": run_keep,
     "restart_on_destination": run_restart,
+    "restart_stable_ids": run_restart_stable_ids,
     "local_delegate": run_local_delegate,
 }
 
@@ -695,31 +927,75 @@ METRIC_KEYS = ("task_correct", "output_correct", "constraints_preserved", "const
                "steps_reexecuted", "transfer_bytes", "transfer_messages", "sensitive_transfers")
 
 
+# Fault kinds a mode cannot experience by construction (v0.2 records name the reason).
+_TRANSFERLESS = ("duplicate_delivery",) + PARTITION_KINDS
+NOT_APPLICABLE: dict[tuple[str, str], str] = {
+    **{("keep_on_origin", f): "no_transfer_channel" for f in _TRANSFERLESS},
+    ("keep_on_origin", "stale_origin_returns"): "no_ownership_transfer",
+    ("restart_on_destination", "partition_drop_reply"): "no_reply_message",
+    ("restart_stable_ids", "partition_drop_reply"): "no_reply_message",
+    ("local_delegate", "stale_origin_returns"): "origin_remains_owner",
+    ("a2a_delegate", "stale_origin_returns"): "origin_remains_owner",
+}
+
+
+def fault_not_applied_reason(mode: str, fault: str, status: str, outcome: str, applied: bool) -> str | None:
+    """Why a scheduled fault did not act on this attempt (None when it did, or for `none`)."""
+    if fault == "none" or applied:
+        return None
+    if status != "implemented":
+        return "mode_unavailable"
+    if outcome == "harness_error":
+        return "harness_error"
+    if (mode, fault) in NOT_APPLICABLE:
+        return NOT_APPLICABLE[(mode, fault)]
+    if outcome in ("refused", "incomplete"):
+        return "attempt_ended_before_fault_point"
+    if fault in CRASH_KINDS:
+        return "no_effect_intent_at_crash_step"  # e.g. the effect was skipped by an active policy
+    if fault == "effect_ack_lost":
+        return "no_effect_committed"
+    return "fault_point_not_reached"
+
+
 def run_attempt(task: dict[str, Any], truth: dict[str, Any] | None, mode: str, fault: str,
-                workdir: Path) -> dict[str, Any]:
-    """Run one attempt and return a sanitized record (IDs, enums, counts, digests only)."""
-    info = MODES[mode]
+                workdir: Path, suite: str = "v0.1", crash_step: int | None = None) -> dict[str, Any]:
+    """Run one attempt and return a sanitized record (IDs, enums, counts, digests only).
+
+    v0.1 records keep exactly their v0.1 fields; v0.2 records add V02_RECORD_FIELDS.
+    """
+    spec = suite_spec(suite)
+    if fault not in spec.fault_kinds:
+        raise FixtureError(f"fault {fault!r} is not part of suite {suite}")
+    info = modes_for(suite)[mode]
     record: dict[str, Any] = {"task_id": task["task_id"], "family": task["family"], "mode": mode,
                               "baseline": info["baseline"], "mode_status": info["status"],
                               "tracking": info["tracking"], "fault": fault, "fault_applied": False,
                               "outcome": "unavailable", "reason": info.get("unavailable_reason"),
                               "model_calls": 0}
-    record.update({k: None for k in METRIC_KEYS})
+    metric_keys = METRIC_KEYS + spec.extra_metrics
+    record.update({k: None for k in metric_keys})
+    if spec.extra_metrics:
+        record.update(crash_step=crash_step if fault in CRASH_KINDS else None, fault_not_applied_reason=None)
     t0 = time.perf_counter_ns()
     if info["status"] == "implemented":
         try:
             workdir.mkdir(parents=True, exist_ok=False)
-            att = Attempt(task, fault, workdir)
+            att = Attempt(task, fault, workdir, crash_step, spec.extra_metrics)
             state, outcome, reason = runner_for(mode)(att)
             if _ledger_rows(workdir / "effects.sqlite") != len(att.committed):
                 raise RuntimeError("harness effect list disagrees with ledger")
+            att.metrics["steps_reexecuted"] = sum(n - 1 for n in att.step_runs.values())
             record.update(outcome=outcome, reason=reason, fault_applied=att.fault_applied)
             record.update(att.metrics)
             if truth is not None:
                 record.update(evaluate(task, truth, state, att, outcome == "completed"))
         except Exception as exc:  # recorded as a harness error, never as a baseline success
-            record.update({k: None for k in METRIC_KEYS})
+            record.update({k: None for k in metric_keys})
             record.update(outcome="harness_error", reason=type(exc).__name__)
+    if spec.extra_metrics:
+        record["fault_not_applied_reason"] = fault_not_applied_reason(
+            mode, fault, info["status"], record["outcome"], record["fault_applied"])
     record["elapsed_ms"] = round((time.perf_counter_ns() - t0) / 1_000_000, 3)
     record["outcome_fingerprint"] = digest({k: v for k, v in record.items() if k not in VOLATILE})
     return record
@@ -775,7 +1051,8 @@ def _neg_receiver(workdir: Path, revoked: bool = False) -> HandoffReceiver:
 
 def _sec_classification_gate(case, fx, workdir):
     task, truth = _security_task(case, fx)
-    rec = run_attempt(task, truth, case["mode"], case.get("fault", "none"), workdir / "attempt")
+    rec = run_attempt(task, truth, case["mode"], case.get("fault", "none"), workdir / "attempt",
+                      fx.suite, case.get("crash_step"))
     if rec["outcome"] != "refused":
         observed = rec["outcome"]
     else:
@@ -785,7 +1062,8 @@ def _sec_classification_gate(case, fx, workdir):
 
 def _sec_run_task(case, fx, workdir):
     task, truth = _security_task(case, fx)
-    rec = run_attempt(task, truth, case["mode"], case.get("fault", "none"), workdir / "attempt")
+    rec = run_attempt(task, truth, case["mode"], case.get("fault", "none"), workdir / "attempt",
+                      fx.suite, case.get("crash_step"))
     if case["expected"] == "fenced":
         fenced = rec["stale_commits_fenced"] == 1 and rec["stale_commits_accepted"] == 0
         return ("fenced" if fenced else "unfenced"), {
@@ -796,7 +1074,7 @@ def _sec_run_task(case, fx, workdir):
 
 def _sec_canary(case, fx, workdir):
     task, truth = _security_task(case, fx)
-    rec = run_attempt(task, truth, case["mode"], "none", workdir / "attempt")
+    rec = run_attempt(task, truth, case["mode"], "none", workdir / "attempt", fx.suite)
     receiver_db = workdir / "attempt" / "receiver.sqlite"
     audit = SQLiteStore(receiver_db).audit() if receiver_db.exists() else []
     leaked = CANARY in canonical(rec) or CANARY in canonical(audit)
@@ -839,7 +1117,7 @@ def _sec_effect_conflict(case, fx, workdir):
 
 def _sec_data_not_instructions(case, fx, workdir):
     task, truth = _security_task(case, fx)
-    rec = run_attempt(task, truth, case["mode"], "none", workdir / "attempt")
+    rec = run_attempt(task, truth, case["mode"], "none", workdir / "attempt", fx.suite)
     declared = {op["to"] for op in task["plan"] if op["op"] == "effect"}
     ok = (rec["outcome"] == "completed" and rec["task_correct"] is True
           and rec["unexpected_effects"] == 0 and rec["effects_committed"] == len(declared))
@@ -855,7 +1133,7 @@ def _sec_tampered_fixture(case, fx, workdir):
     data[-2] = ord("X") if data[-2] != ord("X") else ord("Y")
     target.write_bytes(bytes(data))
     try:
-        verify_fixtures(copy)
+        verify_fixtures(copy, fx.suite)
     except FixtureError:
         return "rejected", {"error_type": "FixtureError"}
     return "accepted", {"error_type": "none"}
@@ -885,7 +1163,72 @@ def _sec_revocation(case, fx, workdir):
         "new_handoff_denied": True, "simulated_commit_after_revocation": committed}
 
 
+def _sec_stable_id_conflict(case, fx, workdir):
+    """v0.2: a restart with deterministic IDs re-issues an origin effect with a different payload."""
+    task, truth = _security_task(case, fx)
+    rec = run_attempt(task, truth, case["mode"], "none", workdir / "attempt", fx.suite)
+    conflicts = rec.get("effect_id_conflicts") or 0
+    kept = conflicts > 0 and rec["duplicate_effects"] == 0 and rec["unexpected_effects"] == 0
+    observed = ("ledger_kept_first_payload" if kept else "overwritten_or_duplicated") \
+        if rec["outcome"] == "completed" else rec["outcome"]
+    return observed, {"effect_id_conflicts": conflicts, "duplicate_effects": rec["duplicate_effects"] or 0,
+                      "unexpected_effects": rec["unexpected_effects"] or 0}
+
+
+def _sec_lost_receipt(case, fx, workdir):
+    """v0.2: the receipt of a delegated step is lost; the origin's retry must be a replay."""
+    task, truth = _security_task(case, fx)
+    rec = run_attempt(task, truth, case["mode"], "partition_drop_reply", workdir / "attempt", fx.suite)
+    replayed = (rec["outcome"] == "completed" and rec["task_correct"] is True and rec.get("messages_dropped") == 1
+                and (rec["duplicate_deliveries_suppressed"] or 0) >= 1)
+    observed = "replayed_not_reexecuted" if replayed else rec["outcome"]
+    return observed, {"messages_dropped": rec.get("messages_dropped") or 0,
+                      "duplicate_deliveries_suppressed": rec["duplicate_deliveries_suppressed"] or 0}
+
+
+def _sec_crash_zombie(case, fx, workdir):
+    """v0.2: the origin 'crashed' inside an effect step but was only paused; after the task
+    moved it wakes up and sends its in-flight commit with its old epoch."""
+    task, truth = _security_task(case, fx)
+    step = case["crash_step"]
+    rec = run_attempt(task, truth, case["mode"], "crash_before_effect_commit", workdir / "attempt", fx.suite, step)
+    if not rec["fault_applied"]:
+        return "crash_not_applied", {"zombie_commit_attempted": False}
+    gateway = EffectGateway(SQLiteStore(workdir / "attempt" / "effects.sqlite"))
+    try:
+        gateway.commit(task["task_id"], "agent-a", 1, f"{task['task_id']}.e{step}", "synthetic zombie commit")
+    except PolicyDenied:
+        return "fenced", {"zombie_commit_attempted": True}
+    return "committed", {"zombie_commit_attempted": True}
+
+
+def _sec_runtime_revocation(case, fx, workdir):
+    """v0.2: as `neg-revocation-not-at-effect`, but the grant is revoked at runtime with a signed
+    notice (issue #38), which the core gateway rechecks at the effect commit."""
+    authority = HmacKey.generate("authority-mobilitybench-v02")  # synthetic, fresh per run
+    receiver = HandoffReceiver("agent-b", SQLiteStore(workdir / "neg.sqlite"), [
+        Approval("neg-approval", "neg-task", "agent-a", "agent-b", "word_count")],
+        revocation_authorities=[authority])
+    receiver.receive(_envelope("before-revocation"))  # approved work starts on agent-b
+    gateway = EffectGateway(receiver.store)
+    epoch = gateway.claim("neg-task", "agent-b")
+    receiver.revoke(issue_revocation(authority, "neg-approval", 1_792_000_000))
+    new_handoff, _ = exception_outcome(lambda: receiver.receive(_envelope("after-revocation")), PolicyDenied)
+    if new_handoff != "denied":
+        return "revocation_not_enforced_at_receiver", {"new_handoff_denied": False}
+    try:  # Attack: the executor keeps going and commits its next simulated effect anyway.
+        committed = gateway.commit("neg-task", "agent-b", epoch, "neg-after-revocation", "synthetic")
+    except PolicyDenied:
+        committed = False
+    return ("committed_without_grant_recheck" if committed else "rejected"), {
+        "new_handoff_denied": True, "simulated_commit_after_revocation": committed}
+
+
 SECURITY: dict[str, Callable[[dict[str, Any], Fixtures, Path], tuple[str, dict[str, Any]]]] = {
+    "runtime_revocation_at_effect": _sec_runtime_revocation,
+    "stable_id_conflict": _sec_stable_id_conflict,
+    "lost_receipt_replay": _sec_lost_receipt,
+    "crash_zombie_commit": _sec_crash_zombie,
     "classification_gate": _sec_classification_gate,
     "run_task": _sec_run_task,
     "canary_redaction": _sec_canary,
@@ -927,14 +1270,46 @@ def run_security_cases(fx: Fixtures, root: Path, timing: bool = True) -> list[di
 
 # --------------------------------------------------------------------------- suite
 
-def fault_schedule(task_ids: list[str], seeds: list[int]) -> dict[tuple[int, str], str]:
+def fault_schedule(task_ids: list[str], seeds: list[int], suite: str = "v0.1") -> dict[tuple[int, str], str]:
     """Seeded, balanced, auditable: no global RNG state, identical on every Python version."""
+    spec = suite_spec(suite)
+    kinds = spec.fault_kinds
     schedule = {}
     for seed in seeds:
-        order = sorted(task_ids, key=lambda t: hashlib.sha256(f"{SUITE_VERSION}:{seed}:{t}".encode()).hexdigest())
+        order = sorted(task_ids, key=lambda t: hashlib.sha256(f"{spec.version}:{seed}:{t}".encode()).hexdigest())
         for position, task_id in enumerate(order):
-            schedule[(seed, task_id)] = FAULT_KINDS[(position + seed) % len(FAULT_KINDS)]
+            schedule[(seed, task_id)] = kinds[(position + seed) % len(kinds)]
     return schedule
+
+
+def effect_steps(task: dict[str, Any]) -> list[int]:
+    return [i for i, op in enumerate(task["plan"]) if op["op"] in ("effect", "reserve")]
+
+
+def crash_step_for(task: dict[str, Any], seed: int, suite: str = "v0.2") -> int:
+    """Seeded choice among the plan's effect steps (every frozen task has at least one)."""
+    steps = effect_steps(task)
+    if not steps:
+        raise FixtureError(f"task {task['task_id']} has no effect step to crash in")
+    key = f"{suite_spec(suite).version}:{seed}:{task['task_id']}:crash_step"
+    return steps[int(hashlib.sha256(key.encode()).hexdigest(), 16) % len(steps)]
+
+
+def schedule_rows(tasks: list[dict[str, Any]], seeds: list[int], suite: str) -> list[dict[str, Any]]:
+    """The full (seed, task) schedule as frozen in schedule.jsonl (task order as in tasks.jsonl)."""
+    kinds = fault_schedule([t["task_id"] for t in tasks], seeds, suite)
+    return [{"seed": seed, "task_id": task["task_id"], "fault": kinds[(seed, task["task_id"])],
+             "crash_step": (crash_step_for(task, seed, suite) if kinds[(seed, task["task_id"])] in CRASH_KINDS
+                            else None)}
+            for seed in seeds for task in tasks]
+
+
+def planned_faults(fx: Fixtures, seeds: list[int]) -> dict[tuple[int, str], dict[str, Any]]:
+    """(seed, task) -> {"fault", "crash_step"}: the frozen schedule, or the generator for other seeds."""
+    rows = {(r["seed"], r["task_id"]): r for r in schedule_rows(fx.tasks, seeds, fx.suite)}
+    if fx.schedule is not None:
+        rows.update({k: v for k, v in fx.schedule.items() if k[0] in seeds})
+    return rows
 
 
 def _selection(fx: Fixtures, subset: str, seeds: list[int] | None,
@@ -954,29 +1329,36 @@ def run_suite(suite: str = "v0.1", subset: str = "full", seeds: list[int] | None
               repeats: int | None = None, fixtures: str | Path | None = None,
               timing: bool = True) -> list[dict[str, Any]]:
     """timing=False omits wall-clock fields so the JSONL is byte-identical across runs."""
+    spec = suite_spec(suite)
     fx = load_fixtures(suite, fixtures)
     tasks, seeds, repeats = _selection(fx, subset, seeds, repeats)
-    schedule = fault_schedule([t["task_id"] for t in fx.tasks], seeds)
-    run_version = {"suite_version": SUITE_VERSION, "fixture_release_digest": fx.manifest["release_digest"],
+    schedule = planned_faults(fx, seeds)
+    modes = modes_for(suite)
+    run_version = {"suite_version": spec.version, "fixture_release_digest": fx.manifest["release_digest"],
                    "contract_version": SCHEMA_VERSION, "harness_version": HARNESS_VERSION,
                    "executor": EXECUTOR, "model": MODEL, "python": platform.python_version(),
                    "extras": extras_versions()}
     run_id = digest({"run_version": run_version, "subset": subset, "seeds": seeds, "repeats": repeats})[:16]
-    records: list[dict[str, Any]] = [{
+    manifest: dict[str, Any] = {
         "record_type": "run_manifest", "run_id": run_id, "run_version": run_version, "subset": subset,
         "seeds": seeds, "repeats": repeats, "tasks": [t["task_id"] for t in tasks],
-        "modes": {m: dict(v) for m, v in MODES.items()}, "fault_kinds": list(FAULT_KINDS),
+        "modes": {m: dict(v) for m, v in modes.items()}, "fault_kinds": list(spec.fault_kinds),
         "fault_assignment": fx.seeds["fault_assignment"],
-        "started_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat() if timing else None}]
-    with tempfile.TemporaryDirectory(prefix="mobilitybench-v0.1-") as directory:
+        "started_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat() if timing else None}
+    if spec.extra_metrics:
+        manifest["crash_step_assignment"] = fx.seeds["crash_step_assignment"]
+    records: list[dict[str, Any]] = [manifest]
+    with tempfile.TemporaryDirectory(prefix=f"mobilitybench-{suite}-") as directory:
         root = Path(directory)
         for repeat in range(repeats):
             for seed in seeds:
                 for task in tasks:
-                    fault = schedule[(seed, task["task_id"])]
-                    for mode in MODES:
+                    planned = schedule[(seed, task["task_id"])]
+                    fault = planned["fault"]
+                    for mode in modes:
                         record = run_attempt(task, fx.truth.get(task["task_id"]), mode, fault,
-                                             root / f"r{repeat}-s{seed}-{task['task_id']}-{mode}")
+                                             root / f"r{repeat}-s{seed}-{task['task_id']}-{mode}",
+                                             suite, planned["crash_step"])
                         if not timing:
                             record["elapsed_ms"] = None
                         records.append({"record_type": "attempt", "run_id": run_id, "run_version": run_version,
@@ -1018,6 +1400,9 @@ def mode_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
                                        "steps_reexecuted")},
         "missing_effects_completed": _sum(done, "missing_effects"),
         "median_elapsed_ms": round(statistics.median(elapsed), 3) if elapsed else None,
+        # v0.2 records only, so v0.1 summaries keep their v0.1 keys.
+        **({k: _sum(rows, k) for k in V02_METRIC_KEYS} | {"faults_applied": sum(r["fault_applied"] is True for r in rows)}
+           if rows and "effect_id_conflicts" in rows[0] else {}),
     }
 
 
@@ -1043,8 +1428,15 @@ def run_modes(records: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
     """Mode table of the run that produced `records` (not of the environment rendering them)."""
     manifest = next((r for r in records if r.get("record_type") == "run_manifest"), {})
     modes = manifest.get("modes") or MODES
-    order = list(MODE_SPECS)  # JSONL keys are sorted; report in baseline order (B0, B1, B2-local, ...)
+    order = list(MODE_ORDER)  # JSONL keys are sorted; report in baseline order (B0, B1, B1-stable, ...)
     return {m: modes[m] for m in sorted(modes, key=lambda m: (order.index(m) if m in order else len(order), m))}
+
+
+def run_suite_spec(records: list[dict[str, Any]]) -> Suite:
+    """The suite that produced `records`, from its run manifest (v0.1 for older JSONL)."""
+    manifest = next((r for r in records if r.get("record_type") == "run_manifest"), {})
+    version = (manifest.get("run_version") or {}).get("suite_version", SUITE_VERSION)
+    return SUITE_BY_VERSION.get(version, SUITE_SPECS["v0.1"])
 
 
 def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1053,7 +1445,8 @@ def summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
     manifest = next((r for r in records if r.get("record_type") == "run_manifest"), {})
     repro = reproducibility(records)
     return {
-        "suite_version": SUITE_VERSION, "run_id": manifest.get("run_id"), "subset": manifest.get("subset"),
+        "suite_version": run_suite_spec(records).version, "run_id": manifest.get("run_id"),
+        "subset": manifest.get("subset"),
         "outcome_digest": outcome_digest(records),
         "attempts_repeat0": len(attempts),
         "harness_errors": sum(r["outcome"] == "harness_error" for r in _attempts(records, None)),
@@ -1086,15 +1479,18 @@ def build_report(records: list[dict[str, Any]]) -> str:
     attempts = _attempts(records)
     summary = summarize(records)
     modes = run_modes(records)
+    spec = run_suite_spec(records)
+    v02 = bool(spec.extra_metrics)
+    fault_kinds = tuple(manifest.get("fault_kinds") or spec.fault_kinds)
     rv = manifest["run_version"]
     lines = [
-        f"# MobilityBench v0.1 report — run `{manifest['run_id']}`",
+        f"# MobilityBench {spec.key} report — run `{manifest['run_id']}`",
         "",
         "> **Pilot, deterministic, LLM-free.** A scripted interpreter executed frozen synthetic tasks; "
         "effects are simulated SQLite commits. Outcomes are deterministic functions of (task, mode, fault), "
         "so repeats test reproducibility, not sampling variance: no confidence intervals or significance "
         "claims are made, and none should be inferred from these counts. Unavailable baselines are listed, "
-        "not scored. See `docs/mobilitybench-v0.1.md` for rubrics and validity threats.",
+        f"not scored. See `{spec.doc}` for rubrics and validity threats.",
         "",
         "## Run manifest",
         "",
@@ -1142,7 +1538,20 @@ def build_report(records: list[dict[str, Any]]) -> str:
             f"{s['unknown_events']}→{s['reconciled_events']} | {s['stale_commits_fenced']} | "
             f"{s['transfer_bytes']} | {s['refused']} | {s['incomplete']} | {_cell(s['median_elapsed_ms'])} |")
     implemented = [m for m, i in modes.items() if i["status"] == "implemented"]
-    for title, key, values in (("By fault (repeat 0): correct / attempts", "fault", FAULT_KINDS),
+    if v02:
+        lines += ["", "## Fault-path evidence (repeat 0)", "",
+                  "`faults applied` counts attempts on which the scheduled fault actually acted; the others are "
+                  "listed with their reason under *Fault applicability*. Effect-ID conflicts are re-issued effects "
+                  "whose deterministic ID already held a different payload (the ledger kept the first one).", "",
+                  "| mode | faults applied / attempts | effect-ID conflicts | messages dropped | messages delayed "
+                  "| retries | duplicate deliveries suppressed | steps re-executed |",
+                  "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
+        for mode in [m for m, i in modes.items() if i["status"] == "implemented"]:
+            s = summary["modes"][mode]
+            lines.append(f"| {mode} | {_frac(s['faults_applied'], s['attempts'])} | {s['effect_id_conflicts']} | "
+                         f"{s['messages_dropped']} | {s['messages_delayed']} | {s['retries']} | "
+                         f"{s['duplicate_deliveries_suppressed']} | {s['steps_reexecuted']} |")
+    for title, key, values in (("By fault (repeat 0): correct / attempts", "fault", fault_kinds),
                                ("By family (repeat 0): correct / attempts", "family", FAMILIES)):
         lines += ["", f"## {title}", "", "| mode | " + " | ".join(values) + " |",
                   "| --- |" + " ---: |" * len(values)]
@@ -1152,6 +1561,23 @@ def build_report(records: list[dict[str, Any]]) -> str:
                 rows = [r for r in attempts if r["mode"] == mode and r[key] == value]
                 cells.append(_frac(sum(r["task_correct"] is True for r in rows), len(rows)))
             lines.append(f"| {mode} | " + " | ".join(cells) + " |")
+    if v02:
+        lines += ["", "## Fault applicability (repeat 0): applied / scheduled", "",
+                  "A fault that cannot act on a mode is reported, never silently dropped: every scheduled but "
+                  "unapplied fault carries a `fault_not_applied_reason` (table below).", "",
+                  "| mode | " + " | ".join(f for f in fault_kinds if f != "none") + " |",
+                  "| --- |" + " ---: |" * (len(fault_kinds) - 1)]
+        for mode in modes:
+            cells = []
+            for fault in fault_kinds[1:]:
+                rows = [r for r in attempts if r["mode"] == mode and r["fault"] == fault]
+                cells.append(_frac(sum(r["fault_applied"] is True for r in rows), len(rows)))
+            lines.append(f"| {mode} | " + " | ".join(cells) + " |")
+        unapplied = Counter((r["mode"], r["fault"], r["fault_not_applied_reason"]) for r in attempts
+                            if r["fault_not_applied_reason"] is not None)
+        lines += ["", "| mode | fault | not applied because | count |", "| --- | --- | --- | ---: |"]
+        lines += [f"| {m} | {f} | `{why}` | {n} |" for (m, f, why), n in sorted(unapplied.items())] \
+            or ["| – | – | – | 0 |"]
     reasons = Counter((r["mode"], r["outcome"], r["reason"]) for r in attempts
                       if r["outcome"] in ("refused", "incomplete", "harness_error"))
     lines += ["", "## Refusals, incomplete attempts and harness errors (repeat 0)", "",
@@ -1182,9 +1608,11 @@ def build_report(records: list[dict[str, Any]]) -> str:
               "latency comparison.", "",
               "## Raw per-case results (repeat 0)", "",
               "| seed | task | family | mode | fault | applied | outcome | reason | correct | output | constraints "
-              "| policy | dup | unexp | missing | unknown | fenced | bytes | ms |",
+              "| policy | dup | unexp | missing | unknown | fenced | bytes | ms |"
+              + (" crash step | not applied because | conflicts | dropped | delayed | retries | re-executed |"
+                 if v02 else ""),
               "| ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: "
-              "| ---: | ---: | ---: |"]
+              "| ---: | ---: | ---: |" + (" ---: | --- | ---: | ---: | ---: | ---: | ---: |" if v02 else "")]
     for r in attempts:
         constraints = ("–" if r["constraints_preserved"] is None
                        else _frac(r["constraints_preserved"], r["constraints_total"]))
@@ -1193,7 +1621,11 @@ def build_report(records: list[dict[str, Any]]) -> str:
             r["outcome"], f"`{r['reason']}`" if r["reason"] else "–", _cell(r["task_correct"]),
             _cell(r["output_correct"]), constraints, _cell(r["policy_violations"]), _cell(r["duplicate_effects"]),
             _cell(r["unexpected_effects"]), _cell(r["missing_effects"]), _cell(r["unknown_events"]),
-            _cell(r["stale_commits_fenced"]), _cell(r["transfer_bytes"]), f"{_cell(r['elapsed_ms'])} |"]))
+            _cell(r["stale_commits_fenced"]), _cell(r["transfer_bytes"]), f"{_cell(r['elapsed_ms'])} |"])
+            + ("" if not v02 else " " + " | ".join([
+                _cell(r["crash_step"]), f"`{r['fault_not_applied_reason']}`" if r["fault_not_applied_reason"] else "–",
+                _cell(r["effect_id_conflicts"]), _cell(r["messages_dropped"]), _cell(r["messages_delayed"]),
+                _cell(r["retries"]), f"{_cell(r['steps_reexecuted'])} |"])))
     return "\n".join(lines) + "\n"
 
 
@@ -1219,13 +1651,16 @@ def _write(path: str, data: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m agent_movement.mobilitybench",
-                                     description="MobilityBench v0.1 (deterministic, LLM-free, synthetic).")
+                                     description="MobilityBench v0.1 and v0.2 (deterministic, LLM-free, synthetic). "
+                                                 "v0.2 adds mid-step crashes, partitions and the "
+                                                 "restart_stable_ids baseline.")
     sub = parser.add_subparsers(dest="command", required=True)
     verify = sub.add_parser("verify", help="check frozen fixtures against the release SHA-256 manifest")
     run = sub.add_parser("run", help="run baselines, faults and negative fixtures; write sanitized JSONL")
     schedule = sub.add_parser("schedule", help="print the seeded fault schedule as JSONL")
     for p in (verify, run, schedule):
-        p.add_argument("--suite", default="v0.1", choices=sorted(SUITES))
+        p.add_argument("--suite", default="v0.1", choices=sorted(SUITES),
+                       help="frozen suite release (default: v0.1)")
         p.add_argument("--fixtures", default=None, help="fixture directory (default: packaged release)")
     for p in (run, schedule):
         p.add_argument("--subset", default="full", choices=["full", "smoke"])
@@ -1241,7 +1676,7 @@ def main(argv: list[str] | None = None) -> int:
     seeds = [int(s) for s in args.seeds.split(",")] if getattr(args, "seeds", None) else None
     try:
         if args.command == "verify":
-            manifest = verify_fixtures(fixture_dir(args.suite, args.fixtures))
+            manifest = verify_fixtures(fixture_dir(args.suite, args.fixtures), args.suite)
             print(json.dumps({"verified": True, "suite_version": manifest["suite_version"],
                               "release_digest": manifest["release_digest"], "files": manifest["files"]},
                              indent=2, sort_keys=True))
@@ -1249,11 +1684,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "schedule":
             fx = load_fixtures(args.suite, args.fixtures)
             tasks, seeds, _ = _selection(fx, args.subset, seeds, None)
-            plan = fault_schedule([t["task_id"] for t in fx.tasks], seeds)
+            plan = planned_faults(fx, seeds)
             for seed in seeds:
                 for task in tasks:
-                    print(json.dumps({"seed": seed, "task_id": task["task_id"],
-                                      "fault": plan[(seed, task["task_id"])]}, sort_keys=True))
+                    row = {"seed": seed, "task_id": task["task_id"], "fault": plan[(seed, task["task_id"])]["fault"]}
+                    if suite_spec(args.suite).extra_metrics:
+                        row["crash_step"] = plan[(seed, task["task_id"])]["crash_step"]
+                    print(json.dumps(row, sort_keys=True))
             return 0
         if args.command == "run":
             if args.repeats is not None and args.repeats < 1:
