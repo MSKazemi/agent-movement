@@ -57,6 +57,8 @@ jobs:
           check() { want=$1; shift; rc=0; "$@" >/dev/null 2>&1 || rc=$?; echo "exit $rc (want $want): $*"; [ "$rc" = "$want" ] || fail=1; }
           check 2 python -m agent_movement.a2a_demo
           check 1 python -m agent_movement.peer_demo --alg Ed25519
+          # Live receipts (issue #32) are opt-in and need the signing extra.
+          check 2 python -m agent_movement.demo --receipts "$RUNNER_TEMP/live-receipts"
           # Receipts: no --trust fails closed (2); without the signing extra signatures are UNCHECKED.
           R=tests/fixtures/movement-receipts
           check 2 python -m agent_movement.receipts verify $R/01-valid-delegation --now 2026-10-16T00:00:00Z
@@ -109,6 +111,16 @@ jobs:
         run: python -m pip show a2a-sdk uvicorn starlette sse-starlette httpx protobuf cryptography langgraph langgraph-checkpoint langgraph-checkpoint-sqlite | grep -E '^(Name|Version):'
       - run: python -m pytest -q
       - run: python -m agent_movement.demo
+      - name: Demo with live signed receipts verifies (0); a tampered copy fails (1)
+        shell: bash
+        run: |
+          out="$RUNNER_TEMP/live-receipts"
+          python -m agent_movement.demo --receipts "$out" >/dev/null
+          python -m agent_movement.receipts verify --trust "$out/trust-anchors.json" "$out/live-run"
+          cp -r "$out/live-run" "$out/tampered"
+          sed -i '0,/"outcome":"accepted"/s//"outcome":"rejected"/' "$out/tampered/receipts.jsonl"
+          rc=0; python -m agent_movement.receipts verify --trust "$out/trust-anchors.json" "$out/tampered" >/dev/null || rc=$?
+          echo "tampered copy: exit $rc (want 1)"; [ "$rc" = 1 ]
       - run: python -m agent_movement.peer_demo
       - run: python -m agent_movement.peer_demo --alg Ed25519
       - name: A2A v1 adapter demo (official a2a-sdk)

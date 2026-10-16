@@ -22,6 +22,8 @@ The demo starts an ephemeral localhost-only HTTP receiver as a **separate operat
 
 For manual testing in another terminal, run `python -m agent_movement.http --db /tmp/agent-movement-demo.sqlite --port 0`. It prints the actual loopback port on stdout. **Do not run behind a public proxy or forward this port.** The receiver allows exactly one sample task reference (`demo-task`), one origin claim (`agent-a`), and one task type by default. Its policy entry expires after ten minutes.
 
+Signed receipts on this path are **off by default**. With the `signing` extra, `python -m agent_movement.demo --receipts OUTDIR` signs the dispatch, the receiver's accept/reject and the fenced effect commits with ephemeral synthetic keys, writes `OUTDIR/live-run/` plus a separate `OUTDIR/trust-anchors.json`, and verifies the bundle offline; the receiver alone takes `--receipts-log FILE`. Without the flag the demo output is unchanged. See [live receipts](movement-receipts.md#live-http-path-issue-32).
+
 ## Contract, failure handling and evidence
 
 - `src/agent_movement/core.py`: strict `0.1.0-draft` typed JSON envelope, allowlisted task kinds (`word_count`, `sha256`), UTF-8 size bounds and unsupported/extra-field denial. This is not a normative standard.
@@ -31,7 +33,7 @@ For manual testing in another terminal, run `python -m agent_movement.http --db 
 - `HTTP` boundary: loopback-only, intentionally simple HTTP+JSON, with input validation and bounded sizes. It does **not** provide TLS, sender authentication, signature verification or user identity proof. Do not expose across trust domains.
 - `demo.py`: end-to-end out-of-process experiment; no model API keys, third-party accounts, browser sessions or physical devices involved.
 
-A receipt includes transfer identifiers, a content digest, a deterministic result artifact/digest, and a caller-supplied trace correlation ID. This receipt itself is unsigned, so it must not be described as cryptographic proof of an agent's identity or behavior. Its digests are unsalted and cover the task text. A separate experiment, [signed movement receipts](movement-receipts.md), adds Ed25519-signed receipts over salted commitments, independent tool-side records and an offline verifier with synthetic fixtures. A signature still does not make a statement true.
+A receipt includes transfer identifiers, a content digest, a deterministic result artifact/digest, and a caller-supplied trace correlation ID. This receipt itself is unsigned, so it must not be described as cryptographic proof of an agent's identity or behavior. Its digests are unsalted and cover the task text. A separate experiment, [signed movement receipts](movement-receipts.md), adds Ed25519-signed receipts over salted commitments, independent tool-side records and an offline verifier with synthetic fixtures; with `--receipts` the demo emits such receipts from this live path as well. A signature still does not make a statement true.
 
 ## What the tests establish
 
