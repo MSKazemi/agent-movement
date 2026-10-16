@@ -32,6 +32,8 @@ jobs:
 
       - name: Check question and study IDs in the docs
         run: make check-ids
+      - name: Check that every cited URL is indexed in docs/sources.md
+        run: make sources
 
       - name: Install pytest
         if: hashFiles('tests/**') != ''
