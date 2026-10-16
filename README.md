@@ -6,6 +6,14 @@ Agent Movement is a research prototype: an open, evidence-first testbed built to
 
 **Status:** Research-stage. Alongside the research documents, the repository has an **experimental Python package of synthetic, local prototypes**: loopback task handoff with simulated-effect fencing, an optional A2A v1 adapter on the official SDK, authenticated peer handoff, same-runtime LangGraph checkpoint relocation, signed movement receipts and the MobilityBench harness. None of it is production software. It does **not** provide production security, broad A2A interoperability (one second SDK, a JavaScript client, and the official A2A TCK have been run on loopback, with documented deviations), cross-framework reconstruction or deployment to other devices. Current release: **v0.2.0** (2026-10-16); see the [CHANGELOG](CHANGELOG.md). Last reviewed: 2026-10-16.
 
+## Start here: research mission and current evidence
+
+**Central question:** When can AI-agent work continue on another authorized executor without silent task-state loss, unsafe effects or untraceable ownership changes—and when is staying or restarting better?
+
+**Adopted direction:** [Project charter](docs/project-charter.md) · [Current, evidence-led roadmap](docs/roadmap.md) · [Strategic decision record](docs/strategy-review-2026-10-16.md). The laboratory focuses on task continuity, independently mediated authority and falsifiable comparisons of **stay, restart, delegate and relocate**. Delegation does not transfer task ownership.
+
+**Reality check (2026-10-16):** The repository has local/synthetic handoff, A2A, peer authorization, compatible checkpoint relocation, signed receipts, an opt-in [Continuity Runtime](docs/continuity-runtime-enforcement.md), an abstract [state-space explorer](docs/algorithms-and-cs-foundations.md) and deterministic **LLM-free** [MobilityBench v0.2](docs/mobilitybench-v0.2.md). These are separate bounded experiments, **not** a production-secure end-to-end cross-host mobility system. The core runtime still validates envelope `0.1.0-draft` while the proposed canonical schema is `0.2.0-draft`. New research must state what is implemented versus planned, trust assumptions, a fair baseline and how a negative result is observed.
+
 ## What does "agent movement" mean?
 
 *Agent Movement* is the **proposed name and working definition for this project**, not a recognized universal standard. We use it to study how an AI-agent task or execution can move between agents, frameworks, models, machines, and organizations **without losing relevant context, accountability, or safety controls**.
@@ -38,7 +46,7 @@ A useful agent might start on a laptop, delegate to a cloud agent, use tools in 
 
 The *research hypothesis* is that a small **portable handoff envelope**, compatible adapters, strict authorization, and an auditable lifecycle could make these layers work together.
 
-## Proposed flow (illustrative, not implemented)
+## Proposed flow (illustrative; only separate local components are implemented)
 
 ```mermaid
 flowchart LR
