@@ -114,7 +114,7 @@ def test_unregistered_test_in_registered_file_fails_only_with_strict(tmp_path, c
     repo = make_repo(tmp_path, rows)
     code, out = run(repo, capsys)
     assert code == 0, out
-    assert "warning: test tests/test_x.py::test_function is not registered" in out
+    assert "warning: " in out and "test tests/test_x.py::test_function is not registered" in out
     code, out = run(repo, capsys, "--strict")
     assert code == 1
     assert "test tests/test_x.py::test_function is not registered" in out

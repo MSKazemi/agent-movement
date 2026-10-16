@@ -111,11 +111,11 @@ def scanned_documents(root: Path, registry: Path) -> list[Path]:
 def check(root: Path, registry: Path) -> tuple[list[str], list[str], dict]:
     errors: list[str] = []
     if not registry.is_file():
-        return [f"{registry}: registry file not found"], {}
+        return [f"{registry}: registry file not found"], [], {}
     with registry.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames != COLUMNS:
-            return [f"{registry.name}: header must be {','.join(COLUMNS)}, got {reader.fieldnames}"], {}
+            return [f"{registry.name}: header must be {','.join(COLUMNS)}, got {reader.fieldnames}"], [], {}
         rows = list(reader)
 
     ids = Counter(row["id"] for row in rows)
