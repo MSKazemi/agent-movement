@@ -21,19 +21,20 @@ A trusted operator provisions:
 ### State transitions
 
 ```text
-UNMANAGED (legacy lab profile)
-  -> signed intent + verified destination grant + all receiver-owned policy facts
-  -> guarded_tasks PREPARED (enroll must happen before any task effect)
-  -> recheck current signed grant, policy, revocation, expiry, cancellation, unknown hold
-  -> owners CAS source A/epoch N -> destination B/epoch N+1
-  -> guarded_tasks TRANSFERRED
-  -> destination's guarded simulated effect: check B+epoch, current grant/policy,
-     cancellation/unknown hold and shared budget; insert effect + decrement budget
-     in the same SQLite write transaction
+UNMANAGED -> signed intent, verified grant and independently checked facts
+  -> guarded_tasks PREPARED (before effects)
+  -> atomic source-owner CAS to destination/epoch+1; guarded_tasks FENCED
+  -> signed, time-bounded destination activation (task/movement/epoch/grant/policy
+     scope/activation ID/nonce), independently verified and stored under write lock
+  -> guarded_tasks ACTIVE (not a claim of physical process liveness)
+  -> EACH effect requires a separate destination-signed invocation binding
+     actor/task/movement/epoch/activation/effect/payload digest and expiry
+  -> transaction rechecks grant, consent, cancellation, budget and current
+     activation BEFORE idempotency/effect insertion
 ```
 
-The origin may still be running; it cannot commit via either `core.EffectGateway` (blocked on enrolled tasks) or the guarded lane with stale identity/epoch. Attempts to call the low-level transfer/commit from a **separate Python process** are explicitly tested.
-
+The old `transferred` phase is not implicitly activated. Previously persisted rows
+with that status fail closed and need explicit operator reconciliation.
 ### Signed intent fields (all mandatory)
 
 ```json
@@ -60,6 +61,8 @@ The intent must be sealed under the purpose `guarded-transfer-intent`, verified 
 | Signed issuer, source proof, audience, task, kind | `enroll` verifies both signed objects; no self-reported auth | forged/scope-mismatch cases |
 | Independent principal consent and obligations | `ContinuityRuntime.require` in every guarded write transaction | missing human, owner, sensor, acknowledgement, quarantine |
 | Revocation and grant expiry at transfer | `transfer` checks peer grant revocations and continuity facts before CAS in the *same* `BEGIN IMMEDIATE` | withdrawal before transfer |
+| Signed destination activation | FENCED → ACTIVE only with independently signed, task- and epoch-bound acknowledgment | denial before activation, forged signatures, changed replay and crash restart |
+| Actor-signed protected effect | Signed exact action/payload proof is mandatory for each call | missing proof, wrong caller, forged payload, expired activation |
 | Revocation/policy expiry at effect commit | `commit` rechecks both authorities *before* deduplication | post-transfer withdrawal, expiry and policy epoch rollover |
 | No old owner effect / legacy bypass | guarded effect checks current owner+epoch; legacy gateway checks durable guard enrollment | stale owner and external child process |
 | Idempotent synthetic protected effects | stable `task_id,effect_id` primary key; modified payload rejected | duplicate, collision |
@@ -79,6 +82,39 @@ make lint typecheck
 ```
 
 There are no model keys or real tools. The new gateway is an *importable Python class*, not a new public network endpoint or a replacement for A2A/MCP.
+
+## Signed destination-activation contract (2026-10-17, issue #103)
+
+GuardedAuthority now records `guarded_activations` in the same SQLite store as
+ownership and effect rows. The receiver signs an activation receipt with a bounded
+validity window, task/movement/recipient identity, transferred epoch, scope,
+policy epoch, signed-grant digest and unique activation ID and nonce. A token
+can activate only a FENCED movement with live independent permissions.
+Identical signed activation replay is idempotent; changed replay is rejected.
+
+Each subsequent simulated protected effect requires its own signed
+`guarded-effect-invocation` bound to the activation ID, current actor, task,
+movement, owner epoch, effect ID, exact payload SHA-256, nonce and expiry.
+The trusted gateway re-verifies this signature under the same SQLite write
+transaction as grant/consent/epoch/budget checks and effect insertion.
+Passing caller-supplied `agent_id` and `epoch` alone cannot authorize an effect.
+
+**Recovery:** reopening the same store after a gateway restart preserves the
+activation record; a matching receipt can be retried without spending effects.
+A crash before activation leaves a FENCED destination that cannot commit.
+Expiry denies further effects. This first version intentionally does not
+auto-refresh expired activation or assert destination physical liveness.
+Revocation, cancellation and unknown-effect holds continue to fail closed.
+
+**Limit:** the stdlib tests use synthetic HS256, which shares a secret between
+signer and verifier; this is not independently attested device/OS identity.
+A copied invocation can be replayed within its signed window for precisely
+the bound effect, subject to idempotency and current policy. A compromised
+signer or database host remains outside the test model. No claim is made
+about unguarded A2A/relocation/other tools. See issue #50 and #102.
+
+Reproduce: `python -m pytest -q tests/test_guarded_activation.py
+tests/test_guarded_authority.py tests/test_guarded_authority_refinement.py`.
 
 ## What remains open before issue #93 can close
 
