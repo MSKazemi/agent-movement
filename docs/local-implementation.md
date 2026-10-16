@@ -14,9 +14,11 @@ Requires Python 3.11+ and no runtime dependencies (the optional extras for the l
 
 ~~~sh
 python -m pip install -e . pytest
-python -m agent_movement.demo
+agent-movement demo          # or: python -m agent_movement.demo
 python -m pytest -q          # all tests: agent_movement + corpus tooling
 ~~~
+
+`agent-movement` is the package's one console script. Its subcommands (`demo`, `a2a-demo`, `peer-demo`, `relocate`, `bench`, `receipts`, `version`) forward their arguments unchanged to the existing `python -m agent_movement.<module>` entry points, which keep working. A missing optional extra gives an install hint and exit 2. See the [CLI reference](cli.md).
 
 The demo starts an ephemeral localhost-only HTTP receiver as a **separate operating-system process** (`agent-b`), sends from `agent-a`, repeats the same request, tries a denied approval, and tests a stale-worker fenced commit. All task data are synthetic; SQLite is stored in a temporary directory and removed afterward. Output includes a completed word count, replay detection, HTTP 403 denial, and a successful new-epoch simulated commit. The process exiting cleans up only the demo's own child process and temp data.
 
