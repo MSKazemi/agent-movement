@@ -1,6 +1,8 @@
 # Peer authentication and pre-disclosure authorization (synthetic, local)
 
-**Status:** Tested experimental software for [issue #8](https://github.com/MSKazemi/agent-movement/issues/8). **Synthetic test keys only. Not A2A, not OAuth/RFC 8693, not a PKI, not production-secure.** It builds on the [local proof of concept](local-implementation.md) and the [threat model](security-and-trust.md).
+**Status:** Tested experimental software for [issue #8](https://github.com/MSKazemi/agent-movement/issues/8), with HPKE-sealed delivery from [issue #19](https://github.com/MSKazemi/agent-movement/issues/19). **Synthetic test keys only. Not A2A, not OAuth/RFC 8693, not a PKI, not production-secure.** It builds on the [local proof of concept](local-implementation.md) and the [threat model](security-and-trust.md).
+
+> **Two delivery modes.** With the optional `hpke` extra and an `enc_key` in the receiver's card, the task text and the receipt cross the wire **only as ciphertext** (see [Delivery confidentiality](#delivery-confidentiality-hpke-issue-19)). The stdlib-only mode (no extra, no `enc_key`) still works but has **no confidentiality**: anyone who controls the receiver's address can read the delivered text.
 
 ## What problem this closes
 
@@ -42,13 +44,18 @@ origin agent-a                                                receiver agent-b
  |  <---------------- admission [signed by agent-b key]: echoes client_nonce,
  |                    preflight digest, destination, short expiry
  |  verify admission with the key in the card       -> else ABORT (no text sent)
- |  (3) POST /v0/deliveries [signed by agent-a key] -------->  | task text + salt
- |                                   same peer as admitted, admission not expired,
+ |  (3) POST /v0/deliveries [signed by agent-a key] -------->  | HPKE mode: enc{suite,kid,ct}
+ |      ct = HPKE-Seal(card.enc_key, info=transcript,            |   (task text + salt + response
+ |                     {task, salt, response_key})            |    key inside ct only)
+ |                                                            | plaintext mode: task text + salt
+ |                                   same peer as admitted (signature covers ct),
+ |                                   admission not expired, then HPKE-Open (AEAD tag
+ |                                   checked before any plaintext exists),
  |                                   commitment matches, grant live/not revoked,
  |                                   pure computation (idempotent, SQLiteStore),
  |                                   simulated effect: grant re-verified IN the
  |                                   same BEGIN IMMEDIATE transaction as the insert
- |  <-------------------------------------- receipt [signed by agent-b key]
+ |  <------------- receipt [signed by agent-b key; HPKE mode: encrypted under response_key]
 ```
 
 Design points:
@@ -68,19 +75,49 @@ Design points:
 
 `cryptography` 50.0.2 was the latest stable release on PyPI when this was written: version metadata from `https://pypi.org/pypi/cryptography/json` was checked on 2026-10-16, and the release was uploaded 2026-09-30.
 
+## Delivery confidentiality (HPKE, issue #19)
+
+Issue #8 left one gap open on purpose: an attacker who controls the receiver's *real* address can relay the preflight and admission verbatim and then read the delivered text. Issue #19 closes it for the payload by encrypting the delivery to a key that the test CA signs into the receiver's card.
+
+| Element | What is implemented |
+|---|---|
+| Receiver key | An X25519 key in the card as `enc_key: {suite, kid, public}`. The test CA's card signature covers it, so a relay cannot swap in its own key (that fails as `bad_card_signature`). It is separate from the signing key. `PeerReceiver` refuses to start unless it holds exactly the private key that its card advertises |
+| Cipher suite | [RFC 9180](https://www.rfc-editor.org/rfc/rfc9180) HPKE, base mode, single-shot: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256 and ChaCha20-Poly1305 (KEM 0x0020, KDF 0x0001, AEAD 0x0003). It uses `cryptography`'s own HPKE API (`cryptography.hazmat.primitives.hpke.Suite`), not a hand-built composition. `Rfc9180KnownAnswerTests` decrypts the RFC 9180 Appendix A.2.1 test vector with this exact suite |
+| Transcript binding | The `info` input binds the suite, the `enc_key` kid, the SHA-256 of the receiver's signed card (the descriptor digest), the movement ID, the origin ID, the audience (the receiver's agent ID), the endpoint, the client nonce, the admission ID and the preflight digest. The receiver rebuilds `info` from its own admission record only. If any field differs, HPKE derives a different key and decryption fails |
+| Sender authentication | HPKE base mode does not authenticate the sender. The origin signs the delivery *including the ciphertext* (encrypt-then-sign), and the receiver checks that signature before it decrypts anything |
+| Receipt | The receipt contains the result and unsalted content digests, so it is encrypted too. The sender puts a fresh 256-bit `response_key` inside the HPKE plaintext. The receiver returns its signed receipt encrypted with ChaCha20-Poly1305 under that key, using the same transcript (plus a `response` label) as associated data. This is comparable to [RFC 9458 §4.4](https://www.rfc-editor.org/rfc/rfc9458#section-4.4) response encapsulation but is not that construction: RFC 9458 derives the key with the HPKE exporter, which the single-shot API does not expose |
+| No downgrade | If the destination card has an `enc_key`, the client always seals to it. Without HPKE support the client aborts at discovery (`encryption_unavailable`) instead of falling back to plaintext. An encrypting receiver refuses a plaintext delivery (`plaintext_delivery_refused`). `PeerClient(require_confidentiality=True)` also refuses destinations whose card has no `enc_key` (`no_confidentiality_key`) |
+
+**Why `info` and not the AEAD `aad`.** RFC 9180 §8.1 says that applications that use only the single-shot APIs "should use the Setup info parameter for specifying auxiliary authenticated information". The `cryptography` documentation repeats this, and its public single-shot API takes `info` but has no `aad` argument. The effect on the transcript is the same: a mismatch makes the AEAD open fail, and no plaintext is produced.
+
+| Mode | How you get it | Confidentiality of task text and receipt |
+|---|---|---|
+| Plaintext (stdlib-only) | No extra and no `enc_key` in the receiver card. The default for `HS256` | **None.** Labelled `plaintext_no_confidentiality` in the client trace and `"delivery_confidentiality": "none (...)"` in the demo output |
+| HPKE | `pip install -e '.[hpke]'` and the receiver card has an `enc_key`. Works with `HS256` or `Ed25519` signatures. The demo default for `Ed25519` | Only ciphertext on the wire, in both directions |
+
+`hpke` is its own optional extra (`cryptography>=50.0.2`, the same package and pin as `ed25519`). The core package stays dependency-free.
+
 ## Run it
 
 ~~~sh
-python -m pip install -e .                 # or: pip install -e '.[ed25519]'
+python -m pip install -e .                 # stdlib only: plaintext delivery, no confidentiality
+python -m pip install -e '.[ed25519,hpke]' # optional: Ed25519 signatures and HPKE-sealed delivery
 python -m pytest -q
-python -m agent_movement.peer_demo         # add --alg Ed25519 with the extra installed
+python -m agent_movement.peer_demo                      # HS256, plaintext (labelled)
+python -m agent_movement.peer_demo --delivery hpke      # HS256 signatures, HPKE delivery
+python -m agent_movement.peer_demo --alg Ed25519        # Ed25519 signatures, HPKE delivery (auto)
 ~~~
 
-The demo starts `agent-b` as a **separate OS process** on loopback. It provisions that process with a per-run JSON file (mode 0600, in a temp directory that is deleted afterwards) written by the parent, which plays the test CA and the user authority. A rogue-CA "agent-b" impostor runs on a second port. The demo exits non-zero if any denied scenario carried the task canary or a delivery request, if any scenario carried the provider canary, or if the task canary appears in the receiver's SQLite files.
+The demo starts `agent-b` as a **separate OS process** on loopback. It provisions that process with a per-run JSON file (mode 0600, in a temp directory that is deleted afterwards) written by the parent, which plays the test CA and the user authority. A rogue-CA "agent-b" impostor runs on a second port. The demo exits non-zero if any denied scenario carried the task canary or a delivery request, if any scenario carried the provider canary, or if the task canary appears in the receiver's SQLite files. In HPKE mode it also exits non-zero if the task canary appears in the captured bytes of **any** scenario, including the successful handoff and the revoked-in-flight delivery.
 
 ## Negative tests (`tests/test_peer.py`)
 
-Every row in `PeerAuthTests` runs twice, once with `HS256` and once with `Ed25519`. "Before disclosure" means that the recorded transport has **no `/v0/deliveries` request** and that **no canary** appears in the wire bytes, the receiver trace, the `agent_movement.peer` log records, the core audit table, or the raw SQLite/WAL files.
+Every row in `PeerAuthTests` runs three times:
+- `PeerAuthTests`: `HS256` with plaintext delivery, the stdlib-only mode.
+- `PeerAuthHpkeTests`: `HS256` with HPKE delivery.
+- `PeerAuthEd25519Tests`: `Ed25519` with HPKE delivery.
+
+The two HPKE classes are skipped cleanly when the extra is absent. "Before disclosure" means that the recorded transport has **no `/v0/deliveries` request** and that **no canary** appears in the wire bytes, the receiver trace, the `agent_movement.peer` log records, the core audit table, or the raw SQLite/WAL files.
 
 | Attack / condition | Where it is stopped | Before disclosure? |
 |---|---|---|
@@ -104,6 +141,28 @@ Every row in `PeerAuthTests` runs twice, once with `HS256` and once with `Ed2551
 | Revocation / expiry **between delivery and effect commit** | effect gateway, same transaction (`effect_grant_revoked` / `effect_grant_expired`) | no effect recorded |
 | Concurrent revocation vs. 8 parallel commits | `authority_log` shows every committed effect sequenced **before** the revocation | linearized |
 | Provider token canary placed in the task text | sender guard `DisclosureBlocked` before any POST | yes |
+
+HPKE-only rows (`SealedDeliveryCases`, run in both HPKE classes). The tests check the tamper, transcript, moved-ciphertext and wrong-key rejections the same way each time:
+- A patched `SQLiteStore.receive` proves that the task was never executed.
+- There is no audit row and no effect, and no canary appears in storage.
+- Afterwards an honest delivery against the same admission still succeeds.
+
+| Attack / condition | Where it is stopped |
+|---|---|
+| **On-path relay that owns agent-b's real address** and records every byte in both directions (`test_on_path_relay_sees_only_ciphertext_with_hpke`) | Not stopped. The handoff completes, but the relay captures **ciphertext only**: no canary, no `text`, `salt`, `artifact` or `envelope_digest` field. In plaintext mode the same test asserts that the relay *does* read the text (no confidentiality) |
+| Relay replaces the card's `enc_key` with its own | client, discovery (`bad_card_signature`) |
+| Ciphertext tampered and re-signed by the genuine origin / truncated | receiver 401 `delivery_decrypt_failed` |
+| Ciphertext tampered by anyone else | receiver 401 `bad_signature` (the signature covers the ciphertext) |
+| Transcript mismatch: movement ID, origin, audience, endpoint, client nonce, admission ID, preflight digest, card digest or kid | receiver 401 `delivery_decrypt_failed` (one subtest per field) |
+| Valid ciphertext moved to another admission | receiver 401 `delivery_decrypt_failed` |
+| Sealed to a rogue X25519 key that reuses the kid / addressed to a kid the receiver does not hold | receiver 401 `delivery_decrypt_failed` / `wrong_enc_key` |
+| Plaintext delivery to an encrypting receiver | receiver 403 `plaintext_delivery_refused`. The text was exposed by the sender, but it is not executed |
+| Sealed delivery to a receiver without an `enc_key` | receiver 400 |
+| Client without HPKE support facing a card with an `enc_key` | client, discovery (`encryption_unavailable`). It never downgrades |
+| `require_confidentiality=True` facing a card without an `enc_key` | client, discovery (`no_confidentiality_key`) |
+| Encrypted receipt tampered in transit | client `unverified_receipt` (the effect already committed) |
+
+**Red-green evidence (issue #19).** I temporarily removed `admission_id` from the HPKE transcript, and the `admission_id` subtest of `test_hpke_transcript_mismatch_rejected` failed in both HPKE classes. Restoring the code made all tests pass again.
 
 **Red-green evidence.** I temporarily deleted the in-transaction grant recheck in `AuthorizedEffectGateway.commit`, and six tests failed: the revocation, expiry and concurrent-race tests in both modes. I temporarily disabled the client's identity and endpoint binding, and four tests failed. Restoring the code made all tests pass again.
 
@@ -130,17 +189,25 @@ The fake-receiver and unsupported-schema scenarios produce **no receiver trace a
 3. Private keys stay in process memory, or in the demo's temporary 0600 provisioning file. There is no HSM, rotation, key revocation or card revocation list.
 4. The receiver's SQLite file and clock are trusted. Expiry uses the receiver's wall clock with an allowed preflight skew of 120 s.
 5. Revocation notices are **pushed** by the user authority and applied synchronously. There is no status list or introspection pull.
-6. The loopback network carries no confidentiality or integrity protection: **no TLS and no channel binding**.
-7. Task kinds are pure functions, and the "external effect" is a row in a local SQLite table.
+6. The loopback network carries no confidentiality or integrity protection: **no TLS and no channel binding**. In HPKE mode, the delivery body and receipt are end-to-end encrypted to the receiver's card key. Everything else stays readable: discovery, the preflight (task kind, classification, IDs, cards, the grant) and the admission.
+7. The receiver's X25519 private key is held only by the receiver process (in the demo, inside the same 0600 provisioning file). Whoever holds it can read every delivery sealed to it.
+8. Task kinds are pure functions, and the "external effect" is a row in a local SQLite table.
 
 ## Limitations (documented, not solved)
 
-- **On-path relay / no channel security.** An attacker who controls the *real endpoint address* can relay the preflight and admission verbatim and then read the delivered text. `test_limitation_on_path_relay_sees_payload_without_channel_security` demonstrates this on purpose. The defences are mTLS with keys bound to the card (TLS channel binding, e.g. [RFC 9266](https://www.rfc-editor.org/rfc/rfc9266)) or encrypting the delivery to the card's key (for example HPKE). Neither is implemented. What *is* prevented is misdirection to an endpoint that the destination card does not name.
+- **On-path relay: closed for the payload in HPKE mode only.** An attacker who controls the *real endpoint address* can still relay every message verbatim. In HPKE mode it sees only ciphertext of the task and the receipt (`test_on_path_relay_sees_only_ciphertext_with_hpke`). Some gaps remain in every mode:
+  - **Plaintext mode has no confidentiality.** The same test shows that the relay reads the text there.
+  - **The relay can still observe and disrupt.** It sees all preflight metadata, and the ciphertext length reveals the approximate text length, because there is no padding. It can also drop or delay messages.
+  - **No forward secrecy against the receiver's static key.** HPKE base mode uses a fresh ephemeral key per delivery, but anyone who later obtains the receiver's X25519 private key can decrypt recorded deliveries.
+  - **No key rotation or revocation.** Neither the encryption key nor the signing key can be rotated or revoked.
+  - **Library, not a certified HPKE.** The suite comes from `cryptography`'s HPKE implementation, which this repository has only checked against one RFC 9180 test vector. It has not been audited here.
+  - **Not TLS.** This is not mTLS or TLS channel binding (e.g. [RFC 9266](https://www.rfc-editor.org/rfc/rfc9266)).
+  - **Misdirection.** As before, misdirection to an endpoint that the destination card does not name is prevented in both modes.
 - **Replay.** Each preflight nonce is single-use for each origin. Nonces are pruned after 2× the skew window, and stale `issued_at` values are rejected, so replay is impossible outside the window. Inside the window, an observer who copied a preflight can replay it to the real receiver once. That creates an orphan admission and burns the movement ID (squatting/DoS), but it cannot be completed without the origin's key. An identical delivery can be replayed while its admission is valid, but it is idempotent (`replayed: true`, effect `replayed`). Signed receipts can be replayed as evidence. They are bound to an admission ID, not to a verifier challenge.
 - **Cancellation.** There is no cancel operation. Revoking the grant is the only way to stop a transfer. It prevents *future* deliveries and effect commits but does not undo a committed effect. An admission that is never used simply expires (TTL ≤ 60 s, also capped by grant and card expiry).
 - **Partitions.** A receiver that is cut off from the user authority never learns about a revocation and keeps honouring the grant until `expires_at`. The bound is therefore the grant lifetime, so keep grants short. A sender that loses the receipt cannot tell whether the effect committed. It can retry the identical delivery within the admission TTL and get the idempotent answer. After that, the outcome must be reconciled out of band. There is no `unknown` lifecycle state for a peer handoff yet.
 - **Revocation races.** These are linearized **only inside this receiver's SQLite database**: a revocation that commits first always wins at the effect gateway. Three gaps remain:
-  - A revocation that lands between admission and delivery still lets the text cross the wire. It is then refused and not persisted.
+  - A revocation that lands between admission and delivery still lets the text cross the wire. It is then refused and not persisted. In HPKE mode only ciphertext crosses, and the receiver decrypts it only after its admission checks pass. The grant recheck comes *after* decryption, so the receiver process does briefly hold the text in memory.
   - A revocation that arrives after commit does not undo the commit.
   - A real third-party tool would need the same check *on its own side* of the boundary.
 - **Retention.** The receiver keeps the following data **with no expiry or deletion API**:
@@ -157,8 +224,8 @@ The fake-receiver and unsupported-schema scenarios produce **no receiver trace a
 
 ## Code map
 
-- `src/agent_movement/trust.py`: keys (HS256/Ed25519), domain-separated sealing, `TrustStore`, agent cards, grants, revocation notices, commitments.
-- `src/agent_movement/peer.py`: `PeerReceiver` (preflight/delivery/revocation), `PeerClient` (discover → preflight → deliver, plus the disclosure guard), `PeerLedger` (nonces, admissions, revocations, sanitized trace), `AuthorizedEffectGateway` (grant recheck at commit), and in-process, HTTP and recording transports.
-- `src/agent_movement/peer_http.py`: loopback-only HTTP wrapper and a provisioning-file entry point.
-- `src/agent_movement/peer_demo.py`: two-process demo with captured sanitized traces.
-- `tests/test_peer.py`: the negative tests above, plus a loopback HTTP run.
+- `src/agent_movement/trust.py`: keys (HS256/Ed25519), domain-separated sealing, `TrustStore`, agent cards (with the optional signed `enc_key`), grants, revocation notices and commitments. It also holds the HPKE pieces: `HpkeKey`, `delivery_info` (the transcript) and `seal_response`/`open_response`.
+- `src/agent_movement/peer.py`: `PeerReceiver` (preflight/delivery/revocation, plus opening sealed deliveries), `PeerClient` (discover → preflight → deliver, the disclosure guard and the no-downgrade rule), `DeliverySeal`, `PeerLedger` (nonces, admissions, revocations, sanitized trace), `AuthorizedEffectGateway` (grant recheck at commit), and in-process, HTTP and recording transports.
+- `src/agent_movement/peer_http.py`: loopback-only HTTP wrapper and a provisioning-file entry point (with an optional `enc_key`).
+- `src/agent_movement/peer_demo.py`: two-process demo with captured sanitized traces (`--delivery auto|plaintext|hpke`).
+- `tests/test_peer.py`: the negative tests above, loopback HTTP runs in both delivery modes, and the RFC 9180 known-answer test.

@@ -14,7 +14,7 @@
 
 ## Identifiers
 
-The three tasks are **EV-A**, **EV-B** and **EV-C**. Their hypotheses are numbered **EV-A-H1**, **EV-B-H1** and so on. These prefixes are new and do not clash with any identifier in the repository (checked with `git grep "EV-"` on 2026-10-16). Issue #34 is replacing the bare question and stage labels in the agenda documents with the prefixes `AM-`, `HQ-`, `RQ-` and `ST-`, so this plan uses none of those bare labels.
+The three tasks are **EV-A**, **EV-B** and **EV-C**. Their hypotheses are numbered **EV-A-H1**, **EV-B-H1** and so on. These prefixes are new and do not clash with any identifier in the repository (checked with `git grep "EV-"` on 2026-10-16). Issue #34 replaced the bare question and stage labels in the agenda documents with prefixed IDs (`AM-`, `HQ-`, `SQ-`, `ST-` and others; see the [question ID crosswalk](question-id-crosswalk.md)), so this plan uses none of those bare labels.
 
 Baselines keep their existing IDs:
 

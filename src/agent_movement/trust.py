@@ -16,6 +16,13 @@ Two signature backends share one interface:
 * ``HS256`` (stdlib ``hmac``): the dependency-free default. Symmetric -- every holder of a
   verification key can also sign with it, so it only models *outsider* attackers.
 * ``Ed25519`` (optional ``cryptography`` extra): asymmetric; verifiers cannot forge.
+
+Delivery confidentiality (issue #19) is a separate, optional layer. A receiver card may carry
+an X25519 key (``enc_key``) signed with the card. Senders then seal the task with RFC 9180
+HPKE (base mode, DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, ChaCha20-Poly1305) through the
+``cryptography`` package's own HPKE implementation, bound to the preflight transcript
+(``delivery_info``). Without that key -- always the case in the stdlib-only mode -- deliveries
+travel in plaintext and have **no confidentiality**.
 """
 
 from __future__ import annotations
@@ -28,7 +35,7 @@ import secrets
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from .core import ContractError, PolicyDenied, _fields, _id, canonical
+from .core import ContractError, PolicyDenied, _fields, _id, canonical, digest
 
 PEER_SCHEMA_VERSION = "0.1.0-peer-draft"
 HS256 = "HS256"
@@ -41,7 +48,13 @@ _PURPOSES = frozenset({"agent-card", "grant", "revocation", "preflight", "admiss
                        "delivery", "receipt"})
 # Loopback or in-process only: a card can never point a sender at an arbitrary host (SSRF).
 _ENDPOINT = re.compile(r"(http://127\.0\.0\.1:[1-9][0-9]{0,4}|local://[A-Za-z0-9._-]{1,64})\Z")
-_B64 = re.compile(r"[A-Za-z0-9_-]{0,4096}\Z")
+_B64 = re.compile(r"[A-Za-z0-9_-]*\Z")
+# RFC 9180 HPKE base mode: KEM 0x0020 DHKEM(X25519, HKDF-SHA256), KDF 0x0001 HKDF-SHA256,
+# AEAD 0x0003 ChaCha20Poly1305. The identifier string is local to this prototype.
+HPKE_SUITE = "hpke-base-x25519-hkdfsha256-chacha20poly1305"
+RESPONSE_AEAD = "chacha20poly1305"
+HPKE_OVERHEAD = 32 + 16  # enc (X25519 public key) + Poly1305 tag
+MAX_SEALED_B64 = 16384  # base64 characters; the HTTP body cap is 16 KiB anyway
 _MAX_TIME = 2 ** 40
 
 
@@ -79,8 +92,8 @@ def b64e(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
 
-def b64d(text: Any, label: str = "base64 field") -> bytes:
-    if not isinstance(text, str) or not _B64.fullmatch(text):
+def b64d(text: Any, label: str = "base64 field", max_len: int = 4096) -> bytes:
+    if not isinstance(text, str) or len(text) > max_len or not _B64.fullmatch(text):
         raise ContractError(f"invalid {label}")
     try:
         return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
@@ -240,6 +253,161 @@ class Ed25519Key:
         return f"Ed25519Key(kid={self.kid!r}, private={'<redacted>' if self._private else None})"
 
 
+def hpke_available() -> bool:
+    """True when the installed ``cryptography`` exposes its RFC 9180 HPKE API (50.x does)."""
+    try:
+        from cryptography.hazmat.primitives.asymmetric import x25519  # noqa: F401
+        from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305  # noqa: F401
+        from cryptography.hazmat.primitives.hpke import AEAD, KDF, KEM, Suite  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def _hpke_suite() -> Any:
+    from cryptography.hazmat.primitives.hpke import AEAD, KDF, KEM, Suite
+    return Suite(KEM.X25519, KDF.HKDF_SHA256, AEAD.CHACHA20_POLY1305)
+
+
+class HpkeKey:
+    """X25519 delivery-encryption key for ``HPKE_SUITE``; deliberately separate from signing keys.
+
+    Public-only instances (parsed from a verified card) need no third-party package until
+    ``seal`` is called. ``open`` needs the private key and the optional ``cryptography`` extra.
+    """
+
+    suite = HPKE_SUITE
+
+    def __init__(self, kid: str, public: bytes, private: Any = None):
+        _id(kid, "enc kid")
+        if not isinstance(public, bytes) or len(public) != 32 or public == bytes(32):
+            raise ContractError("invalid X25519 public key")
+        self.kid = kid
+        self._public = public
+        self._private = private
+
+    @classmethod
+    def generate(cls, kid: str) -> "HpkeKey":
+        from cryptography.hazmat.primitives.asymmetric import x25519
+        private = x25519.X25519PrivateKey.generate()
+        return cls(kid, private.public_key().public_bytes_raw(), private)
+
+    @classmethod
+    def from_public(cls, kid: str, public_b64: str) -> "HpkeKey":
+        return cls(kid, b64d(public_b64, "enc public key"))
+
+    @classmethod
+    def from_private(cls, kid: str, private_b64: str) -> "HpkeKey":
+        from cryptography.hazmat.primitives.asymmetric import x25519
+        raw = b64d(private_b64, "enc private key")
+        if len(raw) != 32:
+            raise ContractError("invalid X25519 private key")
+        private = x25519.X25519PrivateKey.from_private_bytes(raw)
+        return cls(kid, private.public_key().public_bytes_raw(), private)
+
+    def public_value(self) -> str:
+        return b64e(self._public)
+
+    def descriptor(self) -> dict[str, str]:
+        """The ``enc_key`` object that the test CA signs into the receiver's card."""
+        return {"suite": HPKE_SUITE, "kid": self.kid, "public": self.public_value()}
+
+    def matches(self, other: Any) -> bool:
+        return isinstance(other, HpkeKey) and (self.kid, self._public) == (other.kid, other._public)
+
+    def seal(self, plaintext: bytes, info: bytes) -> bytes:
+        """HPKE single-shot seal to this public key. Returns ``enc || ciphertext``."""
+        from cryptography.hazmat.primitives.asymmetric import x25519
+        public = x25519.X25519PublicKey.from_public_bytes(self._public)
+        return _hpke_suite().encrypt(plaintext, public, info=info)
+
+    def open(self, sealed: bytes, info: bytes) -> bytes:
+        """HPKE single-shot open. A wrong key, any tampering or a different ``info`` raises
+        ``Unauthenticated`` and returns no plaintext: the AEAD tag is verified first."""
+        if self._private is None:
+            raise TypeError("public-only HPKE key cannot open")
+        from cryptography.exceptions import InvalidTag
+        if len(sealed) < HPKE_OVERHEAD:
+            raise Unauthenticated("delivery_decrypt_failed")
+        try:
+            return _hpke_suite().decrypt(sealed, self._private, info=info)
+        except (InvalidTag, ValueError) as exc:
+            raise Unauthenticated("delivery_decrypt_failed") from exc
+
+    def secret_forms(self) -> tuple[bytes, ...]:
+        if self._private is None:
+            return ()
+        raw = self._private.private_bytes_raw()
+        return (raw, b64e(raw).encode("ascii"), raw.hex().encode("ascii"))
+
+    def export(self, private: bool = True) -> dict[str, str]:
+        out = self.descriptor()
+        if private and self._private is not None:
+            out["private"] = b64e(self._private.private_bytes_raw())
+        return out
+
+    def __repr__(self) -> str:
+        return f"HpkeKey(kid={self.kid!r}, private={'<redacted>' if self._private else None})"
+
+
+def import_enc_key(data: Any) -> HpkeKey:
+    if not isinstance(data, dict) or data.get("suite") != HPKE_SUITE:
+        raise ContractError("unsupported encryption key suite")
+    if "private" not in data:
+        _fields(data, {"suite", "kid", "public"}, "enc key")
+        return HpkeKey.from_public(data["kid"], data["public"])
+    _fields(data, {"suite", "kid", "public", "private"}, "enc key")
+    key = HpkeKey.from_private(data["kid"], data["private"])
+    if key.public_value() != data["public"]:
+        raise ContractError("enc key public/private mismatch")
+    return key
+
+
+def delivery_info(*, card_digest: str, enc_kid: str, movement_id: str, origin_id: str, audience: str,
+                  endpoint_url: str, client_nonce: str, admission_id: str, preflight_digest: str) -> bytes:
+    """Preflight transcript bound into the HPKE key schedule as ``info``.
+
+    RFC 9180 section 8.1: applications that use only the single-shot APIs should carry
+    auxiliary authenticated information in ``info`` (``cryptography`` documents the same and
+    exposes no public ``aad`` argument). A mismatch in any field derives a different AEAD key,
+    so a sealed delivery opens only for this suite, key ID, receiver descriptor, movement,
+    origin, audience, endpoint, client nonce, admission and preflight.
+    """
+    transcript = {"suite": HPKE_SUITE, "enc_kid": enc_kid, "card_digest": card_digest,
+                  "movement_id": movement_id, "origin_id": origin_id, "audience": audience,
+                  "endpoint": endpoint_url, "client_nonce": client_nonce, "admission_id": admission_id,
+                  "preflight_digest": preflight_digest}
+    return _DOMAIN + b"delivery-hpke\n" + canonical(transcript).encode("utf-8")
+
+
+def seal_response(response_key: bytes, info: bytes, obj: Any) -> dict[str, str]:
+    """Encrypt the signed receipt to the sender under the single-use key it sent inside the
+    HPKE plaintext. Comparable to RFC 9458 section 4.4 response encapsulation, which derives
+    the key with the HPKE exporter instead; ``cryptography``'s single-shot API has no exporter."""
+    from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+    nonce = secrets.token_bytes(12)
+    ct = ChaCha20Poly1305(response_key).encrypt(nonce, canonical(obj).encode("utf-8"),
+                                                info + b"\nresponse")
+    return {"type": "encrypted-receipt", "aead": RESPONSE_AEAD, "nonce": b64e(nonce), "ct": b64e(ct)}
+
+
+def open_response(response_key: bytes, info: bytes, obj: Any) -> bytes:
+    """Inverse of ``seal_response``; raises ``Unauthenticated`` without returning plaintext."""
+    from cryptography.exceptions import InvalidTag
+    from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+    try:
+        r = _fields(obj, {"type", "aead", "nonce", "ct"}, "encrypted receipt")
+        if r["type"] != "encrypted-receipt" or r["aead"] != RESPONSE_AEAD:
+            raise ContractError("invalid encrypted receipt")
+        nonce = b64d(r["nonce"], "receipt nonce")
+        ct = b64d(r["ct"], "receipt ciphertext", MAX_SEALED_B64)
+        if len(nonce) != 12:
+            raise ContractError("invalid receipt nonce")
+        return ChaCha20Poly1305(response_key).decrypt(nonce, ct, info + b"\nresponse")
+    except (ContractError, InvalidTag) as exc:
+        raise Unauthenticated("bad_response_ciphertext") from exc
+
+
 def generate_key(alg: str, kid: str) -> Any:
     if alg == HS256:
         return HmacKey.generate(kid)
@@ -346,17 +514,25 @@ def _resolve(keys: dict[str, Any], sealed: Any, label: str, reason: str) -> Any:
 
 CARD_FIELDS = {"type", "issuer", "agent_id", "endpoint", "capabilities", "schema_versions",
                "key", "not_before", "expires_at"}
+CARD_ENC_FIELDS = CARD_FIELDS | {"enc_key"}  # the agent accepts HPKE-sealed deliveries
 
 
 def issue_card(ca_key: Any, *, agent_id: str, endpoint_url: str, capabilities: Iterable[str],
                agent_key: Any, not_before: int, expires_at: int,
-               schema_versions: Iterable[str] = (PEER_SCHEMA_VERSION,)) -> dict[str, Any]:
-    """Test CA binds agent ID + key + claimed metadata. Like an A2A Agent Card, but signed."""
+               schema_versions: Iterable[str] = (PEER_SCHEMA_VERSION,),
+               enc_key: HpkeKey | None = None) -> dict[str, Any]:
+    """Test CA binds agent ID + key + claimed metadata. Like an A2A Agent Card, but signed.
+
+    ``enc_key`` (optional) is the X25519 key that senders seal deliveries to. The same CA
+    signature covers it, so a relay cannot substitute its own encryption key.
+    """
     payload = {"type": "agent-card", "issuer": ca_key.kid, "agent_id": agent_id,
                "endpoint": endpoint_url, "capabilities": sorted(capabilities),
                "schema_versions": sorted(schema_versions),
                "key": {"alg": agent_key.alg, "kid": agent_key.kid, "public": agent_key.public_value()},
                "not_before": not_before, "expires_at": expires_at}
+    if enc_key is not None:
+        payload["enc_key"] = enc_key.descriptor()
     return seal("agent-card", payload, ca_key)
 
 
@@ -368,13 +544,16 @@ class VerifiedCard:
     schema_versions: frozenset[str]
     key: Any
     expires_at: int
+    enc_key: HpkeKey | None = None  # None: deliveries to this agent have no confidentiality
+    digest: str = ""  # SHA-256 of the canonical signed card, bound into the HPKE transcript
 
 
 def verify_card(sealed: Any, trust: TrustStore, now: int) -> VerifiedCard:
     issuer = _resolve(trust.card_issuers, sealed, "agent-card", "untrusted_card_issuer")
     p = unseal("agent-card", sealed, issuer, "bad_card_signature")
     try:
-        _fields(p, CARD_FIELDS, "agent card")
+        if not isinstance(p, dict) or set(p) not in (CARD_FIELDS, CARD_ENC_FIELDS):
+            raise ContractError("invalid agent card fields")
         if p["type"] != "agent-card" or p["issuer"] != issuer.kid:
             raise ContractError("invalid agent card")
         agent_id = _id(p["agent_id"], "agent_id")
@@ -386,8 +565,19 @@ def verify_card(sealed: Any, trust: TrustStore, now: int) -> VerifiedCard:
         k = _fields(p["key"], {"alg", "kid", "public"}, "card key")
         _id(k["kid"], "card key kid")
         nbf, exp = _time(p["not_before"], "not_before"), _time(p["expires_at"], "expires_at")
+        enc = p.get("enc_key")
+        if enc is not None:
+            _fields(enc, {"suite", "kid", "public"}, "card enc_key")
     except ContractError as exc:
         raise Unauthenticated("malformed_card") from exc
+    enc_key = None
+    if enc is not None:
+        if enc["suite"] != HPKE_SUITE:
+            raise Unauthenticated("unsupported_enc_suite")
+        try:
+            enc_key = HpkeKey.from_public(enc["kid"], enc["public"])
+        except ContractError as exc:
+            raise Unauthenticated("malformed_card") from exc
     if not nbf <= now < exp:
         raise Unauthenticated("card_expired")
     if k["alg"] == ED25519:
@@ -403,7 +593,7 @@ def verify_card(sealed: Any, trust: TrustStore, now: int) -> VerifiedCard:
             raise Unauthenticated("unknown_peer_key")
     else:
         raise Unauthenticated("unsupported_key_alg")
-    return VerifiedCard(agent_id, url, caps, schemas, key, exp)
+    return VerifiedCard(agent_id, url, caps, schemas, key, exp, enc_key, digest(sealed))
 
 
 # ----------------------------------------------------------------------- grants

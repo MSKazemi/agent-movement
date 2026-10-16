@@ -18,6 +18,9 @@ a2a = [
 ]
 # Optional asymmetric (Ed25519) peer keys; the core and default HS256 mode stay stdlib-only.
 ed25519 = ["cryptography>=50.0.2"]
+# HPKE-sealed peer delivery (RFC 9180 via cryptography's own HPKE API, present in 50.x);
+# latest stable on PyPI when added (2026-10-16). Without it deliveries have no confidentiality.
+hpke = ["cryptography>=50.0.2"]
 # Exact pins (latest stable on PyPI, 2026-10-12): agent_movement.relocation subclasses
 # SqliteSaver and relies on its internal cursor() write path. Core stays dependency-free.
 relocation = [

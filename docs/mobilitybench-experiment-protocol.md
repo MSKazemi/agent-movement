@@ -64,10 +64,10 @@ Report denominators, confidence intervals where justified, and multiple-comparis
 
 | ID | Hypothesis | Falsified or weakened if |
 | --- | --- | --- |
-| H1 | Typed application state with explicit constraints reduces critical constraint loss compared with history-only replay | Paired continuation trials show no reliable advantage or worse outcomes at comparable cost |
-| H2 | A durable coordinator plus effect-gateway fencing avoids duplicate *simulated commits* within the modeled faults | Fault injection yields duplicated committed effects or late stale-epoch acceptance |
-| H3 | Cross-framework reconstruction has measurable semantic loss relative to compatible same-runtime restore | Across appropriate tasks there is no meaningful difference in constraints, quality or loss reporting |
-| H4 | Forensic receipts improve independent reconstruction of moves compared with traces only | Blinded verifiers cannot more accurately classify authenticated lineage/tampering/unknown outcomes |
+| MP-H1 | Typed application state with explicit constraints reduces critical constraint loss compared with history-only replay | Paired continuation trials show no reliable advantage or worse outcomes at comparable cost |
+| MP-H2 | A durable coordinator plus effect-gateway fencing avoids duplicate *simulated commits* within the modeled faults | Fault injection yields duplicated committed effects or late stale-epoch acceptance |
+| MP-H3 | Cross-framework reconstruction has measurable semantic loss relative to compatible same-runtime restore | Across appropriate tasks there is no meaningful difference in constraints, quality or loss reporting |
+| MP-H4 | Forensic receipts improve independent reconstruction of moves compared with traces only | Blinded verifiers cannot more accurately classify authenticated lineage/tampering/unknown outcomes |
 
 Do not retrofit hypotheses after viewing results; any new analysis is exploratory and labeled as such.
 
