@@ -304,6 +304,17 @@ class DemoReceiptsFlagTests(unittest.TestCase):
             self.assertEqual(again.returncode, 2)
             self.assertIn("already holds evidence", again.stderr)
 
+    def test_unified_cli_forwards_the_receipts_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            result = run_module("agent_movement", "demo", "--receipts", str(out))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["receipts"]["verifier_exit_code"], 0)
+            ok = run_module("agent_movement", "receipts", "verify", "--trust", str(out / TRUST_NAME),
+                            str(out / BUNDLE_NAME))
+            self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
+        self.assertIn("--receipts OUTDIR", run_module("agent_movement", "demo", "--help").stdout)
+
     def test_demo_default_output_has_no_receipts(self):
         result = run_module("agent_movement.demo")
         self.assertEqual(result.returncode, 0, result.stderr)
