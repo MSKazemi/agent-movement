@@ -70,7 +70,7 @@ Do not log raw message contents by default. Correlate W3C Trace Context / OpenTe
 - Payload hash/signature tampering; unsafe checkpoint deserialization
 - Invalid/unknown schema and incompatible runtime
 - Network lost before send, after acceptance, during execution and after side effect
-- Broker duplicate / out-of-order message / stale lease epoch
+- Broker duplicate / out-of-order message / stale fencing epoch
 - Crash immediately before and after every durable state transition
 - Long offline partition: explicitly UNKNOWN, not dual executor
 - High-risk actuator request denied and local failsafe tested in simulation
