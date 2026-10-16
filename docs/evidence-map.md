@@ -27,25 +27,25 @@ This map records which items in the two corpora bear on each open research quest
 
 ## 2. Summary matrix
 
-Counts of linked corpus items by strength. *Direct evidence type* splits the direct items into papers (peer-reviewed / not) and news items by `claim_status`. *Top-20* lists the questions in [top-20-human-impact-questions-for-agentic-ai.md](top-20-human-impact-questions-for-agentic-ai.md) whose "Agent Movement link" names this AM question.
+Counts of linked corpus items by strength. *Direct evidence type* splits the direct items into papers (peer-reviewed / not) and news items by `claim_status`. *Top-20* lists the questions (HQ-01…HQ-20; see the [question ID crosswalk](question-id-crosswalk.md)) in [top-20-human-impact-questions-for-agentic-ai.md](top-20-human-impact-questions-for-agentic-ai.md) whose "Agent Movement link" names this AM question.
 
 | ID | Priority | Question | Direct | Partial | Background | Total | Direct evidence type | Top-20 |
 |---|---|---|---:|---:|---:|---:|---|---|
-| AM-01 | P0 | What exactly moves? | 1 | 15 | 5 | 21 | 1 not peer-reviewed | Q19 |
-| AM-02 | P0 | What counts as the *same* task or agent after movement? | 2 | 9 | 1 | 12 | 1 news: fact; 1 not peer-reviewed | Q3, Q6 |
-| AM-03 | P0 | Can a task be resumed without two agents executing the same side effects? | 1 | 6 | 5 | 12 | 1 not peer-reviewed | Q18 |
-| AM-04 | P0 | What are the limits of replay-safe external actions? | 1 | 6 | 2 | 9 | 1 not peer-reviewed | Q18 |
-| AM-05 | P0 | How is execution authority attenuated, re-issued and revoked? | 8 | 17 | 4 | 29 | 1 news: analysis; 1 news: incident; 2 not peer-reviewed; 4 peer-reviewed | Q1, Q3 |
-| AM-06 | P0 | Which context and memory may legally and safely cross boundaries? | 10 | 7 | 3 | 20 | 1 news: analysis; 1 news: incident; 8 peer-reviewed | Q5 |
-| AM-07 | P0 | Can a checkpoint migrate across frameworks, and what is lost? | 0 | 12 | 5 | 17 | **none** | Q19 |
-| AM-08 | P0 | Can a model change preserve the intent and quality of unfinished work? | 0 | 7 | 6 | 13 | **none** | Q19 |
-| AM-09 | P0 | How does a sender authenticate a destination's real capabilities and trustworthiness? | 12 | 11 | 5 | 28 | 1 news: analysis; 4 news: incident; 1 news: vendor-claim; 6 peer-reviewed | Q3 |
-| AM-10 | P0 | What guarantees are actually offered by cancellation and revocation? | 0 | 7 | 4 | 11 | **none** | Q1 |
-| AM-11 | P1 | How should semantic compatibility be negotiated? | 0 | 9 | 5 | 14 | **none** | Q19 |
-| AM-12 | P1 | Can copying, cloning, replication and multiplication share a safe common model? | 0 | 5 | 5 | 10 | **none** | Q18 |
-| AM-13 | P1 | Who controls approval, deletion, retention and provenance after transfer? | 0 | 13 | 5 | 18 | **none** | Q5, Q6 |
-| AM-14 | P1 | How much does movement *actually* improve outcomes? | 0 | 12 | 3 | 15 | **none** | Q19 |
-| AM-15 | P1 | How should movement be benchmarked fairly? | 0 | 6 | 4 | 10 | **none** | Q19 |
+| AM-01 | P0 | What exactly moves? | 1 | 15 | 5 | 21 | 1 not peer-reviewed | HQ-19 |
+| AM-02 | P0 | What counts as the *same* task or agent after movement? | 2 | 9 | 1 | 12 | 1 news: fact; 1 not peer-reviewed | HQ-03, HQ-06 |
+| AM-03 | P0 | Can a task be resumed without two agents executing the same side effects? | 1 | 6 | 5 | 12 | 1 not peer-reviewed | HQ-18 |
+| AM-04 | P0 | What are the limits of replay-safe external actions? | 1 | 6 | 2 | 9 | 1 not peer-reviewed | HQ-18 |
+| AM-05 | P0 | How is execution authority attenuated, re-issued and revoked? | 8 | 17 | 4 | 29 | 1 news: analysis; 1 news: incident; 2 not peer-reviewed; 4 peer-reviewed | HQ-01, HQ-03 |
+| AM-06 | P0 | Which context and memory may legally and safely cross boundaries? | 10 | 7 | 3 | 20 | 1 news: analysis; 1 news: incident; 8 peer-reviewed | HQ-05 |
+| AM-07 | P0 | Can a checkpoint migrate across frameworks, and what is lost? | 0 | 12 | 5 | 17 | **none** | HQ-19 |
+| AM-08 | P0 | Can a model change preserve the intent and quality of unfinished work? | 0 | 7 | 6 | 13 | **none** | HQ-19 |
+| AM-09 | P0 | How does a sender authenticate a destination's real capabilities and trustworthiness? | 12 | 11 | 5 | 28 | 1 news: analysis; 4 news: incident; 1 news: vendor-claim; 6 peer-reviewed | HQ-03 |
+| AM-10 | P0 | What guarantees are actually offered by cancellation and revocation? | 0 | 7 | 4 | 11 | **none** | HQ-01 |
+| AM-11 | P1 | How should semantic compatibility be negotiated? | 0 | 9 | 5 | 14 | **none** | HQ-19 |
+| AM-12 | P1 | Can copying, cloning, replication and multiplication share a safe common model? | 0 | 5 | 5 | 10 | **none** | HQ-18 |
+| AM-13 | P1 | Who controls approval, deletion, retention and provenance after transfer? | 0 | 13 | 5 | 18 | **none** | HQ-05, HQ-06 |
+| AM-14 | P1 | How much does movement *actually* improve outcomes? | 0 | 12 | 3 | 15 | **none** | HQ-19 |
+| AM-15 | P1 | How should movement be benchmarked fairly? | 0 | 6 | 4 | 10 | **none** | HQ-19 |
 | AM-16 | P1 | Where should interoperability be standardized instead of duplicated? | 2 | 10 | 6 | 18 | 2 news: fact | — |
 | **All** | | | **37** | **152** | **68** | **257** | | |
 
@@ -169,7 +169,7 @@ Direct 8 · partial 17 · background 4.
 
 **Background:** [AMN-065](news-corpus/digest.md#amn-065), [AMN-066](news-corpus/digest.md#amn-066), [AMP-043](paper-corpus/digest.md#amp-043), [AMP-045](paper-corpus/digest.md#amp-045).
 
-**Reading.** This is the best-evidenced P0 question. It has formal foundations (AMP-002, AMP-016, AMP-017), an agent-specific design with formal guarantees and an evaluation (AMP-066), and a demonstrated privilege-inheritance failure (AMN-052). Still missing: tests, in a handoff setting, of the negative cases that AM-05 and E1 name (wrong audience, elevated scope, revoked grant, offline queued action). The Amazon v. Perplexity rulings (AMN-070, AMN-089) show that the legal standing of user-delegated agent authority is unsettled.
+**Reading.** This is the best-evidenced P0 question. It has formal foundations (AMP-002, AMP-016, AMP-017), an agent-specific design with formal guarantees and an evaluation (AMP-066), and a demonstrated privilege-inheritance failure (AMN-052). Still missing: tests, in a handoff setting, of the negative cases that AM-05 and X1 name (wrong audience, elevated scope, revoked grant, offline queued action). The Amazon v. Perplexity rulings (AMN-070, AMN-089) show that the legal standing of user-delegated agent authority is unsettled.
 
 ### AM-06 (P0): Which context and memory may legally and safely cross boundaries?
 
@@ -240,7 +240,7 @@ Direct 0 · partial 7 · background 6.
 
 **Background:** [AMN-031](news-corpus/digest.md#amn-031), [AMN-037](news-corpus/digest.md#amn-037), [AMN-074](news-corpus/digest.md#amn-074), [AMP-020](paper-corpus/digest.md#amp-020), [AMP-060](paper-corpus/digest.md#amp-060), [AMP-069](paper-corpus/digest.md#amp-069).
 
-**Reading.** There is no direct evidence. Vendors claim mid-session provider switching (AMN-086) and cross-provider memory import (AMN-068, AMN-075), but no corpus item measures whether a different model continues the same snapshot correctly. Source [S7] in open-questions.md (*Specification Portability Across LLM Development Agents*) is not in either corpus and is the obvious first addition.
+**Reading.** There is no direct evidence. Vendors claim mid-session provider switching (AMN-086) and cross-provider memory import (AMN-068, AMN-075), but no corpus item measures whether a different model continues the same snapshot correctly. Source [SRC-7] in open-questions.md (*Specification Portability Across LLM Development Agents*) is not in either corpus and is the obvious first addition.
 
 ### AM-09 (P0): How does a sender authenticate a destination's real capabilities and trustworthiness?
 
@@ -445,7 +445,7 @@ Of the **37 direct links**, **30 fall on three questions: AM-05, AM-06 and AM-09
 The queries below are starting points for the next collection round. They are not results. For each gap they target scholarly sources (arXiv, ACM DL, USENIX, IEEE) first, then standards bodies.
 
 - **AM-08 (model change):**
-  - `"specification portability" LLM development agents` (to add [S7] from open-questions.md)
+  - `"specification portability" LLM development agents` (to add [SRC-7] from open-questions.md)
   - `cross-model continuation LLM agent task drift evaluation`
   - `prompt transferability across language models agent behavior consistency`
   - `model substitution mid-task agent reliability`
@@ -457,7 +457,7 @@ The queries below are starting points for the next collection round. They are no
 - **AM-07 (cross-framework checkpoint):**
   - `cross-framework agent state migration LangGraph AutoGen CrewAI`
   - `agent workflow checkpoint interoperability adapter loss`
-  - `Open Agent Specification cross-framework comparison CAIS 2026` (the peer-reviewed [S6], absent from the corpus)
+  - `Open Agent Specification cross-framework comparison CAIS 2026` (the peer-reviewed [SRC-6], absent from the corpus)
   - `workflow engine migration state translation`
 - **AM-12 (copy/clone/replicate):**
   - `LLM agent forking cloning lineage tracking`

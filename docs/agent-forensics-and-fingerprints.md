@@ -1,7 +1,7 @@
 # Agent fingerprints, movement tracking, and digital forensics
 
 **Research date:** 2026-10-15  
-**Status:** Research and proposed architecture; **not implemented or validated in this repository**.  
+**Status:** Research and proposed architecture; **not implemented or validated in this repository**. Exception (2026-10-16): a synthetic-fixture experiment of the F2 signed-receipt and F3 offline verifier/timeline ideas exists. See [movement-receipts.md](movement-receipts.md) for its trust assumptions and limits.  
 **Scope:** AI-agent tasks and executions moving between runtimes, machines, services, frameworks and administrative domains. This is not physical tracking and not a proposal for covert surveillance.
 
 ## The central idea: a Sherlock Holmes for agent movements
@@ -101,7 +101,7 @@ Use stable, versioned field meanings and verify the sender against the receiving
   "movement_id": "mov-example-051",
   "parent_movement_id": null,
   "lineage_relation": "delegate",
-  "source": {
+  "origin": {
     "workload_principal": "spiffe://example.test/agent/a",
     "execution_id": "run-example-a-1"
   },
@@ -146,7 +146,7 @@ Suggested event types: `task.started`, `movement.requested`, `movement.dispatche
 | Was a destination swapped? | Compare expected principal, issuer, audience and signed acceptance | Mismatch => deny + preserve evidence |
 | Did the task fork or clone? | One ancestor -> multiple distinct child execution/movement IDs and lineage relations | Multiple descendants, not a single migrating process |
 | Was state tampered with? | Canonical digest checks, signatures and append-only anchors | Verified mismatches; if no trusted baseline, inconclusive |
-| Did revoked Agent A still act? | Fence epoch, grant-revocation decision and tool-side commit time | Unauthorized attempted/committed effects, not just a stale trace |
+| Did revoked Agent A still act? | Fencing epoch, grant-revocation decision and tool-side commit time | Unauthorized attempted/committed effects, not just a stale trace |
 | Did an action happen twice? | Two committed effect IDs/target records for the same logical intent | Duplicate effect only with independent target confirmation |
 | Is this the same 'mysterious' agent? | Weak behavior similarities vs verified identity chain | Similarity is a hypothesis, never identity proof |
 | Where did telemetry go missing? | Unmatched dispatch/accept and audit-to-trace reconciliation | A gap or timeout; not automatically malice |
@@ -194,7 +194,7 @@ Use causal edges and receipt sequence to reconstruct order. Clock synchronizatio
 
 - Collect only for **authorized systems and purposes**. Avoid covert cross-service fingerprinting, identity stalking and collection of unrelated user/device identifiers.
 - Default to **metadata, bounded retention, least-privilege access, redaction and local/synthetic fixtures**. Raw prompts, memory, private chain-of-thought, cookies, API keys, full tool arguments and personal data must not be included by default.
-- Correlation IDs should be opaque and scoped. Treat multi-domain IDs as sensitive linkable metadata; do not put user identity or secret grants into `baggage`, `traceparent` or public attestations.
+- Correlation IDs should be opaque and scoped. Treat multi-domain IDs as sensitive linkable metadata; do not put user identity or secret grants into `baggage`, `traceparent` or publicly shared attestations (for example signed receipts or in-toto statements).
 - For incidents, record collector identity, export time, source, verification procedures and every evidence-handling step (chain of custody). Keep the original source evidence separate from analytic enrichment.
 - A signature proves that a key signed particular data; not that the event actually occurred as described. A digest proves consistency with a trusted reference; not authorship. A log gap is not evidence of absence.
 - EU and other privacy/legal requirements need review before deployment; this proposal is **not a legal/compliance certification**.

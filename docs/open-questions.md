@@ -1,14 +1,15 @@
 # Most important open research questions in Agent Movement
 
-**Research review:** 2026-10-15 (sources S1–S8 fact-checked 2026-10-16)  
+**Research review:** 2026-10-15 (sources [SRC-1]–[SRC-8] fact-checked 2026-10-16)  
 **Project status:** Research/design only. No movement, cloning, replication, or interoperability demonstration has been implemented in this repository.  
-**Scope:** Movement of AI-agent *work* across executors, frameworks, model providers and trust domains; not movement of a robot in physical space.
+**Scope:** Movement of AI-agent *work* across executors, frameworks, model providers and trust domains; not movement of a robot in physical space.  
+**IDs:** AM-01…AM-16 are frozen (the [evidence map](evidence-map.md) depends on them); [SRC-n] labels cite the source list at the end. How they relate to the IDs in the other agenda documents: [question ID crosswalk](question-id-crosswalk.md).
 
 ## Executive answer
 
 The central unsolved problem is not sending a message between agents. It is **preserving useful task continuity, exclusive execution authority, and safety across an execution boundary**.
 
-This project's working definition of *movement* is a transfer of task ownership and, when supported, an explicitly portable application checkpoint to a different executor. A transfer of the same agent's opaque model internals, hidden chain-of-thought or live process memory is **not** assumed possible.
+This project's working definition of a *move* (movement in the strict sense) is a transfer of task ownership and, when supported, an explicitly portable application checkpoint to a different executor. A transfer of the same agent's opaque model internals, hidden chain-of-thought or live process memory is **not** assumed possible.
 
 The three most fundamental questions are:
 
@@ -16,7 +17,7 @@ The three most fundamental questions are:
 2. **What level of semantic continuity is attainable?** Can a different runtime or LLM continue the same work with acceptable loss, and how can that be established by test rather than asserted?
 3. **How can ownership and authority change safely?** How do we fence the old executor, prevent unauthorized privilege inheritance and reconcile uncertain external actions when a crash or network partition occurs?
 
-These questions are related but distinct. A2A and MCP provide interoperability *building blocks*; they do not constitute a general cross-framework checkpoint or an exactly-once side-effect contract [S1, S2]. LangGraph and Temporal support durability within their execution models, but that alone is not proof of portable execution semantics between unrelated runtimes [S3, S4].
+These questions are related but distinct. A2A and MCP provide interoperability *building blocks*; they do not constitute a general cross-framework checkpoint or an exactly-once side-effect contract [SRC-1, SRC-2]. LangGraph and Temporal support durability within their execution models, but that alone is not proof of portable execution semantics between unrelated runtimes [SRC-3, SRC-4].
 
 ## Ranked questions: P0 = answer before claiming real movement
 
@@ -49,7 +50,7 @@ These questions are related but distinct. A2A and MCP provide interoperability *
 - **Offline and cross-cloud reconciliation:** What happens after prolonged partitions or when origin and destination cannot reach a central authority? Choose an explicit availability/consistency tradeoff.
 - **Active/active replication and memory consistency:** Are agent memories shared, partitioned or merged, and who arbitrates concurrent updates? There may be no universal semantic merge.
 - **Provenance of model-dependent decisions:** Can the system show what evidence, instructions, model version and tool versions informed a decision while respecting privacy and not exporting private model reasoning?
-- **Economic scheduling:** Under which workload and security assumptions is moving preferable to spawning, re-running, or delegating? Optimize for completion, cost, latency, quality and risk—not agent count.
+- **Economic scheduling:** Under which workload and security assumptions is moving preferable to spawning, re-running, or delegating? Optimize for completion, cost, latency, quality and risk—not agent count. A proposed cost model is in [economic-evaluation.md](economic-evaluation.md).
 - **Registry/marketplace governance:** Can discovery be made safe enough for untrusted third-party agents, including supply-chain integrity, reputation gaming and takedown?
 - **Formal guarantees:** Which properties can be proven under a clearly stated fault model, and which require human reconciliation because external systems cannot participate in the protocol?
 
@@ -57,35 +58,35 @@ These questions are related but distinct. A2A and MCP provide interoperability *
 
 | Existing research or standard | Supported observation | Important open gap |
 | --- | --- | --- |
-| **A2A v1.0** [S1] | Agents can discover endpoints, exchange messages/tasks/artifacts and request cancellation. The spec says Send Message *may* be idempotent and cancellation has defined task semantics. | It does not define a portable checkpoint for arbitrary running agent internals or make arbitrary external actions exactly once. |
-| **MCP 2026-07-28** [S2] | A stateless request-oriented tool/context protocol; long-running Tasks are an extension; authorization is treated separately. | Stateless MCP transport does not mean the *agent application* or its workflow state is stateless or migratable. |
-| **LangGraph persistence** [S3] | Checkpointers persist thread/graph state; stores persist application-defined memory across threads. | Persisting native state within one execution model is not cross-framework checkpoint compatibility. |
-| **Temporal workflows** [S4] | Durable execution relies on persisted event history and replay of workflow code under replay constraints. | Foreign workflow implementations and external side effects still need adapter and idempotency semantics. |
-| **Open Agent Specification / Agent Spec** [S5, S6] | Research provides a declarative, framework-agnostic representation of agent definitions/workflows and cross-framework evaluation. | *Definition portability* is a different claim from restoration of arbitrary in-flight execution or private model state. Evaluate reuse before inventing another definition language. |
-| **Cross-agent specification transfer study (2026)** [S7] | A controlled software-migration study observed large agent-dependent differences when one coding assistant consumed another's specifications. | Results are domain-specific; they motivate tests of semantic portability, not a universal quantified failure rate. |
-| **Durable-execution retry guidance** [S8] | At-most-once-per-retry and at-least-once-per-retry have different failure behavior; neither is blanket exactly-once execution. | Portable handoff needs operation IDs, target idempotency where available, and explicit reconciliation of ambiguous outcomes. |
+| **A2A v1.0** [SRC-1] | Agents can discover endpoints, exchange messages/tasks/artifacts and request cancellation. The spec says Send Message *may* be idempotent and cancellation has defined task semantics. | It does not define a portable checkpoint for arbitrary running agent internals or make arbitrary external actions exactly once. |
+| **MCP 2026-07-28** [SRC-2] | A stateless request-oriented tool/context protocol; long-running Tasks are an extension; authorization is treated separately. | Stateless MCP transport does not mean the *agent application* or its workflow state is stateless or migratable. |
+| **LangGraph persistence** [SRC-3] | Checkpointers persist thread/graph state; stores persist application-defined memory across threads. | Persisting native state within one execution model is not cross-framework checkpoint compatibility. |
+| **Temporal workflows** [SRC-4] | Durable execution relies on persisted event history and replay of workflow code under replay constraints. | Foreign workflow implementations and external side effects still need adapter and idempotency semantics. |
+| **Open Agent Specification / Agent Spec** [SRC-5, SRC-6] | Research provides a declarative, framework-agnostic representation of agent definitions/workflows and cross-framework evaluation. | *Definition portability* is a different claim from restoration of arbitrary in-flight execution or private model state. Evaluate reuse before inventing another definition language. |
+| **Cross-agent specification transfer study (2026)** [SRC-7] | A controlled software-migration study observed large agent-dependent differences when one coding assistant consumed another's specifications. | Results are domain-specific; they motivate tests of semantic portability, not a universal quantified failure rate. |
+| **Durable-execution retry guidance** [SRC-8] | At-most-once-per-retry and at-least-once-per-retry have different failure behavior; neither is blanket exactly-once execution. | Portable handoff needs operation IDs, target idempotency where available, and explicit reconciliation of ambiguous outcomes. |
 
 **Interpretation, not a verified universal theorem:** The hardest missing piece is likely a verifiable *continuation contract*: portable allowed state + versioned capabilities + authority transfer + external effect ledger + measurable continuity. It may be practical to standardize safe *handoff* without standardizing live *migration*.
 
 ## Three proposed experiments, in research order
 
-### E1 — Minimum safe handoff (tests AM-01, 02, 05, 06, 09, 10)
+### X1 — Minimum safe handoff (tests AM-01, 02, 05, 06, 09, 10)
 
 - Implement two *local* test agents with different implementation boundaries, authenticated A2A exchange, a public/synthetic task and a structured result.
 - Use a versioned task envelope: task ID, origin execution ID, destination ID, intent and constraints, allowed artifact references, policy/approval reference, idempotency key and correlation ID.
 - Negative tests: unsupported schema, forged endpoint/Agent Card, overbroad permission, unapproved data, prompt injection and revoked grant.
 - **Pass condition:** correct artifact and end-to-end audit; zero transmitted secret canaries, zero unauthorized synthetic tool calls, and explicit denial with no input disclosure before trust verification.
-- **Do not claim:** checkpoint migration. E1 proves delegated interoperability only.
+- **Do not claim:** checkpoint relocation. X1 proves delegated interoperability only.
 
-### E2 — Same-runtime durable relocation (tests AM-02, 03, 04, 07)
+### X2 — Same-runtime durable relocation (tests AM-02, 03, 04, 07)
 
 - Pick a single checkpoint-capable framework and persistent store; move one logical task from Worker A to Worker B at a defined safe boundary.
-- Introduce an epoch/fencing token, a durable side-effect intent/ack record, stable operation IDs and a simulated payment/action tool with idempotency support.
+- Introduce a fencing epoch (a monotonic fencing token), a durable side-effect intent/ack record, stable operation IDs and a simulated payment/action tool with idempotency support.
 - Crash A, B or the coordinator at *every* transition; delay messages, inject duplicate delivery and partition connectivity.
 - **Pass condition:** one active authorized executor per task epoch, no duplicated simulated committed effects in the test, correct fail-closed outcomes for ambiguous actions, and a verified post-restart state.
 - **Do not claim:** exactly-once execution for arbitrary third-party tools.
 
-### E3 — Cross-framework and cross-model continuation (tests AM-01, 07, 08, 11, 14, 15)
+### X3 — Cross-framework and cross-model continuation (tests AM-01, 07, 08, 11, 14, 15)
 
 - Choose two pinned frameworks/models. Export only an explicitly portable *application-level* state representation, not undocumented runtime internals.
 - Compare (A) from-scratch re-execution, (B) transcript/context replay, (C) A2A task delegation, (D) checkpoint-based same-runtime continuation, and (E) cross-framework reconstructed continuation.
@@ -97,7 +98,7 @@ These questions are related but distinct. A2A and MCP provide interoperability *
 
 - Run IDs, operation and lineage; source/destination framework and model versions; exact source snapshot hash.
 - Task class, intent constraints, input classification, approval scope and required capabilities.
-- Movement mode, compatibility decision, accepted losses and outcome state (*complete*, *failed*, *canceled*, *unknown/reconcile*).
+- Movement mode, compatibility decision, accepted losses and outcome state (*completed*, *failed*, *canceled*, *unknown/reconcile*).
 - Quality score with evaluator/rubric, constraint preservation, retries/duplicate tool intents/effects, privacy/policy violations, elapsed time and cost.
 - Reproducible environment and fault-injection seed; sanitized trace and artifact digests.
 
@@ -113,14 +114,14 @@ There is **no measured performance result from this repository** yet. The pass c
 
 ## Primary and research sources
 
-- **[S1]** [A2A v1.0 specification](https://a2a-protocol.org/v1.0.0/specification/) — task/message/artifact interface, idempotency and error semantics.
-- **[S2]** [MCP 2026-07-28 specification announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/) and [specification](https://modelcontextprotocol.io/specification/2026-07-28) — stateless protocol core, Tasks extension and authorization.
-- **[S3]** [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence) — native checkpointers/stores and their scopes.
-- **[S4]** [Temporal workflow execution](https://docs.temporal.io/workflow-execution) — event history, replay, state continuity.
-- **[S5]** [Open Agent Specification (Agent Spec): A Unified Representation for AI Agents (2025; v1 titled "Technical Report")](https://arxiv.org/abs/2510.04173) — declarative agent-definition interoperability.
-- **[S6]** [Open Agent Specification: Enabling Cross-Framework Comparison of AI Agents (CAIS 2026)](https://doi.org/10.1145/3786335.3813130) — cross-framework evaluation using a shared representation.
-- **[S7]** [Specification Portability Across LLM Development Agents (2026)](https://arxiv.org/abs/2608.21208) — software-migration study of cross-agent interpretation, not runtime snapshot migration.
-- **[S8]** [AWS Durable Execution SDK: Idempotency and retries](https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/) — replay and external side-effect limitations.
+- **[SRC-1]** [A2A v1.0 specification](https://a2a-protocol.org/v1.0.0/specification/) — task/message/artifact interface, idempotency and error semantics.
+- **[SRC-2]** [MCP 2026-07-28 specification announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/) and [specification](https://modelcontextprotocol.io/specification/2026-07-28) — stateless protocol core, Tasks extension and authorization.
+- **[SRC-3]** [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence) — native checkpointers/stores and their scopes.
+- **[SRC-4]** [Temporal workflow execution](https://docs.temporal.io/workflow-execution) — event history, replay, state continuity.
+- **[SRC-5]** [Open Agent Specification (Agent Spec): A Unified Representation for AI Agents (2025; v1 titled "Technical Report")](https://arxiv.org/abs/2510.04173) — declarative agent-definition interoperability.
+- **[SRC-6]** [Open Agent Specification: Enabling Cross-Framework Comparison of AI Agents (CAIS 2026)](https://doi.org/10.1145/3786335.3813130) — cross-framework evaluation using a shared representation.
+- **[SRC-7]** [Specification Portability Across LLM Development Agents (2026)](https://arxiv.org/abs/2608.21208) — software-migration study of cross-agent interpretation, not runtime snapshot migration.
+- **[SRC-8]** [AWS Durable Execution SDK: Idempotency and retries](https://docs.aws.amazon.com/durable-execution/patterns/best-practices/idempotency/) — replay and external side-effect limitations.
 - Related project files: [concept taxonomy](agent-movement-vs-copy-replication-multiplication.md), [proposed lifecycle](how-it-works.md), [threat model](security-and-trust.md), [staged roadmap](roadmap.md), [source log](sources.md).
 
 ---

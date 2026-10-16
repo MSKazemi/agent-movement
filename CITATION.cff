@@ -6,10 +6,16 @@ authors:
   - family-names: "Seyedkazemi Ardebili"
     given-names: "Mohsen"
     website: "https://mskazemi.github.io"
+version: "0.2.0"
+date-released: "2026-10-16"
 repository-code: "https://github.com/MSKazemi/agent-movement"
 url: "https://github.com/MSKazemi/agent-movement"
+# The first paragraph of the abstract is the positioning statement; tests/test_positioning.py
+# requires it to match README.md and both agenda docs byte for byte.
 abstract: >-
-  Agent Movement is a research-stage repository that studies how AI-agent work
+  Agent Movement is a research prototype: an open, evidence-first testbed built to make claims about safely moving AI-agent work between executors falsifiable. It currently pairs ranked research questions with synthetic, localhost-only Python prototypes and MobilityBench v0.1, a frozen, deterministic, LLM-free benchmark of 18 synthetic tasks that scores keeping, restarting, delegating (locally or over A2A) and checkpoint-relocating work under injected faults, with the A2A and relocation modes enabled by optional extras, and reports refusals and unavailable baselines instead of hiding them. It is not production software, a new agent protocol or a rival to A2A or MCP.
+
+  The repository studies how AI-agent work
   can move between agents, frameworks, models, machines and organizations
   without losing relevant context, accountability or safety controls. It
   distinguishes delegation, portable task context, runtime relocation and

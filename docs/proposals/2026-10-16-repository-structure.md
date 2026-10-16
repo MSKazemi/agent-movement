@@ -1,220 +1,131 @@
-# Repository structure review and incremental architecture proposal
+# Repository architecture: current-state review and incremental structure
 
-**Review date:** 2026-10-16  
-**Scope:** `main` plus visible open work as of this review. This is an architectural proposal, not a claim of implemented capabilities or a decision to reorganize files.  
-**Status:** Proposed for review. Do not treat this document as a published protocol specification.
+**Reviewed:** 2026-10-16 against `main` at `7231c533dc35334030fec545be0ff866bcbaef1d`.  
+**Status:** Draft proposal for maintainer review, **not** an adopted architecture decision or a production assurance statement.  
+**Purpose:** Update the original structure review after many related PRs merged. This review focuses on organization and integration order; the separate mission/90-day charter proposal is in PR #88.
 
-## Executive recommendation
+## Recommended focus
 
-Develop **Agent Movement** as a research-and-engineering platform for **safe, verifiable movement of agent work** across execution boundaries, rather than a new transport protocol or an unbounded self-replicating agent system.
+Treat **Agent Movement** as a research and conformance lab for *safe, verifiable continuation of AI-agent work* across executor boundaries. The distinctive questions are whether task intent and explicit state survive, whether transfer of authority is bounded and auditable, and when movement beats staying, restarting or delegating under fair tests.
 
-Organize around **three independently reviewable products**:
+Keep three connected workstreams:
 
-1. **Research and standards evidence:** literature/news corpora, device and standards catalogs, hypotheses, threat models and falsifiable research questions.
-2. **Reference implementation:** language-neutral versioned transfer contracts; policy and identity checks; lifecycle/ownership; transport and runtime adapters; artifacts and auditable evidence.
-3. **Reproducible evaluation:** protocol conformance, security/fault-injection scenarios and MobilityBench comparisons with clearly stated limits.
+1. **Research evidence:** hypotheses, standards and protocol comparisons, historical literature, device/safety questions and falsifiable scientific claims.
+2. **Reference experiments:** a Python-first package with language-neutral contracts, policy-controlled boundaries, local/A2A adapters, same-runtime checkpoint transfer and verification artifacts.
+3. **Reproducible evaluations:** frozen fixtures, security/fault-injection and independent results, eventually including held-out model-backed trials.
 
-**Do not move the existing news/paper corpora immediately.** Their stable `AMN-`/`AMP-` identifiers, generated-file build paths, citations, README links and deterministic quality gates should be preserved. Prefer a navigation index before a disruptive docs relocation.
+Do not confuse delegation with task ownership relocation, treat a content digest as proof of identity, or describe any existing experiment as secure arbitrary-device roaming. Cross-framework reconstruction, live process migration, concealed propagation and unrestricted self-copying are **not** implemented.
 
-## 1. What exists, and what is pending
+## 1. Verified repository snapshot
 
-Snapshot observed on `main`:
+The earlier version of this proposal described a research-only `main` and PR #6 as open. That is **obsolete**. At the reviewed main commit:
 
-- Top level: `.github/`, `data/`, `docs/`, `tests/`, `tools/`, `README.md`, `Makefile`, `pyproject.toml`, `CITATION.cff`.
-- Research material includes working definitions, forensics, device capabilities, open questions, security, standards, source indexes and roadmaps.
-- Curated corpora: `docs/news-corpus/` (100 news items) and `docs/paper-corpus/` (83 papers, per their committed README snapshots), plus generated analysis/QA.
-- `tools/` contains corpus and link-analysis scripts; `tests/` covers these research pipelines; CI currently checks corpus reproducibility and tests.
-- **No `src/` executable mobility package is present on `main`.** README correctly labels the repository research/design only. Do not describe a working mobility runtime as already released.
-- `pyproject.toml` on `main` currently configures test dependencies, not a distributable mobility SDK.
-- There is **no LICENSE file** on `main`; choosing usage rights is an explicit maintainer decision, not a restructuring step.
-
-Important in-flight work:
-
-| Work | Observed status | Architectural implication |
+| Area | Present on main | Boundary |
 | --- | --- | --- |
-| [PR #6](https://github.com/MSKazemi/agent-movement/pull/6) local handoff | Open, introduces `src/agent_movement/{core,http,demo}.py`, synthetic SQLite receipts/fencing, tests; GitHub reported `mergeable_state: dirty` during this review | Treat as experiment 001 and future package nucleus **after conflicts are resolved**; do not present as authenticated/A2A/real checkpoint movement |
-| [PR #14](https://github.com/MSKazemi/agent-movement/pull/14) 20-case smoke | Open, **stacked on PR #6 branch**, not `main` | Review/land #6 first; maintain clear `known_gap` verdicts; do not conflate smoke cases with full MobilityBench |
-| [PR #3](https://github.com/MSKazemi/agent-movement/pull/3), [#4](https://github.com/MSKazemi/agent-movement/pull/4), [#5](https://github.com/MSKazemi/agent-movement/pull/5) | Open architecture/language/research/protocol documentation | Reconcile overlap into architecture decisions and one docs index, not competing reference designs |
-| [PR #2](https://github.com/MSKazemi/agent-movement/pull/2), [#12](https://github.com/MSKazemi/agent-movement/pull/12), [#13](https://github.com/MSKazemi/agent-movement/pull/13), [#15](https://github.com/MSKazemi/agent-movement/pull/15) | Open source/documentation/security/research proposals | Consolidate terminology and navigation before renaming these documents |
+| Documentation and data | `docs/`, `data/`, scholarly/news corpora, standards tracker, glossary, research agenda, device catalog, architecture, source index | Broad coverage does not demonstrate unique research results |
+| Python package | `src/agent_movement/`, a package/CLI defined in `pyproject.toml`, multiple independent loopback demos | Experimental, synthetic/local; not a production SDK or secure cross-host runtime |
+| Handoff and A2A | `core.py`, `http.py`, `peer.py`, `peer_http.py`, `a2a_*.py`, `trust.py` | A2A path documents unauthenticated identities; do not infer it inherits peer-path controls |
+| Runtime continuation | `relocation*.py`, `relocation_bundle.py` with a pinned LangGraph experiment, local stores and crash matrices | Same-runtime, safe-checkpoint experiment; not universal migration |
+| Authorization and evidence | `continuity_guard.py`, `continuity_runtime.py`, `receipts.py`, `live_receipts.py`, `retention.py` | An opt-in peer receiver gates a bounded synthetic SQLite effect; **not** complete mediation of every path |
+| Benchmark and interoperability | `mobilitybench*.py`, `src/agent_movement/fixtures/`, `interop/js/`, `interop/conformance/`, `schemas/handoff-envelope.schema.json` | MobilityBench v0.1/v0.2 are deterministic and LLM-free; interoperability remains scoped |
+| Testing and automation | `tests/`, `tools/`, research determinism checks and separate Python/A2A/static CI workflows | Coverage is not a substitute for attacker-controlled OS/network boundary testing |
 
-Open implementation/research issues: [#7 A2A](https://github.com/MSKazemi/agent-movement/issues/7), [#8 identity/pre-disclosure](https://github.com/MSKazemi/agent-movement/issues/8), [#9 checkpoint relocation](https://github.com/MSKazemi/agent-movement/issues/9), [#10 MobilityBench](https://github.com/MSKazemi/agent-movement/issues/10), [#11 evidence/receipts](https://github.com/MSKazemi/agent-movement/issues/11).
+Read `../architecture.md` for the as-built module inventory (it declares its verification commits), `../development.md` for test commands, `../cli.md` for generated CLI usage, and `../continuity-runtime-enforcement.md` for enforcement claims and explicit gaps. The new `../index.md` is the navigation entry point.
 
-This is a snapshot; PR mergeability and status can change. Verify again before sequencing merges.
+### Pending work as of this review
 
-## 2. Recommended logical component boundaries
+- **Issue #50, still open:** mandatory controlled-path enforcement, sender-side egress restriction, independent sandbox bypass testing, and security red/green regressions. PR #86 has already delivered *partial* opt-in continuity enforcement on the peer receiver and simulated effect ledger; do not discard or duplicate it.
+- **PR #16, open:** useful deny-by-default policy evaluator, but decision-only and based on an older branch. Reconcile with `peer.py` / `continuity_runtime.py` rather than installing a second authorization truth.
+- **PR #87, open:** separate proposed Linux egress bypass lab. Review together with #50 to avoid claiming that one Python-level wrapper provides OS isolation.
+- **PR #85, open:** algorithmic/formal foundations; keep experimental and formal claims distinct until checked.
+- **PR #88, open:** mission and 90-day strategy reset. This structure document should **complement**, not independently settle, its project positioning and benchmark-name questions.
+- **PR #17:** the current document/navigation draft. Earlier PR #6 and PR #14 work is already represented on `main`; no remaining merge sequencing around those PRs is needed.
 
-Use these components as **interfaces**, not as a requirement to instantiate a microservice or Python package for each immediately.
+Recheck branch status and main SHA before merging or quoting the snapshot as current.
 
-| Component | Owns | Must not own |
+## 2. Architecture boundaries to keep explicit
+
+These are conceptual responsibility boundaries, **not** a demand to split the current flat package into many directories immediately.
+
+| Boundary | Should own | Must not assume |
 | --- | --- | --- |
-| **Contracts / schemas** | `movement_id`, logical task, execution/lineage IDs; envelope and receipt versions; validation and compatibility | Authenticated trust decisions or running arbitrary tasks |
-| **Identity / discovery** | Verified origin and destination principals; allowlisted capabilities and signed/verified assertions where appropriate | Treating Agent Cards or claimed IDs as proof of identity |
-| **Policy / approval** | Data classification, recipient/audience, time-bound grants, revocation, human approval and pre-disclosure deny | Copying origin credentials or authorizing from prompt text alone |
-| **Movement coordinator** | State transitions, exclusive ownership/fencing for relocation, retries, cancellation, reconciliation | Claiming exactly-once execution of uncontrolled external tools |
-| **Transport adapters** | A2A framing and optional local synthetic transport; typed conversion to/from the project envelope | Redefining A2A or embedding policy in a transport serialization |
-| **Runtime adapters** | Safe checkpoint export/import at documented compatible boundaries (first same-runtime) | Exporting arbitrary model hidden state, raw secrets or in-flight external side effects |
-| **Artifact/checkpoint storage** | Content digest, version, retention, access policy, durable references | Treating an artifact checksum as proof of authorship |
-| **Receipts / evidence** | Verifiable lineage, source and receiver attestations, independently checkable audits, sanitized telemetry | Treating self-reported logs as cryptographic proof |
-| **Effect gateway** | Scoped tool calls, cooperative epoch check, side-effect idempotency where supported, `unknown/reconcile` handling | Assuming third-party tools are transactionally fenced |
-| **Benchmarks / experiments** | Frozen fixtures, baseline runners, attack/fault injection, reproducible manifests, measured results and known gaps | Inflating a demo/test pass count into broad scientific or security assurance |
+| **Contracts / schema** | Versioned operation, task/lineage IDs, supported capabilities, envelope/receipt/checkpoint formats and compatibility refusals | That a schema-valid task is authorized |
+| **Identity and trust** | Cryptographically verified principals, intended peer, trusted evidence provenance, key/trust domain | That an advertised Agent Card or unverified `agent_id` is identity |
+| **Policy and approval** | Scope/audience/expiry, consent and obligation evidence, revocation, deny-before-disclosure and effect-time checks | That client-side decisions or system prompts enforce a hostile executor |
+| **Coordinator and authority** | Ownership, fencing epoch, state transition, recovery, idempotency, unknown/reconcile outcomes | Exactly-once effects at uncontrolled services |
+| **Transport adapters** | A2A framing, local test transport and wire conversion | That A2A supplies authentication or portable checkpoint semantics |
+| **Runtime adapter** | Explicit compatible checkpoint export/import, safe boundary and loss reporting | Lossless hidden/model state transfer |
+| **Storage and evidence** | Artifact integrity, durable state, minimum disclosed audit, independent receipt verification and retention | That signed telemetry proves all events occurred or that no routes were unobserved |
+| **Benchmark and tests** | Independent baselines, frozen fixtures, fault cases, model-backed follow-on, negative results and denominators | That deterministic toy-agent success implies real-agent superiority |
 
-The independent policy enforcement point should run **before sensitive payload transfer** and again **at every side-effect boundary**. Cross-machine deployment must remain disabled by default in test examples unless authenticated, explicitly authorized and isolated.
+Security invariant to test in **named, enabled interfaces**: if a movement or effect is forbidden under independently verified policy, it must not produce an accepted protected handoff or committed simulated effect. The claim requires **complete mediation of those listed routes** under stated host, issuer and gateway assumptions. A dishonest sender, extra listener, compromised host or arbitrary network egress may remain unmediated and must be reported as such.
 
-## 3. Target structure (incremental; illustrative)
+### Contract/version concern
 
-Directories marked `[later]` are **proposals**, not currently present or required for the first PR.
+The runtime currently validates a `0.1.0-draft` handoff contract, while the proposed schema/docs describe `0.2.0-draft`. Avoid declaring the draft to be already supported by `core.py`. Before a semantic package split or new remote transport, publish a migration/compatibility table and negative downgrade tests.
+
+## 3. Recommended physical structure
+
+Keep the **existing** paths as the stable integration boundary for now. Only files tagged `[future]` are proposed additions; do not create empty folders for presentation.
 
 ```text
 agent-movement/
-├── README.md                     # stable public project entry point
-├── CITATION.cff
-├── pyproject.toml                # future SDK packaging + dev/test dependencies
+├── README.md                    # current public entry point
+├── pyproject.toml               # existing experimental Python package and extras
 ├── Makefile
-├── .github/
-│   └── workflows/
-│       ├── corpus.yml           # existing research reproducibility
-│       ├── python-package.yml   # [later] SDK/tests/type and package smoke
-│       └── security.yml         # [later] focused security checks
+├── .github/workflows/           # existing corpus, static, Python, A2A, links checks
 ├── docs/
-│   ├── index.md                 # [first] reading paths and status labels
+│   ├── index.md                # this PR: status-aware document index
+│   ├── architecture.md         # existing as-built architecture
+│   ├── decisions/README.md     # this PR: how to record proposed/adopted ADRs
 │   ├── proposals/
-│   │   └── 2026-10-16-repository-structure.md
-│   ├── decisions/               # [later] ADRs: scope, language, IDs, auth
-│   ├── architecture/            # [later] boundaries, lifecycle, threat model
-│   ├── specifications/          # [later] draft envelope, policy and receipt profiles
-│   ├── research/                # [later] synthesis, gaps, experiment hypotheses
-│   ├── news-corpus/             # KEEP paths and stable published AMN IDs
-│   ├── paper-corpus/            # KEEP paths and stable published AMP IDs
-│   ├── corpus-analysis/         # KEEP reproducible outputs
-│   ├── corpus-qa/               # KEEP provenance and link-health reports
-│   └── *.md                     # existing documents; migrate only with links
-├── data/                        # existing device, standards, evidence CSVs
-├── schemas/                     # [later] canonical versioned JSON Schemas
-│   └── v0/
-│       ├── movement-envelope.schema.json
-│       ├── policy-decision.schema.json
-│       ├── checkpoint-manifest.schema.json
-│       └── receipt.schema.json
-├── src/agent_movement/           # PR #6 proposed starting point
-│   ├── __init__.py
-│   ├── contracts/               # [later] Python validators of schemas/
-│   ├── identity/                # [later] authenticated peer claims
-│   ├── policy/                  # [later] approvals and revocation
-│   ├── coordinator/             # [later] state, fencing, reconciliation
-│   ├── transports/
-│   │   ├── local.py             # [later] synthetic local adapter
-│   │   └── a2a.py               # [later] official SDK integration
-│   ├── runtimes/                # [later] named, version-pinned adapters
-│   ├── storage/                 # [later] checkpoints/artifacts
-│   ├── evidence/                # [later] audit/receipts/verifier
-│   └── demo.py                  # initial smoke entry point (PR #6)
-├── experiments/                 # [later] numbered, isolated experiment manifests
-│   ├── 001-local-handoff/
-│   ├── 002-a2a-two-workers/
-│   └── 003-checkpoint-relocation/
-├── benchmarks/                  # [later] MobilityBench with explicit baselines
-│   └── mobilitybench/
-│       ├── protocol.md
-│       ├── fixtures/
-│       ├── baselines/
-│       ├── metrics/
-│       └── results/             # tracked summaries, not secrets/raw run dumps
-├── examples/                    # [later] safe local demos only by default
-├── tests/                       # keep existing tests; add categories gradually
-│   ├── unit/                    # [later]
-│   ├── integration/             # [later]
-│   ├── security/                # [later]
-│   ├── fault_injection/         # [later]
-│   └── conformance/             # [later]
-└── tools/                       # KEEP reproducible corpus scripts and QA
+│   │   └── 2026-10-16-repository-structure.md  # this PR
+│   ├── protocols-and-networks/  # existing
+│   ├── news-corpus/             # KEEP paths and published AMN IDs
+│   ├── paper-corpus/            # KEEP paths and published AMP IDs
+│   ├── corpus-analysis/         # KEEP generated and reproducible
+│   ├── corpus-qa/               # KEEP provenance and verification
+│   └── *.md                     # keep current references stable
+├── data/                        # existing evidence, device, standards and test registries
+├── schemas/
+│   └── handoff-envelope.schema.json  # existing draft; not runtime source of truth
+├── src/agent_movement/           # existing experiment package; stay flat for now
+│   ├── core.py, trust.py, peer.py, continuity_runtime.py, ...
+│   ├── a2a_*.py, relocation*.py, receipts*.py, mobilitybench*.py
+│   └── fixtures/                # KEEP package data and frozen manifest paths
+├── interop/
+│   ├── js/                     # existing independent JS adapter test
+│   └── conformance/            # existing protocol TCK-related tests
+├── tests/                       # existing tests, fixture trees and conformance tests
+├── tools/                       # existing reproducible corpus/QA/build scripts
+├── experiments/                 # [future] only after versioned experiment manifests exist
+└── benchmarks/                  # [future] optional public evaluation data/report index;
+                                 # do not move package fixtures without compatibility plan
 ```
 
-**Do not create all folders now.** A component should become a separate module only when it has a stable public contract, independent test responsibility or genuine implementation complexity. The `core.py` experiment in PR #6 can be split *after* it merges and behavioral regression tests are green. Do not rename corpus paths just to make the tree look neat.
+A possible **later** Python decomposition is `contracts/`, `identity/`, `policy/`, `coordinator/`, `transports/`, `runtimes/`, `storage/` and `evidence/`. Split one seam at a time **only** when there is a stable interface, independent regression coverage and no circular dependency. Preserve public imports, console commands, fixture manifests, experiment reproducibility and adapter compatibility. An aesthetically neat directory tree is not a milestone.
 
-## 4. How the parts fit together
+## 4. Immediate work sequence and acceptance checks
 
-```mermaid
-flowchart LR
-  U[Human-approved intent] --> O[Origin agent]
-  O --> D[Authenticated discovery and preflight]
-  D --> P{Identity, policy, consent}
-  P -->|Denied| X[Stop before sensitive disclosure]
-  P -->|Allowed| C[Coordinator + versioned envelope]
-  C --> A[Local/A2A adapter]
-  A --> R[Destination runtime adapter]
-  R --> G[Policy-enforced effect gateway]
-  G --> S[Approved tool or simulated effect]
-  R --> T[Artifact/checkpoint store]
-  C --> E[Receipts + evidence/telemetry]
-  R --> E
-  G --> E
-  T --> E
-```
+| Order | Work | Stop/go criteria |
+| --- | --- | --- |
+| **A. Clarify** | Review PR #88's charter, label current-vs-historical docs and explicitly decide `0.1` runtime versus `0.2` proposal compatibility plan | One agreed narrow central claim, no contradictory top-level capability status |
+| **B. Enforce** | Reconcile PR #16 with current peer/runtime facts; finish #50 along with PR #87's bounded egress research where useful | Independent sender/receiver/effect gates for every **enabled secure-test route**; canary non-disclosure preflight tests, revocation/epoch race tests, direct endpoint bypass attempts and mutation red/green in CI |
+| **C. Validate** | Build one repeatable two-worker, receipt-verified checkpoint case with injected failure and denied stale effect, and a verifier external to execution code | Published trace and signed receipt evidence with explicit known gaps, no false exactly-once claim |
+| **D. Research** | Run held-out model-backed stay/restart/delegate/relocate evaluation with fair task/budget and non-agent baselines; retain deterministic suite as regression tests | Independent reruns, repeated trials, task correctness and constraints, refusals, cost and safety metrics, negative results |
+| **E. Modularize** | Separate tightly coupled modules **only after** contract/coverage gates settle | Existing tests/CLI/schema/fixtures stable; no corpus-ID or published link churn |
 
-Separate **delegation**, **portable context transfer**, **same-runtime checkpoint relocation**, and **cross-framework reconstruction** as independently testable profiles. Never use `move`, `copy` or `clone` as synonyms without specifying identity, lineage, and authority rules.
+Before any merge affecting existing paths run the relevant checks in `../development.md` and CI. Keep research corpus ID/digest determinism checks independent of optional SDK integrations. When a move changes import paths, fixture paths, or documented links, require automated migrations and test proof in the same PR.
 
-## 5. Dependency-aware adoption plan
+## 5. Maintainer decisions not yet resolved by this PR
 
-### Step 0 — Protect current research foundations (no large moves)
-- Add a concise `docs/index.md` entrypoint later; clearly label every link as *research*, *specification draft*, *working experiment*, or *benchmark result*.
-- Keep the published corpus paths, `AMN`/`AMP` IDs, citations and `make check verify-determinism verify-analysis test bib` behavior intact.
-- Consolidate conflicting material from open documentation PRs through review, not through blind bulk renames.
-- Record unresolved decisions (project scope, Python-first strategy, envelope ownership, checkpoint limitations, security gates, licensing) in proposed ADRs.
+1. **Mission:** approve or revise the narrow *verifiable continuation* thesis in PR #88 and decide how copying/device/swarms topics remain secondary research tracks.
+2. **Versioning:** whether and how the `0.2` handoff profile becomes executable without breaking `0.1` acceptance/refusal semantics.
+3. **Complete mediation boundary:** list enabled senders, receivers, adapters, transports and simulated effect gateways; decide which must be disabled or separately gated in secure-test mode.
+4. **Evidence standard:** which signatures, trust anchors and independent effect observations are required before making a verifiable-continuity claim.
+5. **Benchmark identity:** assess the existing separately named MobilityBench research benchmark before choosing a non-confusing name. A naming decision is not made here.
+6. **Licensing/contribution:** follow the repository's current policies; this document makes no new permission or license commitment.
 
-### Step 1 — Land narrow execution proof safely
-- Rebase/resolve PR #6's reported conflicts against current `main`; re-run its local demo, tests and corpus gates before merge.
-- Preserve explicit limitations: loopback only, claimed IDs not authenticated, receiver-side approval after disclosure, cooperative simulated fencing only, not official A2A.
-- Then update/rebase stacked PR #14 and label its `known_gap` outcomes as missing controls rather than passes.
+## What this PR changes
 
-### Step 2 — Secure the boundary and adopt existing protocol
-- Implement authenticated identity, recipient capability/policy negotiation and **pre-disclosure** authorization (#8).
-- Integrate official A2A v1 SDK with independent agents (#7), keeping transport and application-level contract separate.
-- Publish and validate a first canonical schema with negative compatibility/security fixtures. Add package CI; pin tested versions.
-
-### Step 3 — Prove continuity, not just delivery
-- For #9, use one pinned durable runtime and a safe exportable application checkpoint; transfer exclusive task ownership; crash/restart/partition tests and reconcile ambiguous effects.
-- For #11, distinguish self-reported traces, signed receipts and independent tool-side corroboration, with an offline verifier.
-
-### Step 4 — Publish independent evaluation
-- For #10, compare keep-on-origin, restart, delegate, same-runtime relocate and optional cross-framework reconstruct under frozen fixtures.
-- Report task correctness, preserved constraints, duplicates, policy violations, unknown outcomes, payload, latency, cost, crash recovery and evidence quality.
-- Make negative findings reproducible. Only then consider a second runtime/language, remote trust domains and hardware/device profiles.
-
-## 6. Suggested checks and conventions
-
-- **Naming:** separate `agent_definition_id`, `workload_principal`, `agent_instance_id`, `execution_id`, `logical_task_id`, `movement_id`, `fencing_epoch`. Reject ambiguous ownership rather than silently guessing.
-- **API semantics:** schema versioned; unsupported operation/version denied; claims not credentials; revocation and scope enforced at effect time; explicit `unknown/reconcile` outcomes.
-- **Privacy:** use synthetic or public inputs in tests/benchmarks; forbid real tokens, private conversations and provider hidden state in committed samples; redact audit payloads.
-- **Offline tests:** corpus determinism remains independent of network integration tests; benchmark metrics reproducible with seeds, pinned fixtures, environment/version manifest and expected known-gap ledger.
-- **CI evolution:** preserve `corpus.yml`; add separate unit/package/security/conformance and optional benchmark gates when the corresponding implementation actually exists. Do not add a large mandatory matrix before code lands.
-- **Review granularity:** one PR per bounded capability, issue, or documented decision. No unrelated bulk file moves combined with security changes.
-- **Documentation:** mark implementation status and date per page; standard vs project-specific terminology; verify all normative citations and link claims. Document safe defaults and known failure modes before enabling external execution.
-- **Release governance:** ask the owner to decide licensing and contributor rules before promising unrestricted third-party reuse; no license change is implied by this proposal.
-
-## 7. Open architecture decisions
-
-1. **Primary research claim:** Should this project explicitly specialize in *safe portable task continuity* (recommended) rather than generalized invisible agent roaming?
-2. **First supported movement profile:** delegation first (recommended) vs checkpoint relocation first.
-3. **First runnable interoperability target:** official A2A Python SDK with separately verified identity/policy, versus local adapter only.
-4. **Authority owner:** which coordinator, trusted gateway and storage transaction fences a logical task after a lease/epoch transfer?
-5. **Schema governance:** who owns versioned normative project fields and compatibility rules, and how are breaking changes approved?
-6. **Trust domains:** which peer identities can be verified and authorized *before payload disclosure*; how is revocation enforced after dispatch?
-7. **Evidence levels:** what independently validated facts must be present before a receipt is called verifiable?
-8. **Benchmark release criteria:** what falsifiable success/failure and scientific validity gates unlock claims of relocation or portability?
-9. **Licensing / contribution model:** owner decision required; avoid implying permission to reuse code until a license is chosen.
-
-## 8. Proposed first small PRs following this review
-
-1. **Documentation/navigation PR:** `docs/index.md` and proposed ADR templates; no renames of corpora.
-2. **Runtime merge repair PR/work:** resolve PR #6 conflicts and run package/corpus tests; only then rebase PR #14.
-3. **Boundary-security PR:** implement #8 with negative tests before allowing remote agent task data exchange.
-4. **Official-protocol PR:** implement #7 behind an optional adapter, test two independent workers.
-5. **Portable schema/continuity PR:** versioned manifest and tests as the foundation for #9 and #10.
-
-### Acceptance criteria for *this proposal*
-
-- Clearly separates **existing main**, **open branches**, and **future modules**.
-- Preserves stable research data IDs, reproducibility, path-sensitive tooling and citations.
-- Does not claim universal migration, cross-framework state equivalence, authenticated identities or security certification.
-- Records actionable PR/issue dependencies and security-first milestones.
-- Does not modify runnable code, migrations, licenses, CI or `main` as part of this review.
+**Documentation only:** add a status-aware entry index and a decision-record process, and replace the stale no-code architecture inventory with this current snapshot. This does **not** change any runtime code, published data IDs, schema, tests, CI, or `main`. It does not adopt PR #88 or close Issue #50.

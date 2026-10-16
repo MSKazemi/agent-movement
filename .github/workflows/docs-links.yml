@@ -1,0 +1,25 @@
+name: Docs links
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  relative-links:
+    name: Check relative Markdown links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # Offline mode checks only links between files in this repository.
+      # External URLs are verified by hand and recorded in docs/sources.md,
+      # because upstream sites rate-limit CI runners and would cause flaky failures.
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --no-progress './**/*.md'
+          fail: true

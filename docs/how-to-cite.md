@@ -2,7 +2,7 @@
 
 The machine-readable citation metadata for this repository is in [`CITATION.cff`](../CITATION.cff) ([Citation File Format](https://citation-file-format.github.io/) 1.2.0). GitHub reads this file and shows a **"Cite this repository"** button in the repository sidebar.
 
-This repository has **no formal release, version number or DOI**. Until one exists, identify the exact state you used by its **commit SHA** (see [Pin a version](#pin-a-version-by-commit-sha)).
+The first tagged release is **v0.2.0** (2026-10-16; see the [CHANGELOG](../CHANGELOG.md)). There is no DOI. Cite the tag, or for any later state the exact **commit SHA** (see [Pin a version](#pin-a-version-by-commit-sha)).
 
 ## Cite the repository
 
@@ -13,12 +13,14 @@ This repository has **no formal release, version number or DOI**. Until one exis
 ```bibtex
 @misc{YourReferenceHere,
 author = {Seyedkazemi Ardebili, Mohsen},
+month = {10},
 title = {Agent Movement: research notes and curated news and paper corpora on portable, interoperable AI-agent work},
-url = {https://github.com/MSKazemi/agent-movement}
+url = {https://github.com/MSKazemi/agent-movement},
+year = {2026}
 }
 ```
 
-The generated entry has no year or version because `CITATION.cff` has no `date-released` (nothing has been released). For a reproducible reference, add the year and the commit you used, and give the entry a real key:
+The generated entry takes its year and month from `date-released` but omits the version (cffconvert's BibTeX output has no version field). For a reproducible reference, add the release tag or the commit you used, and give the entry a real key:
 
 ```bibtex
 @misc{seyedkazemiardebili_agent_movement,

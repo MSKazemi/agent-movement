@@ -1,0 +1,200 @@
+{
+  "01-valid-delegation": {
+    "claims": {
+      "mov-valid-1": {
+        "destination_principal": "VERIFIED",
+        "grade": "E3",
+        "outcome": "SIGNED_CLAIM",
+        "source_principal": "VERIFIED",
+        "trace_ids": "CORRELATION_ONLY"
+      }
+    },
+    "effects": {
+      "effect-valid-1": "CONFIRMED_BY_TOOL"
+    },
+    "exit_code": 0,
+    "receipt_verdicts": {
+      "VALID": 5
+    },
+    "subjects": {
+      "art-mov-valid-1": "DIGEST_MATCH",
+      "env-mov-valid-1": "DIGEST_MATCH"
+    },
+    "timeline_status": {
+      "CONFLICTING": 0,
+      "UNVERIFIABLE": 3,
+      "VERIFIABLE": 5
+    }
+  },
+  "02-tampered-receipts": {
+    "claims": {
+      "mov-tamper-1": {
+        "destination_principal": "SIGNED_CLAIM",
+        "grade": "E2",
+        "outcome": "UNKNOWN"
+      }
+    },
+    "exit_code": 1,
+    "receipt_verdicts": {
+      "TAMPERED": 2,
+      "VALID": 2
+    },
+    "subjects": {
+      "art-mov-tamper-1": "DIGEST_MISMATCH",
+      "env-mov-tamper-1": "DIGEST_MATCH"
+    },
+    "timeline_status": {
+      "CONFLICTING": 1,
+      "UNVERIFIABLE": 0,
+      "VERIFIABLE": 1
+    }
+  },
+  "03-replayed-receipts": {
+    "claims": {
+      "mov-replay-1": {
+        "destination_principal": "VERIFIED",
+        "grade": "E3"
+      }
+    },
+    "exit_code": 1,
+    "receipt_verdicts": {
+      "REPLAYED": 2,
+      "VALID": 2
+    },
+    "timeline_status": {
+      "CONFLICTING": 0,
+      "UNVERIFIABLE": 0,
+      "VERIFIABLE": 2
+    }
+  },
+  "04-forged-identity": {
+    "claims": {
+      "mov-forged-1": {
+        "destination_principal": "SIGNED_CLAIM",
+        "grade": "E2",
+        "outcome": "UNKNOWN",
+        "source_principal": "VERIFIED"
+      },
+      "mov-forged-2": {
+        "destination_principal": "UNKNOWN",
+        "grade": "E1",
+        "source_principal": "UNVERIFIED_CLAIM"
+      }
+    },
+    "exit_code": 1,
+    "receipt_verdicts": {
+      "UNTRUSTED": 4,
+      "VALID": 1
+    },
+    "timeline_status": {
+      "CONFLICTING": 0,
+      "UNVERIFIABLE": 5,
+      "VERIFIABLE": 1
+    }
+  },
+  "05-missing-claims": {
+    "claims": {
+      "mov-missing-1": {
+        "destination_agent_label": "UNKNOWN",
+        "destination_execution_id": "UNKNOWN",
+        "destination_principal": "UNKNOWN",
+        "outcome": "UNKNOWN",
+        "source_principal": "VERIFIED"
+      },
+      "mov-missing-2": {
+        "destination_principal": "SIGNED_CLAIM",
+        "outcome": "UNKNOWN"
+      }
+    },
+    "effects": {
+      "effect-missing-1": "UNKNOWN"
+    },
+    "exit_code": 0,
+    "receipt_verdicts": {
+      "VALID": 3
+    },
+    "timeline_status": {
+      "CONFLICTING": 0,
+      "UNVERIFIABLE": 1,
+      "VERIFIABLE": 3
+    }
+  },
+  "06-conflicting-accounts": {
+    "claims": {
+      "mov-conflict-1": {
+        "destination_principal": "VERIFIED",
+        "outcome": "CONFLICTING",
+        "source_principal": "VERIFIED"
+      },
+      "mov-conflict-2": {
+        "destination_agent_label": "CONFLICTING",
+        "destination_principal": "CONFLICTING",
+        "source_principal": "VERIFIED"
+      }
+    },
+    "effects": {
+      "effect-conflict-1": "CONFLICTING"
+    },
+    "exit_code": 1,
+    "receipt_verdicts": {
+      "VALID": 7
+    },
+    "timeline_status": {
+      "CONFLICTING": 6,
+      "UNVERIFIABLE": 0,
+      "VERIFIABLE": 1
+    }
+  },
+  "07-fork-lineage": {
+    "claims": {
+      "mov-fork-1": {
+        "destination_principal": "VERIFIED",
+        "grade": "E3",
+        "source_principal": "VERIFIED"
+      },
+      "mov-fork-2": {
+        "destination_principal": "VERIFIED",
+        "grade": "E3",
+        "source_principal": "VERIFIED"
+      }
+    },
+    "exit_code": 0,
+    "lineage": 2,
+    "receipt_verdicts": {
+      "VALID": 9
+    },
+    "timeline_status": {
+      "CONFLICTING": 0,
+      "UNVERIFIABLE": 0,
+      "VERIFIABLE": 9
+    }
+  },
+  "08-privacy-canaries": {
+    "exit_code": 1,
+    "receipt_verdicts": {
+      "MALFORMED": 2,
+      "VALID": 2
+    },
+    "timeline_status": {
+      "CONFLICTING": 0,
+      "UNVERIFIABLE": 2,
+      "VERIFIABLE": 2
+    }
+  },
+  "09-clock-skew": {
+    "exit_code": 0,
+    "receipt_verdicts": {
+      "VALID": 3
+    },
+    "timeline_order": [
+      "rcpt-mov-skew-1-dispatch",
+      "rcpt-mov-skew-1-accept",
+      "rcpt-mov-skew-1-started"
+    ],
+    "timeline_status": {
+      "CONFLICTING": 0,
+      "UNVERIFIABLE": 0,
+      "VERIFIABLE": 3
+    }
+  }
+}

@@ -21,9 +21,9 @@ PAPER_APPEND = $(PYTHON) tools/paper_corpus.py append $(PAPER_DIR)/raw/round2.js
 PAPER_AUDIT2 = $(PYTHON) tools/paper_corpus.py apply-audit $(PAPER_DIR)/audit-round2.jsonl
 
 .DEFAULT_GOAL := all
-.PHONY: all help check build analysis verify-analysis verify-determinism test bib
+.PHONY: all help check build analysis verify-analysis verify-determinism check-ids check-tests-registry sources sources-index test bib cli-docs lint typecheck
 
-all: check verify-determinism verify-analysis test bib ## Run every gate
+all: check verify-determinism verify-analysis check-ids check-tests-registry sources test bib lint typecheck ## Run every gate
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-20s %s\n", $$1, $$2}'
@@ -73,9 +73,44 @@ verify-analysis: ## Require docs/corpus-analysis/ to match a fresh regeneration
 	if [ $$fail -ne 0 ]; then echo "verify-analysis: docs/corpus-analysis is stale (run 'make analysis')"; exit 1; fi; \
 	echo "verify-analysis: ok (timeline.md, coverage.md current)"
 
+check-ids: ## Fail on ambiguous bare Q#/S# IDs and unknown question/study IDs in the docs
+	$(PYTHON) tools/check_ids.py
+
+check-tests-registry: ## Validate data/test-registry.csv against tests/ (ast only) and the docs' registry IDs
+	$(PYTHON) tools/check_test_registry.py
+
+cli-docs: ## Regenerate docs/cli.md from live `agent-movement --help` (needs every optional extra)
+	$(PYTHON) tools/cli_reference.py
+
+sources: ## Require every external URL in README.md and docs/ to be indexed in docs/sources.md
+	$(PYTHON) tools/sources_index.py check
+
+sources-index: ## Regenerate the URL index section of docs/sources.md (keeps hand-edited dates)
+	$(PYTHON) tools/sources_index.py generate
+
 test: ## Run pytest if tests/ exists
 	@if [ -d tests ]; then $(PYTHON) -m pytest -q; \
 	else echo "test: skipped (no tests/ directory)"; fi
+
+# Static checks of src/agent_movement; the tools are pinned in the `lint` dependency group
+# (pip install --group lint). They skip with a message when ruff/mypy (or, for typecheck,
+# the optional extras whose APIs are checked) are missing; STATIC_REQUIRED=1, set by the
+# CI static-checks job, turns such a skip into a failure.
+STATIC_REQUIRED ?= 0
+EXTRAS_IMPORT := import a2a, cryptography, langgraph.checkpoint.sqlite, uvicorn
+# Paths ruff checks (mypy reads the same list from `files` in pyproject.toml).
+STATIC_PATHS := src/agent_movement tools/mobilitybench_freeze.py tests/test_mobilitybench_v02.py
+
+lint: ## Lint src/agent_movement (+ MobilityBench freeze tool and v0.2 tests) with ruff
+	@if ! $(PYTHON) -m ruff --version >/dev/null 2>&1; then \
+	  echo "lint: skipped (ruff not installed: pip install --group lint)"; [ "$(STATIC_REQUIRED)" != 1 ]; exit; fi; \
+	$(PYTHON) -m ruff check $(STATIC_PATHS)
+
+typecheck: ## Type-check the same paths with mypy --strict (needs the lint group and every extra)
+	@if ! $(PYTHON) -m mypy --version >/dev/null 2>&1 || ! $(PYTHON) -c "$(EXTRAS_IMPORT)" 2>/dev/null; then \
+	  echo "typecheck: skipped (needs pip install --group lint and -e '.[a2a,ed25519,hpke,relocation,signing]')"; \
+	  [ "$(STATIC_REQUIRED)" != 1 ]; exit; fi; \
+	$(PYTHON) -m mypy
 
 bib: ## Validate news.bib and papers.bib with biber --tool (skipped if biber is absent)
 	@if ! command -v $(BIBER) >/dev/null 2>&1; then echo "bib: skipped (biber not installed)"; exit 0; fi; \

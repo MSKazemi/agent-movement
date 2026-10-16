@@ -1,0 +1,35 @@
+# gitleaks configuration for this repository (gitleaks >= 8.25 global allowlists; CI pins 8.30.1).
+#
+# The default rule set stays fully enabled. Each allowlist below suppresses ONE known false
+# positive of the `generic-api-key` rule, and only when the file path AND the matched text
+# both fit (condition = "AND"), so a real secret in the same files is still reported.
+# Verify with:  gitleaks dir . --no-banner    (expect "no leaks found")
+
+title = "agent-movement"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Corpus citation keys (author+year+word BibTeX keys such as citekey \"smith1980contract\")"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)docs/(news|paper)-corpus/''']
+regexTarget = "match"
+regexes = ['''^(citekey": "|key: `)[a-z][a-z0-9]*[0-9]{4}[a-z0-9]*["`]$''']
+
+[[allowlists]]
+description = "MobilityBench ground truth: public SHA-256 digests of the synthetic fixture files"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)src/agent_movement/fixtures/mobilitybench-v[0-9.]+/ground_truth\.jsonl$''']
+regexTarget = "match"
+regexes = ['''": "[0-9a-f]{64}"$''']
+
+[[allowlists]]
+description = "A2A demo: a synthetic, human-readable idempotency key label"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)src/agent_movement/a2a_demo\.py$''']
+regexTarget = "match"
+regexes = ['''^idempotency_key": "a2a-legacy-operation"$''']
