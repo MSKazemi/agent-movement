@@ -12,6 +12,11 @@ runtime state, model context, credentials or tool handles) are rejected by the
 contract before mapping and are rejected again on the receiving side, so they
 are never serialized into A2A messages or artifacts.
 
+The normative description is the extension specification
+``docs/a2a-profile-extension.md``; :data:`EXTENSION_URI` is that file's URL on
+``main``. The profile 0.1 URN is still accepted as a deprecated alias
+(:data:`LEGACY_EXTENSION_URI`) with its original contextId rule.
+
 This proves *delegation* of one allowlisted pure task, not agent migration.
 """
 
@@ -26,7 +31,21 @@ from typing import Any
 
 from .core import SCHEMA_VERSION, ContractError, digest, validate_envelope
 
-EXTENSION_URI = "urn:agent-movement:a2a-handoff-profile:0.1.0-draft"
+PROFILE_VERSION = "0.2.0-draft"
+REPOSITORY_URL = "https://github.com/MSKazemi/agent-movement"
+SPEC_PATH = "docs/a2a-profile-extension.md"
+# Resolvable identifier: the extension specification is hosted at the extension's URI
+# (A2A "Extensions" topic). A breaking change MUST get a new URI (A2A v1.0 sec. 4.6.3).
+EXTENSION_URI = f"{REPOSITORY_URL}/blob/main/{SPEC_PATH}"
+# Deprecated alias, accepted throughout profile 0.2.x and removed in 0.3.0. Requests that use it
+# keep the profile 0.1 contextId rule (a client contextId is allowed, bound to logical_task_id).
+LEGACY_EXTENSION_URI = "urn:agent-movement:a2a-handoff-profile:0.1.0-draft"
+EXTENSION_URIS = (EXTENSION_URI, LEGACY_EXTENSION_URI)
+# Policies for a client-supplied Message.contextId (A2A v1.0 sec. 3.4.1). A message without a
+# contextId is always accepted and the server generates one.
+CLIENT_CONTEXT_REJECTED = "rejected"
+CLIENT_CONTEXT_BOUND = "bound-to-logical-task-id"
+CLIENT_CONTEXT_POLICIES = (CLIENT_CONTEXT_REJECTED, CLIENT_CONTEXT_BOUND)
 TASK_MEDIA_TYPE = "application/vnd.agent-movement.task+json"
 RECEIPT_MEDIA_TYPE = "application/vnd.agent-movement.receipt+json"
 RECEIPT_ARTIFACT_NAME = "handoff-receipt"
@@ -63,9 +82,10 @@ def skill_id(kind: str) -> str:
 def envelope_to_a2a(envelope: Any) -> dict[str, Any]:
     """Return the A2A-bound projection of a *validated* envelope.
 
-    Result keys: ``context_id`` (the logical task ID), ``metadata`` (stored
-    under :data:`EXTENSION_URI` in ``Message.metadata``) and ``data`` (the
-    content of the single ``Part`` with media type :data:`TASK_MEDIA_TYPE`).
+    Result keys: ``metadata`` (stored under the profile URI in
+    ``Message.metadata``) and ``data`` (the content of the single ``Part`` with
+    media type :data:`TASK_MEDIA_TYPE`). No contextId is derived here: by
+    default the server generates it (see :func:`check_context_id`).
     """
     v = validate_envelope(envelope)
     metadata = {
@@ -81,12 +101,16 @@ def envelope_to_a2a(envelope: Any) -> dict[str, Any]:
         "trace_id": v["observability"]["trace_id"],
         "envelope_digest": digest(v),
     }
-    return {"context_id": v["logical_task_id"], "metadata": metadata,
-            "data": {"kind": v["task"]["kind"], "text": v["task"]["text"]}}
+    return {"metadata": metadata, "data": {"kind": v["task"]["kind"], "text": v["task"]["text"]}}
 
 
 def a2a_to_envelope(metadata: Any, data: Any, context_id: str = "") -> dict[str, Any]:
-    """Strictly rebuild and validate an envelope from received A2A fields."""
+    """Strictly rebuild and validate an envelope from received A2A fields.
+
+    A non-empty ``context_id`` must equal the logical task ID (the binding rule
+    of :data:`CLIENT_CONTEXT_BOUND`). Whether a client may supply a contextId at
+    all is decided by :func:`check_context_id`, not here.
+    """
     if not isinstance(metadata, dict) or set(metadata) != _METADATA_FIELDS:
         raise ProfileError("invalid handoff metadata fields")
     if not isinstance(data, dict) or set(data) != _TASK_FIELDS:
@@ -107,9 +131,43 @@ def a2a_to_envelope(metadata: Any, data: Any, context_id: str = "") -> dict[str,
     validate_envelope(envelope)
     if metadata["envelope_digest"] != digest(envelope):
         raise ProfileError("envelope digest does not match mapped fields")
-    if context_id and context_id != envelope["logical_task_id"]:
-        raise ProfileError("A2A context ID does not match logical task ID")
+    if context_id:
+        check_context_id(context_id, envelope, CLIENT_CONTEXT_BOUND)
     return envelope
+
+
+def context_policy(extension_uri: str, configured: str) -> str:
+    """Effective client-contextId policy for a request that used ``extension_uri``.
+
+    The current URI uses the server's configured policy. The deprecated alias
+    keeps its profile 0.1 meaning: a client contextId is accepted when it equals
+    the logical task ID.
+    """
+    if configured not in CLIENT_CONTEXT_POLICIES:
+        raise ValueError("client contextId policy must be one of " + ", ".join(CLIENT_CONTEXT_POLICIES))
+    if extension_uri == LEGACY_EXTENSION_URI:
+        return CLIENT_CONTEXT_BOUND
+    if extension_uri != EXTENSION_URI:
+        raise ProfileError("unknown handoff profile extension URI")
+    return configured
+
+
+def check_context_id(context_id: str, envelope: dict[str, Any], policy: str) -> None:
+    """Apply the profile's contextId rule to the contextId *as the client sent it*.
+
+    An empty contextId is always allowed: the server generates one and returns
+    it in the task (A2A v1.0 sec. 3.4.1). A client-supplied contextId is
+    accepted only under :data:`CLIENT_CONTEXT_BOUND` and only if it equals the
+    envelope's ``logical_task_id``. Anything else must be rejected, because an
+    agent that cannot accept a client-provided contextId MUST reject the request.
+    """
+    if not context_id:
+        return
+    if policy != CLIENT_CONTEXT_BOUND:
+        raise ProfileError("client-supplied contextId is not accepted; omit it and use the "
+                           "server-generated contextId")
+    if context_id != envelope["logical_task_id"]:
+        raise ProfileError("A2A context ID does not match logical task ID")
 
 
 def receipt_to_artifact(receipt: dict[str, Any]) -> dict[str, Any]:
@@ -232,7 +290,9 @@ class A2ACorrelationLog:
 
 
 __all__ = [
-    "A2ACorrelationLog", "EXTENSION_URI", "KINDS", "ProfileError", "RECEIPT_ARTIFACT_NAME",
-    "RECEIPT_MEDIA_TYPE", "SCHEMA_VERSION", "TASK_MEDIA_TYPE", "a2a_to_envelope",
+    "A2ACorrelationLog", "CLIENT_CONTEXT_BOUND", "CLIENT_CONTEXT_POLICIES", "CLIENT_CONTEXT_REJECTED",
+    "EXTENSION_URI", "EXTENSION_URIS", "KINDS", "LEGACY_EXTENSION_URI", "PROFILE_VERSION",
+    "ProfileError", "RECEIPT_ARTIFACT_NAME", "RECEIPT_MEDIA_TYPE", "REPOSITORY_URL", "SCHEMA_VERSION",
+    "SPEC_PATH", "TASK_MEDIA_TYPE", "a2a_to_envelope", "check_context_id", "context_policy",
     "envelope_to_a2a", "receipt_to_artifact", "safe_token", "skill_id", "verify_receipt",
 ]
