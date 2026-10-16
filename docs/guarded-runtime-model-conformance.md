@@ -1,6 +1,6 @@
 # MASM-to-runtime trace refinement — first bounded conformance suite
 
-**Research status:** experimental synthetic model-to-SQLite projection, 2026-10-16. This is an executable **partial refinement**, not a proof of production agent migration, complete safety, actor/process identity, or cross-system exactly-once effects.
+**Research status:** experimental synthetic model-to-SQLite projection, updated 2026-10-17. This is an executable **partial refinement**, not a proof of production agent migration, complete safety, actor/process identity, or cross-system exactly-once effects.
 
 **Related:** [MASM-0.1](movement-authority-state-machine.md), [existing guarded transfer profile](guarded-authority-transfer.md), [earlier runtime bridge](runtime-model-refinement.md), [handoff](algorithmic-research-handoff-2026-10-16.md), issues [#93](https://github.com/MSKazemi/agent-movement/issues/93) and [#50](https://github.com/MSKazemi/agent-movement/issues/50).
 
@@ -21,9 +21,9 @@ The planner defines **20 named cases** and searches only its supported subgraph 
 | Initial owner `A/1` | `EffectGateway.claim`, trusted test fixture | Independently read `owners` |
 | `prepare_destination` | **Abstract marker only** | No runtime preparation is verified |
 | `issue_attenuated_grant_B` | `GuardedAuthority.enroll` **pre-issued, verified** task/receiver grant and origin-signed intent | Guard row `status=prepared`; this does **not** prove actual grant issuance at this point |
-| `fence_and_transfer` | `GuardedAuthority.transfer` with current signed/receiver-owned authority checks in one SQLite write transaction | `owners` becomes `agent-b/2`, guard status `transferred` |
-| `resume_destination` | **Abstract marker only** | No authenticated activation, scheduler, or agent readiness is verified |
-| `commit_B_publish-{1,2}` | Synthetic `GuardedAuthority.commit` by supplied receiver identity/epoch | Compare `effects` IDs and epochs, `budget_used` |
+| `fence_and_transfer` | Signed/receiver-owned authority checks in one SQLite write transaction | `owners` becomes `agent-b/2`, guard status `fenced`; no effect permitted |
+| `resume_destination` | `GuardedAuthority.activate` with pinned destination-signed receipt | `guarded_activations` row and status `active`, but not verified process liveness |
+| `commit_B_publish-{1,2}` | `GuardedAuthority.commit` with signed per-effect invocation bound to exact actor, epoch, effect and payload | Compare `effects` IDs and epochs and budget; signed request is not OS actor attestation |
 | `revoke_user`, `revoke_data_owner` | Independent signed `ContinuityRuntime.apply_consent_revocation` | Committed consent tombstones and no accepted forbidden effects in named tests |
 | `cancel_task` | Operator-signed `GuardedAuthority.cancel` for enrolled task | Durable `cancelled` flag and negative transfer/effect probes |
 | `bump_policy_epoch` | Receiver-owned `ContinuityRuntime.advance_epoch(5)` | Current control epoch 5; guarded intent remains bound to old epoch |
@@ -40,11 +40,20 @@ The deterministic plan covers: grant preparation and transfer, destination runni
 
 On appropriate endpoints the suite also attempts a **denied** second transfer and a denied or idempotently suppressed new effect, confirming no new durable effect appears. These probes must not be mistaken for arbitrary interleaving or network-failure verification.
 
-## A concrete whole-model refinement counterexample
+## The fenced activation counterexample is now a negative regression
 
-**Destination activation is not enforced by the guarded SQLite API.** After an owner transfer, the MASM phase is `fenced`; the model correctly denies a destination effect until a separate `resume_destination` transition. The actual `GuardedAuthority` currently accepts a protected synthetic effect immediately after a successful transfer, without a signed destination-activation event.
+The previous runtime allowed an effect immediately after fencing despite MASM
+requiring a separate `resume_destination`. The current test denies even a
+correctly signed effect invocation during `fenced`, independently verifies
+that SQLite has no committed effect, then activates using a separately verified
+destination-signed receipt. After the `resume_destination` model transition,
+the actual runtime transitions to `active` and accepts a bound signed effect.
 
-The regression `test_abstract_activation_gap_is_observable_and_not_claimed_safe` deliberately **passes only while it can reproduce this mismatch**. This documents a stronger model requirement that the runtime does **not** implement. Do not claim full MASM refinement. Resolve it with a verified receiver activation barrier, or formally weaken the runtime-specific model and explain why that is safe.
+The witness runner now calls a real `GuardedAuthority.activate` operation,
+rather than treating `resume_destination` as an abstract marker. Only
+`prepare_destination` remains an abstract marker. This narrows the previously
+known counterexample; it does not prove process liveness, real tools, or a
+complete implementation of MASM.
 
 ## Alternate-route bypass regression
 
@@ -57,7 +66,7 @@ The new cross-process test reopens the same SQLite file from a separate Python i
 - MASM `commit_A_*` before movement: the guarded runtime enrolls before any protected effect and only permits destination-side effects after transfer.
 - Source/destination crashes and restarts, partitions and gateway healing, independent-authority stores, hostile hosts and unmediated OS writes: no faithful fault injection here.
 - `operator_claim_done/absent`: an operator's unsupported assertion cannot convert an unknown remote side effect into established fact. The runtime intentionally has no `clear_unknown` method.
-- Real external tool/effect semantics, arbitrary delegated transport routes, device capability compatibility, actual model-state checkpointing, destination readiness and independent process identity: not covered.
+- Real external tool/effect semantics, arbitrary delegated transport routes, device capability compatibility, actual model-state checkpointing, physical destination readiness and independent OS process identity: not covered.
 - Cryptographic strength of symmetric test keys (HS256), trusted time source availability, compromised issuer, full multi-hop grant attenuation and distributed durability: outside the test assumptions.
 
 The unguarded or alternate routes remain tracked in [#50](https://github.com/MSKazemi/agent-movement/issues/50). Trace replay and future activation/refinement remain in [#93](https://github.com/MSKazemi/agent-movement/issues/93).
@@ -84,4 +93,4 @@ python -m pytest -v tests/test_guarded_authority_refinement.py -k data_owner_rev
 
 ## Next implementable milestone
 
-Add a separately authenticated **destination activation** transition after fencing and before any protected effect, then extend trace replay with crash/restart and revocation races at that boundary. Once done, generate a field-by-field capability/route matrix across the peer, A2A and checkpoint-relocation effect ledgers. Keep #93 and #50 open until their complete acceptance criteria are supported.
+Exercise independently privileged actor identity, signed readiness after crash, real effect-gateway enforcement and a capability/route matrix across peer, A2A and checkpoint relocation. Signed receipts do not establish actual agent liveness. Keep #93, #50 and #102 open until their complete acceptance criteria are supported.
