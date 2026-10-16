@@ -16,7 +16,7 @@ import os
 import subprocess
 import sys
 from dataclasses import asdict
-from typing import Any
+from typing import Any, cast
 
 from .device_binding import (
     BindingDenied,
@@ -48,7 +48,10 @@ def _execute_in_process(snapshot: dict[str, str], key: LocalSoftwareKey,
                "challenge": asdict(challenge), "software_test_key": key.export_fixture_hex()}
     result = subprocess.run(command, input=json.dumps(fixture), capture_output=True,
                             text=True, check=True, timeout=8)
-    return json.loads(result.stdout)
+    decoded = json.loads(result.stdout)
+    if not isinstance(decoded, dict):
+        raise RuntimeError("worker returned a non-object response")
+    return cast("dict[str, Any]", decoded)
 
 
 def _denial(fn: Any) -> str:
