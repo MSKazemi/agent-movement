@@ -1,11 +1,11 @@
 # As-built architecture of the `agent_movement` package
 
 **Status:** Describes the code as it is, not as it is planned. The package is a research-stage set of **synthetic, local prototypes**, not production software.
-**Last verified against commit `fbecb57`** (2026-10-16). Every module, class, function, command, table and column named here was checked against that commit with `grep` or by importing it, and every demo was run (see the [development guide](development.md#the-agent_movement-package) for the commands and their exit codes). If the code has changed since then, the code is authoritative.
+**Last verified against commit `326e65e`** (2026-10-16). Every module, class, function, command, table and column named here was checked against that commit with `grep` or by importing it, and every demo was run (see the [development guide](development.md#the-agent_movement-package) for the commands and their exit codes). If the code has changed since then, the code is authoritative.
 
-> **Snapshot notice.** `src/` keeps changing under the follow-up issues #18–#42. This document describes `fbecb57` only. It was first written against `b21da27` and refreshed after the work on issues #18–#22, #29–#32, #41 and #43 landed. Check `git log -- src/agent_movement` for later changes before relying on a detail.
+> **Snapshot notice.** `src/` keeps changing under the follow-up issues #18–#42. This document describes `326e65e` only. It was first written against `b21da27` and refreshed after the work on issues #18–#22, #29–#32, #39, #41 and #43 landed. Check `git log -- src/agent_movement` for later changes before relying on a detail.
 
-For the reasons behind each slice, see the topic documents: [local implementation](local-implementation.md), [A2A adapter](a2a-adapter.md) and its [profile extension spec](a2a-profile-extension.md), [peer authentication](peer-authentication.md), [checkpoint relocation](checkpoint-relocation.md), [movement receipts](movement-receipts.md) and [MobilityBench v0.1](mobilitybench-v0.1.md). Every command is listed in the [CLI reference](cli.md). For setup, tests and CI, see the [development guide](development.md#the-agent_movement-package).
+For the reasons behind each slice, see the topic documents: [local implementation](local-implementation.md), [data retention](data-retention.md), [A2A adapter](a2a-adapter.md) and its [profile extension spec](a2a-profile-extension.md), [peer authentication](peer-authentication.md), [checkpoint relocation](checkpoint-relocation.md), [movement receipts](movement-receipts.md) and [MobilityBench v0.1](mobilitybench-v0.1.md). Every command is listed in the [CLI reference](cli.md). For setup, tests and CI, see the [development guide](development.md#the-agent_movement-package).
 
 ## 1. What is real and what is simulated
 
@@ -15,7 +15,7 @@ For the reasons behind each slice, see the topic documents: [local implementatio
 | Network | Real HTTP over TCP, bound to `127.0.0.1` only (`http.make_server`, `peer_http.make_peer_server`, uvicorn in `a2a_server.main`). | No TLS, no channel binding and no cross-host transfer. Peer card endpoints must be `http://127.0.0.1:<port>` or `local://<name>` (`trust._ENDPOINT`). The relocation bundle is copied between local directories. |
 | A2A | The official `a2a-sdk` (pinned `1.2.2`) frames the messages on both ends: Agent Card, JSON-RPC, HTTP+JSON and SSE. | Both ends use the same SDK. The card declares no security scheme. |
 | Cryptography | Real HMAC-SHA256 (`trust.HmacKey`), Ed25519 (`trust.Ed25519Key`, `receipts.Ed25519Signer`), and RFC 9180 HPKE with X25519 and ChaCha20-Poly1305 (`trust.HpkeKey`), the last two through the `cryptography` package. SHA-256 digests. | Keys are throw-away test keys generated for each run. The receipt fixture seeds are public (`receipt_fixtures.synthetic_seed`). There is no PKI, X.509 or OAuth. |
-| Persistence | Real SQLite transactions (`BEGIN IMMEDIATE`, WAL mode, `ATTACH` in two-store relocation), a versioned core store layout with an in-place migration (`PRAGMA user_version`), and real LangGraph `SqliteSaver` checkpoints. | The demos and benchmarks keep their SQLite files in temporary directories that are deleted at exit (see [§5](#5-storage-schema)). |
+| Persistence | Real SQLite transactions (`BEGIN IMMEDIATE`, WAL mode, `ATTACH` in two-store relocation), a versioned core store layout with in-place migrations (`PRAGMA user_version`), HMAC-SHA256 keyed commitments under a random per-store secret, and real LangGraph `SqliteSaver` checkpoints. | The demos and benchmarks keep their SQLite files in temporary directories that are deleted at exit (see [§5](#5-storage-schema)). |
 | Tasks | Two real pure computations: `word_count` and `sha256` (`core.SQLiteStore.receive`). | The input text is synthetic. Only the classifications `synthetic` and `public` are accepted. |
 | External effects | None. | "Effects" are rows in SQLite tables: `effects`, `authorized_effects` and `opaque_effects`. No third-party tool is ever called. In operator reconciliation the operator's out-of-band check is simulated by the harness reading `opaque_effects`. |
 | Faults | Hard crashes are real process exits (`os._exit(CRASH_EXIT)`, `CRASH_EXIT = 86`, in `relocation.Faults.hit`). | The fault schedules are scripted. In MobilityBench the faults (`mobilitybench_v01.FAULT_KINDS`) are simulated by a deterministic interpreter inside one process; no model is called (`MODEL = "none"`). |
@@ -30,10 +30,11 @@ Every experiment is reachable through the `agent-movement` console script (`[pro
 | Module | Group / extra | Entry point | Main contents |
 |---|---|---|---|
 | `__init__.py` | core | none | Re-exports `Approval`, `Conflict`, `ContractError`, `EffectGateway`, `HandoffReceiver`, `PolicyDenied` and `SQLiteStore`. |
-| `cli.py`, `__main__.py` | core | `agent-movement <command>`, `python -m agent_movement` | Subcommands `demo`, `a2a-demo`, `peer-demo`, `relocate`, `bench` (with the added `smoke`), `receipts` and the built-in `version`. A missing extra (`EXTRAS`, `required_extras`) gives an install hint and exit 2 (`MISSING_EXTRA_EXIT`). |
-| `core.py` | core | none | `SCHEMA_VERSION = "0.1.0-draft"` (envelope) and `STORE_SCHEMA_VERSION = 1` (store layout, `StoreSchemaError`). `parse_json` (strict: rejects duplicate keys and NaN, 16 KiB limit), `canonical`, `digest`, `validate_envelope`. `Approval`, `SQLiteStore`, `HandoffReceiver`, `EffectGateway`. Exceptions: `ContractError`, `PolicyDenied`, `Conflict`. |
+| `cli.py`, `__main__.py` | core | `agent-movement <command>`, `python -m agent_movement` | Subcommands `demo`, `a2a-demo`, `peer-demo`, `relocate`, `bench` (with the added `smoke`), `receipts`, `purge` and the built-in `version`. A missing extra (`EXTRAS`, `required_extras`) gives an install hint and exit 2 (`MISSING_EXTRA_EXIT`). |
+| `core.py` | core | none | `SCHEMA_VERSION = "0.1.0-draft"` (envelope) and `STORE_SCHEMA_VERSION = 2` (store layout, `StoreSchemaError`). `SQLiteStore.keyed_digest` and `fingerprint` (keyed commitments), `build_receipt`, `RECEIPT_CONTENT_FIELDS`. `parse_json` (strict: rejects duplicate keys and NaN, 16 KiB limit), `canonical`, `digest`, `validate_envelope`. `Approval`, `SQLiteStore`, `HandoffReceiver`, `EffectGateway`. Exceptions: `ContractError`, `PolicyDenied`, `Conflict`. |
 | `http.py` | core (`--receipts-log` needs `signing`) | `python -m agent_movement.http --db PATH [--port 0] [--receipts-log FILE]` | `LocalServer` (a `ThreadingHTTPServer`) and `make_server`. Routes: `GET /health` and `POST /v0/handoffs`. Errors map to 400, 403, 409, 413, 415 and 500. |
 | `demo.py` | core (`--receipts` needs `signing`) | `agent-movement demo [--receipts OUTDIR]` | Starts `agent_movement.http` as a child process, then sends a handoff, an exact replay and an unapproved request. Finally runs an in-process `EffectGateway` stale-epoch check. With `--receipts` it also signs live receipts and verifies the exported bundle ([§3.7](#37-receipt-verification-offline)). |
+| `retention.py` | core | `agent-movement purge --db FILE --older-than DURATION [--retain TABLE=DURATION] [--dry-run]` | Time-to-live purge of one store file: one rule per table in `POLICY` (purged by age or retained), `purge`, `purge_log`, `parse_duration`. Never deletes fencing state, effect ledgers, revocations, live admissions or grant uses, recent nonces, the store secret or relocation tables. Uses `secure_delete` and a WAL `TRUNCATE` checkpoint, and records each run in `retention_purges`. See [data retention](data-retention.md). |
 | `jcs.py` | core | none | `canonicalize` and `jcs_digest`: a documented subset of RFC 8785 that rejects floats. |
 | `trust.py` | core (`ed25519` for asymmetric keys, `hpke` for sealed delivery) | none | `HmacKey`, `Ed25519Key`, `generate_key`, `import_key`, `seal`/`unseal` (signatures domain-separated by purpose), `TrustStore`, `issue_card`/`verify_card` (optional `enc_key`), grants (`issue_grant` with a signed `max_uses`, `verify_grant`, `check_grant_live`, `check_grant_scope`), revocations, `commitment`. HPKE: `HPKE_SUITE`, `hpke_available`, `HpkeKey`, `import_enc_key`, `delivery_info`, `seal_response`/`open_response`. |
 | `peer.py` | core | none | `PeerLedger` (with `consume_use` for counted grants), `AuthorizedEffectGateway`, `PeerReceiver` (`handle`), `PeerClient` (`discover`, `handoff`, `delivery_seal`), `DeliverySeal`, and the transports `InProcessTransport`, `HttpTransport` and `RecordingTransport`. |
@@ -74,6 +75,8 @@ flowchart LR
     demo -. "lazy, --receipts" .-> live_receipts
     cli -. "lazy" .-> mobilitybench
     cli -. "lazy" .-> receipts
+    cli -. "lazy" .-> retention
+    retention[retention] --> core
     http[http] --> core
     demo[demo] --> core
     demo -. subprocess .-> http
@@ -176,9 +179,11 @@ sequenceDiagram
 
 A malformed body or envelope returns 400 `invalid_contract` before any of this runs.
 
-**Per-sender idempotency keys and the store version (issue #29).** `SQLiteStore.receive(envelope, sender=None)` scopes an idempotency key to a sender: the authenticated origin when the caller knows it (`PeerReceiver` passes `sender=origin.agent_id`), otherwise the envelope's claimed `origin.agent_id` (`HandoffReceiver`, which authenticates nobody). Two senders may use the same key; a `movement_id` stays unique across all senders. The layout is recorded in `PRAGMA user_version` (`STORE_SCHEMA_VERSION = 1`). On open, `_ensure_schema` migrates a version-0 file (global keys) in one `BEGIN IMMEDIATE` transaction by copying `deliveries` into a new table keyed by `(sender_id, idempotency_key)`, taking the sender from each stored receipt's `origin_agent_id`; a newer version raises `StoreSchemaError`.
+**Per-sender idempotency keys (issue #29).** `SQLiteStore.receive(envelope, sender=None)` scopes an idempotency key to a sender: the authenticated origin when the caller knows it (`PeerReceiver` passes `sender=origin.agent_id`), otherwise the envelope's claimed `origin.agent_id` (`HandoffReceiver`, which authenticates nobody). Two senders may use the same key; a `movement_id` stays unique across all senders. The layout is recorded in `PRAGMA user_version`. On open, `_ensure_schema` migrates an older file in one `BEGIN IMMEDIATE` transaction: 0 to 1 copies `deliveries` into a table keyed by `(sender_id, idempotency_key)`, taking the sender from each stored receipt's `origin_agent_id`; 1 to 2 adds the keyed commitments described above. A newer version, or a missing or invalid store secret, raises `StoreSchemaError`.
 
-The same `SQLiteStore` provides the **simulated** effect fence, `EffectGateway`. `claim` inserts an `owners` row at epoch 1. `transfer` compares the owner and epoch and then increments the epoch. `commit` rereads `owners` in the same transaction as the `effects` insert, so a stale epoch raises `PolicyDenied`. `reconcile` returns `committed` or `unknown`. The receipt is **unsigned**, and its digests are unsalted SHA-256 values over canonical JSON that contains the task text.
+The same `SQLiteStore` provides the **simulated** effect fence, `EffectGateway`. `claim` inserts an `owners` row at epoch 1. `transfer` compares the owner and epoch and then increments the epoch. `commit` rereads `owners` in the same transaction as the `effects` insert, so a stale epoch raises `PolicyDenied`. `reconcile` returns `committed` or `unknown`. The receipt returned to the sender is **unsigned**, and its `envelope_digest` and `artifact_digest` are plain SHA-256 values over canonical JSON that contains the task text.
+
+**Keyed commitments at rest (issue #39).** The store never writes those plain digests. Every stored content digest (`deliveries.envelope_digest`, `audit_events.info_digest`, `effects.payload_digest`, and in shared files `authorized_effects.payload_digest` and the `a2a_correlations` digests) is `SQLiteStore.keyed_digest(sha256)`, an HMAC-SHA256 under the 32-byte secret in `store_secret`, so the file cannot confirm a guess of low-entropy task text without that secret. Stored receipts omit `RECEIPT_CONTENT_FIELDS`; `receive` recomputes them from the presented envelope with `build_receipt`, because the tasks are pure. Store layout 2 adds this and `deliveries.created_at`; opening a layout-1 file migrates it in one transaction, wrapping existing digests in place.
 
 ### 3.2 Delegation over A2A v1 (optional `a2a` extra)
 
@@ -382,7 +387,7 @@ flowchart TD
 
 ### 3.8 MobilityBench (core; B2 and B3 need extras)
 
-`mobilitybench.run_suite` runs the cases declared in `fixtures/mobilitybench-local-smoke/cases.jsonl` directly against the core classes. Each declaration names its scenario, the expected observation and an `expectation` (`pass`, `known_gap` or `gap_closed`); `load_cases` requires every declaration to have a `case_<scenario>` evaluator and, for the packaged file, every evaluator to have a declaration. Each case runs in its own temporary directory, so results do not depend on order, and `verdict_for` compares the observation with the declaration: a `known_gap` case that shows its declared `closed_observation` is reported as `gap_closed`, not as a failure. At `fbecb57` the 20 cases give 17 `pass` and 3 `known_gap`. With `--no-timing`, `duration_ms` is `null` and two runs are byte-identical; `outcome_digest` hashes the records without timing.
+`mobilitybench.run_suite` runs the cases declared in `fixtures/mobilitybench-local-smoke/cases.jsonl` directly against the core classes. Each declaration names its scenario, the expected observation and an `expectation` (`pass`, `known_gap` or `gap_closed`); `load_cases` requires every declaration to have a `case_<scenario>` evaluator and, for the packaged file, every evaluator to have a declaration. Each case runs in its own temporary directory, so results do not depend on order, and `verdict_for` compares the observation with the declaration: a `known_gap` case that shows its declared `closed_observation` is reported as `gap_closed`, not as a failure. At `326e65e` the 20 cases give 17 `pass` and 3 `known_gap`. With `--no-timing`, `duration_ms` is `null` and two runs are byte-identical; `outcome_digest` hashes the records without timing.
 
 `mobilitybench_v01.run_suite` first checks the packaged fixtures against `MANIFEST.json`, then runs every selected task in each mode of `MODES` under the seeded `fault_schedule`, then runs the 12 negative cases of `negative.jsonl` through the 10 attack handlers in `SECURITY` (two cases share `classification_gate` and two share `run_task`). `HARNESS_VERSION` is `0.2.0`; the fixture release and `SUITE_VERSION` are unchanged.
 
@@ -452,20 +457,22 @@ flowchart LR
 | User authority | Grants are scoped by actor, audience, task, capabilities, classification, validity window and a signed `max_uses`, and are rechecked at preflight, at delivery and inside the effect transaction; uses are counted in the admission transaction. | A real OAuth/RFC 8693 exchange. |
 | Disclosure | Only a salted commitment travels before admission. `PeerClient` refuses to send bytes that contain a `never_send` value or its own secret key. | Disclosure after delivery has started, for example `revoked-in-flight`. |
 | Operator decisions | A reconciliation decision is fenced by the current ownership epoch, must target a parked effect, is applied once in a fenced transaction, and every decision, denial and application is appended to `reconciliation_events`. | The truth of the operator's claim about the external system. |
+| Data at rest | Stored content digests are keyed commitments; `agent-movement purge` deletes history by age with `secure_delete` and a WAL truncate, and never deletes safety state. | Protection against anyone who can read the whole file: the HMAC key sits in `store_secret` in the same file. No encryption at rest. |
 | Ownership | The `owners` epoch is checked in the same transaction as every fenced write, in two-store mode through the attached coordinator file; an exporting owner is frozen until transfer or refusal. | Tools outside the simulated gateway. `OpaqueTool` outcomes can stay `unknown`. |
 | Relocation bundle | Bytes are size-bounded, canonical and of a known format; the manifest must match the coordinator's recorded digest; section digests are checked before deserialization; import is one fenced transaction and never rewinds. | Bundle signatures (integrity rests on the shared coordinator file), cross-host transport, history before the head checkpoint. |
 | Evidence | Trust anchors must come from `--trust` and must not lie inside the bundle; `--fixture-trust` is an explicit, warned exception for synthetic fixtures. Revocation notices are applied only if signed by an Ed25519 issuer pinned in the anchors. Agent labels stay `claimed_agent_id`. | Anchor provenance beyond "passed by the operator". Trusted time: `issued_at` is the signer's claim. Completeness: a bundle may be missing receipts. |
 
 ## 5. Storage schema
 
-All persistent state is SQLite. One file can hold several groups of tables, because each class adds its own `CREATE TABLE IF NOT EXISTS` statements to the same path.
+All persistent state is SQLite. One file can hold several groups of tables, because each class adds its own `CREATE TABLE IF NOT EXISTS` statements to the same path. Which tables `agent-movement purge` deletes by age and which it always keeps is set per table in `retention.POLICY` and explained in [data retention](data-retention.md).
 
 | Table | Created by | Columns (key in **bold**) | Contents |
 |---|---|---|---|
-| `deliveries` | `core.SQLiteStore` | **`sender_id`, `idempotency_key`**, `movement_id` (UNIQUE), `envelope_digest`, `receipt_json` | One memoized receipt per (sender, key). Layout version 1 in `PRAGMA user_version`; version-0 files (key alone) are migrated on open. |
-| `audit_events` | `core.SQLiteStore` | **`seq`**, `movement_id`, `task_id`, `event_type`, `info_digest`, `event_time` | `handoff.accepted`, `handoff.completed` and `handoff.denied` events. Stores digests only, never task text. |
+| `deliveries` | `core.SQLiteStore` | **`sender_id`, `idempotency_key`**, `movement_id` (UNIQUE), `envelope_digest` (keyed), `receipt_json` (without content fields), `created_at` | One memoized receipt per (sender, key); purged by age, so the retention period is the retry window. Layout version 2 in `PRAGMA user_version`; older files are migrated on open. |
+| `store_secret` | `core.SQLiteStore` | **`id`** (always 1), `hmac_key`, `created_at` | The per-store HMAC key for keyed commitments. Never exported or purged. |
+| `audit_events` | `core.SQLiteStore` | **`seq`**, `movement_id`, `task_id`, `event_type`, `info_digest` (keyed), `event_time` | `handoff.accepted`, `handoff.completed` and `handoff.denied` events. Stores keyed commitments only, never task text. |
 | `owners` | `core.SQLiteStore` | **`task_id`**, `agent_id`, `epoch` | The ownership epoch used by `EffectGateway` and by `relocation`. |
-| `effects` | `core.SQLiteStore` | **`task_id`, `effect_id`**, `payload_digest`, `epoch` | Simulated, fenced effect commits. |
+| `effects` | `core.SQLiteStore` | **`task_id`, `effect_id`**, `payload_digest` (keyed), `epoch` | Simulated, fenced effect commits. |
 | `a2a_correlations` | `a2a_profile.A2ACorrelationLog` | **`seq`**, `a2a_task_id`, `a2a_context_id`, `a2a_message_id`, `movement_id`, `trace_id`, `outcome`, `envelope_digest`, `artifact_digest`, `event_time` | Joins A2A IDs to handoff outcomes. IDs that are not safe tokens are hashed (`safe_token`). |
 | `peer_nonces` | `peer.PeerLedger` | **`origin_id`, `nonce`**, `seen_at` | Replay protection for preflights. Old rows are pruned. |
 | `peer_admissions` | `peer.PeerLedger` | **`admission_id`**, `movement_id` (UNIQUE), `record_json`, `expires_at` | Admitted preflight metadata, including the commitment. Never contains task text. |
@@ -473,6 +480,7 @@ All persistent state is SQLite. One file can hold several groups of tables, beca
 | `authority_log` | `peer.PeerLedger` | **`seq`**, `event`, `grant_id`, `ref`, `at` | `revoke` and `effect` events in commit order. |
 | `grant_revocations` | `peer.PeerLedger` | **`grant_id`**, `revoked_at`, `log_seq` | Revoked grants. |
 | `authorized_effects` | `peer.PeerLedger` | **`task_id`, `effect_id`**, `grant_id`, `agent_id`, `payload_digest`, `log_seq` | Simulated effects committed under a live grant. |
+| `retention_purges` | `retention.purge` | **`seq`**, `at`, `older_than_s`, `policy_json`, `deleted_json` | One row per purge run: policy and counts only. |
 | `peer_trace` | `peer.PeerLedger` | **`seq`**, `at`, `stage`, `outcome`, `reason`, `movement_id`, `peer`, `claimed_peer`, `admission_id` | A sanitized decision trace. `peer` is the authenticated ID and `claimed_peer` is the unauthenticated claim. |
 | `relocations` | `relocation.AUTHORITY_SCHEMA` | **`movement_id`**, `task_id`, `mode`, `from_execution`, `from_epoch`, `to_execution`, `to_epoch`, `checkpoint_id`, `manifest_json`, `manifest_digest`, `status`, `report_json`, `transport` | `status`: `requested`, `transferred`, `acknowledged`, `refused` or `superseded`. `transport`: `shared` (default) or `bundle`. |
 | `opaque_effects` | `relocation.AUTHORITY_SCHEMA` | **`seq`**, `task_id`, `effect_id`, `payload_digest`, `execution_id`, `epoch` | Ground truth for the non-idempotent tool. Only the harness reads it. |
@@ -491,7 +499,7 @@ Which file holds which tables:
 - `peer_demo`: `receiver.sqlite` holds the core and peer tables.
 - `a2a_demo`: `receiver.sqlite` holds the core tables and `a2a_correlations`.
 - `relocation_demo`: one `<scenario>.sqlite` per matrix row holds the core, relocation and LangGraph tables.
-- `relocate reconcile example --dir DIR`: keeps `DIR/example.sqlite` (or the two-store files with `--two-store`) so the operator commands can be tried on it.
+- `relocate reconcile example --dir DIR`: keeps `DIR/example.sqlite`, or with `--two-store` the directory `DIR/example/` with the coordinator and worker files, so the operator commands can be tried on it.
 - `relocation_demo --two-store`: one directory per row with `coordinator.sqlite`, `worker-a.sqlite`, `worker-b.sqlite`, and the bundle directories `outbox-worker-a/`, `outbox-coordinator/` and `inbox-worker-b/`.
 - `mobilitybench` (smoke suite): one `case.sqlite` per case, each in its own temporary directory, holding the core tables.
 - `mobilitybench_v01`: `effects.sqlite` per attempt (core tables used by `EffectGateway`), plus `receiver.sqlite` for `local_delegate` attempts and `neg.sqlite` for the security cases.
@@ -503,7 +511,7 @@ Apart from the files named above, all of these files are in temporary directorie
 | Constant | Value | Defined in |
 |---|---|---|
 | `SCHEMA_VERSION` | `0.1.0-draft` | `core.py` |
-| `STORE_SCHEMA_VERSION` | `1` (core store layout, in `PRAGMA user_version`) | `core.py` |
+| `STORE_SCHEMA_VERSION` | `2` (core store layout, in `PRAGMA user_version`) | `core.py` |
 | `PEER_SCHEMA_VERSION` | `0.1.0-peer-draft` | `trust.py` |
 | `HPKE_SUITE` | `hpke-base-x25519-hkdfsha256-chacha20poly1305` (a local label for the RFC 9180 suite) | `trust.py` |
 | `EXTENSION_URI` | `https://github.com/MSKazemi/agent-movement/blob/main/docs/a2a-profile-extension.md` | `a2a_profile.py` |
@@ -517,4 +525,4 @@ Apart from the files named above, all of these files are in temporary directorie
 | `HARNESS_VERSION` | `0.2.0` (v0.1 harness, scores B2 and B3 when their extras are installed) | `mobilitybench_v01.py` |
 | Canonical envelope `schema_version` | `0.2.0-draft` (`const` in the schema) | [`schemas/handoff-envelope.schema.json`](../schemas/handoff-envelope.schema.json) |
 
-None of these is a published standard. They are experimental profile identifiers. The canonical envelope schema (`0.2.0-draft`) and the implemented core contract (`SCHEMA_VERSION = "0.1.0-draft"`) differ: `core.validate_envelope` rejects any other version, so the code at `fbecb57` accepts no `0.2.0-draft` envelope. The full list of differences is in [how it works: divergences](how-it-works.md#divergences-from-the-implemented-contract).
+None of these is a published standard. They are experimental profile identifiers. The canonical envelope schema (`0.2.0-draft`) and the implemented core contract (`SCHEMA_VERSION = "0.1.0-draft"`) differ: `core.validate_envelope` rejects any other version, so the code at `326e65e` accepts no `0.2.0-draft` envelope. The full list of differences is in [how it works: divergences](how-it-works.md#divergences-from-the-implemented-contract).

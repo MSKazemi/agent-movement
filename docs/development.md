@@ -74,7 +74,7 @@ Biblatex cite keys are frozen in the same way. Both tools' `apply-audit` refuse 
 
 ## The `agent_movement` package
 
-`src/agent_movement/` is a research-stage, **synthetic, local** testbed. It is not production software, it calls no model, and it uses only throw-away test keys. Its design is described in the [as-built architecture](architecture.md), and every command, flag and exit code is listed in the [CLI reference](cli.md). The commands in this section were last run against commit `4809bdf` on 2026-10-16 (Python 3.15.0rc2 without extras; Python 3.11.16 and 3.13.15 with all extras), and every exit code quoted below is what they returned.
+`src/agent_movement/` is a research-stage, **synthetic, local** testbed. It is not production software, it calls no model, and it uses only throw-away test keys. Its design is described in the [as-built architecture](architecture.md), and every command, flag and exit code is listed in the [CLI reference](cli.md). The commands in this section were last run against commit `326e65e` on 2026-10-16 (Python 3.15.0rc2 without extras; Python 3.11.16 and 3.13.15 with all extras), and every exit code quoted below is what they returned.
 
 ### Requirements
 
@@ -108,11 +108,11 @@ The install puts the `agent-movement` console script in `"$VENV/bin"`. All comma
 
 | Extra | Installs | Enables |
 |---|---|---|
-| `a2a` | `a2a-sdk[http-server]==1.2.2`, `uvicorn>=0.54` | `a2a_server`, `a2a_client`, `agent-movement a2a-demo` and `tests/test_a2a_adapter.py` |
+| `a2a` | `a2a-sdk[http-server]==1.2.2`, `uvicorn>=0.54` | `a2a_server`, `a2a_client`, `agent-movement a2a-demo`, the MobilityBench B2 mode and the A2A tests |
 | `ed25519` | `cryptography>=50.0.2` | Ed25519 peer keys (`trust.Ed25519Key`) and `peer-demo --alg Ed25519` |
 | `hpke` | `cryptography>=50.0.2` | HPKE-sealed peer delivery (`trust.HpkeKey`) and `peer-demo --delivery hpke` |
-| `relocation` | `langgraph==1.2.15`, `langgraph-checkpoint==4.3.0`, `langgraph-checkpoint-sqlite==3.1.2` (exact pins) | `relocation`, `relocation_bundle`, `agent-movement relocate [--two-store]` and the relocation tests |
-| `signing` | `cryptography>=50.0.2` | Ed25519 signature checks in `agent-movement receipts` and fixture regeneration |
+| `relocation` | `langgraph==1.2.15`, `langgraph-checkpoint==4.3.0`, `langgraph-checkpoint-sqlite==3.1.2` (exact pins) | `relocation`, `relocation_bundle`, `agent-movement relocate [--two-store]`, `agent-movement relocate reconcile`, the MobilityBench B3 mode and the relocation tests |
+| `signing` | `cryptography>=50.0.2` | Ed25519 signature checks in `agent-movement receipts`, fixture regeneration and `agent-movement demo --receipts` |
 
 Without its extra, a command fails closed instead of pretending to work. Through the CLI every such case prints an install hint and exits 2; the module entry points keep their own codes. In a core-only environment:
 
@@ -122,11 +122,13 @@ Without its extra, a command fails closed instead of pretending to work. Through
 | `agent-movement peer-demo --alg Ed25519` / `python -m agent_movement.peer_demo --alg Ed25519` | 2 | 1 |
 | `agent-movement peer-demo --delivery hpke` / `python -m agent_movement.peer_demo --delivery hpke` | 2 | 1 |
 | `agent-movement relocate` / `python -m agent_movement.relocation_demo` | 2 | 1 (`ImportError` with the hint) |
+| `agent-movement relocate reconcile list --authority FILE` / `python -m agent_movement.relocation_reconcile list --authority FILE` | 2 | 2 |
+| `agent-movement demo --receipts OUTDIR` / `python -m agent_movement.demo --receipts OUTDIR` | 2 | 2 |
 | `agent-movement receipts verify tests/fixtures/movement-receipts/01-valid-delegation --trust tests/fixtures/movement-receipts/trust.json` | 2 | 3 with `python -m agent_movement.receipts` (signatures reported as `UNCHECKED`) |
 
 ### Tests
 
-`python -m pytest -q` runs all of `tests/`, which covers the corpus tools, the docs checks and the package. `make test PYTHON=python` runs the same command. Tests that need an extra are skipped, not failed, when it is missing. At `4809bdf` the full run gave **426 passed, 173 skipped** without extras and **596 passed, 3 skipped** with all extras; with the `gitleaks` binary on `PATH` or in `$GITLEAKS` (as in the CI extras job), one more test runs (427/172 and 597/2). All exited 0. With all extras and `gitleaks`, the two remaining skips are tests of the missing-extra path.
+`python -m pytest -q` runs all of `tests/`, which covers the corpus tools, the docs checks and the package. `make test PYTHON=python` runs the same command. Tests that need an extra are skipped, not failed, when it is missing. At `326e65e` the full run gave **426 passed, 173 skipped** without extras and **596 passed, 3 skipped** with all extras; with the `gitleaks` binary on `PATH` or in `$GITLEAKS` (as in the CI extras job), one more test runs (427/172 and 597/2). All exited 0. With all extras and `gitleaks`, the two remaining skips are tests of the missing-extra path.
 
 Run one group with `python -m pytest -q <file>` (counts below were measured with `$GITLEAKS` set):
 
@@ -167,8 +169,9 @@ Each demo runs locally on `127.0.0.1` (or in-process), keeps its SQLite files in
 | `agent-movement peer-demo --alg Ed25519` | `ed25519`, `hpke` | The same with Ed25519 keys; delivery defaults to HPKE | 0 |
 | `agent-movement peer-demo --delivery hpke` | `hpke` | HS256 signatures with HPKE-sealed delivery; the task canary must not appear in any captured bytes | 0 |
 | `agent-movement a2a-demo` | `a2a` | A2A v1 delegation: a server process and seven client processes, including the legacy URN alias and a refused client contextId | 0 |
-| `agent-movement relocate --json "$OUT/relocation.json"` | `relocation` | Single store: headline relocation plus the 30-row fault matrix (`rows: 30, matching expectation: 30`) | 0 |
-| `agent-movement relocate --two-store --json "$OUT/relocation-two-store.json"` | `relocation` | Two stores: the checkpoint is copied as a digest-verified bundle; 11-row copy fault matrix (`rows: 11, matching expectation: 11`) | 0 |
+| `agent-movement demo --receipts "$OUT/live"` | `signing` | The same demo with signed live receipts; writes `$OUT/live/live-run/` and `$OUT/live/trust-anchors.json` and verifies them (a non-empty `live-run/` exits 2) | 0 |
+| `agent-movement relocate --json "$OUT/relocation.json"` | `relocation` | Single store: headline relocation, the 30-row fault matrix (`rows: 30, matching expectation: 30`) and 9 operator-reconciliation rows (`reconciliation rows: 9, matching expectation: 9`) | 0 |
+| `agent-movement relocate --two-store --json "$OUT/relocation-two-store.json"` | `relocation` | Two stores: the checkpoint is copied as a digest-verified bundle; 11-row copy fault matrix (`rows: 11, matching expectation: 11`), plus the same 9 reconciliation rows | 0 |
 | `agent-movement bench smoke --output "$OUT/smoke.jsonl"` | core | Smoke suite `mobilitybench-local-smoke-v0.2`: 20 cases, 17 `pass`, 3 `known_gap`, 0 `fail` | 0 |
 | `agent-movement bench smoke --no-timing --output "$OUT/s1.jsonl"` (twice, then `cmp` the files) | core | Timing-free output is byte-identical across runs | 0, and `cmp` exits 0 |
 
@@ -182,7 +185,9 @@ agent-movement bench run --suite v0.1 --subset smoke --out "$OUT/v01.jsonl"   # 
 agent-movement bench report --in "$OUT/v01.jsonl" --out "$OUT/v01.md"         # exit 0
 ```
 
-The smoke run gave 36 attempts (6 tasks, 1 seed, 6 modes) and 12 security cases (10 pass, 2 `known_gap`, 0 fail).
+The smoke run gave 36 attempts (6 tasks, 1 seed, 6 modes) and 12 security cases (10 pass, 2 `known_gap`, 0 fail). In a core-only environment `a2a_delegate` and `checkpoint_relocate` are recorded as `unavailable` with the reasons `extra_not_installed:a2a` and `extra_not_installed:relocation`; with the `a2a` and `relocation` extras they are scored, and only `cross_framework_reconstruct` (`baseline_not_implemented`) stays unavailable. The B2 and B3 runners are in `mobilitybench_optional.py`; `tests/test_mobilitybench_optional_modes.py` covers them.
+
+Exported live receipts verify like any other bundle: `agent-movement receipts verify --trust "$OUT/live/trust-anchors.json" "$OUT/live/live-run"` exited 0, and a copy with one `"outcome":"accepted"` changed to `"rejected"` exited 1. Signed revocation notices are read from a bundle's `revocations.jsonl` or from `--revocations FILE`, and are applied only when signed by an issuer pinned in the anchors' `revocation_issuers`.
 
 Movement receipts (needs `signing`; see [movement receipts](movement-receipts.md)). Trust anchors are never taken from the evidence implicitly, so `--trust` is required:
 
@@ -196,16 +201,40 @@ agent-movement receipts make-fixtures "$OUT/fixtures"   # exit 0; identical to t
 
 With `--trust $R/trust.json`, the nine fixture bundles return 0 for `01`, `05`, `07` and `09`, and 1 for `02`, `03`, `04`, `06` and `08`. Without the `signing` extra (`python -m agent_movement.receipts`), they return 3 for `01`, `05`, `06`, `07` and `09`, and 1 for `02`, `03`, `04` and `08`. `--fixture-trust` instead of `--trust` reads the fixtures' own `trust.json` with a warning; it is for the synthetic fixtures only.
 
+### Operator reconciliation of parked effects
+
+`agent-movement relocate reconcile` (or `python -m agent_movement.relocation_reconcile`, needs `relocation`) resolves effects whose outcome is unknown; the flow is in the [architecture](architecture.md#36-operator-reconciliation-of-parked-effects-issue-30) and every flag in the [CLI reference](cli.md). A walkthrough on a synthetic parked task, as CI runs it:
+
+```bash
+D=$(mktemp -d)/reconcile
+agent-movement relocate reconcile example --dir "$D" --two-store       # exit 0; prints the next commands
+C="$D/example/coordinator.sqlite"
+DECIDE=(--authority "$C" --task task-report-1 --effect publish-report --decision confirmed_done --operator ops-alice --reason "checked")
+agent-movement relocate reconcile list --authority "$C"                 # exit 0
+agent-movement relocate reconcile decide "${DECIDE[@]}" --epoch 2       # exit 1: stale epoch, denied and logged
+agent-movement relocate reconcile decide "${DECIDE[@]}" --epoch 3       # exit 0
+agent-movement relocate reconcile decide "${DECIDE[@]}" --epoch 3       # exit 0: identical replay ("replayed": true)
+agent-movement relocate reconcile resume --authority "$C" --task task-report-1 --worker worker-b --incarnation 2 --epoch 3 --store "$D/example/worker-b.sqlite"   # exit 0, "status": "done"
+agent-movement relocate reconcile log --authority "$C"                  # exit 0
+```
+
+The code cannot check the operator's claim: a false `confirmed_done` loses the effect and a false `confirmed_absent` duplicates it.
+
+### Data retention
+
+`agent-movement purge --db FILE --older-than DURATION [--retain TABLE=DURATION] [--dry-run]` (or `python -m agent_movement.retention`, core) deletes store history older than the period and records the run in `retention_purges`; it never deletes fencing state, effect ledgers, revocations, live admissions or grant uses, recent nonces, the store secret or relocation tables. Which table is purged or kept, and why, is in [data retention](data-retention.md). On a fresh store, `--dry-run` and a real purge exited 0, `--retain deliveries=forever` exited 0, and a missing `--db` file exited 2 (the file is never created).
+
 ### CLI reference
 
-[`docs/cli.md`](cli.md) is generated from the live `--help` output. After changing a subcommand, its flags or its help text, run `make cli-docs` (needs every optional extra) and commit the result; `python tools/cli_reference.py --check` (exit 0 at `4809bdf`) fails when the file is stale, and CI runs it in the extras job.
+[`docs/cli.md`](cli.md) is generated from the live `--help` output. After changing a subcommand, its flags or its help text, run `make cli-docs` (needs every optional extra) and commit the result; `python tools/cli_reference.py --check` (exit 0 at `326e65e`) fails when the file is stale, and CI runs it in the extras job.
 
 ### CI layout
 
 | Workflow | Trigger | Jobs |
 |---|---|---|
-| [`corpus.yml`](../.github/workflows/corpus.yml) | push and pull request to `main` | `gates`: `make check verify-determinism verify-analysis`, `make check-ids`, `make check-tests-registry`, then `make test` on Python 3.15. `bibliography`: `make bib BIB_STRICT=1`. |
-| [`python-smoke.yml`](../.github/workflows/python-smoke.yml) | push or pull request touching `src/`, `tests/`, `tools/`, `pyproject.toml` or the workflow | `core` (Python 3.11, 3.13, 3.15; no extras): pytest, `demo`, `peer_demo`, the smoke suite (once with timing, then twice with `--no-timing`, compared with `cmp`), MobilityBench v0.1, the fail-closed checks above (including the receipt exit codes without `signing`) and the `agent-movement` CLI with its exit-2 hints. `extras` (Python 3.11, 3.13; all extras plus a pinned, checksum-verified `gitleaks`): pytest, every demo including `peer_demo --delivery hpke` and `relocation_demo --two-store`, the nine receipt fixtures with `--trust`, every CLI subcommand, and `tools/cli_reference.py --check`. Both upload their result files as artifacts for 7 days. |
+| [`corpus.yml`](../.github/workflows/corpus.yml) | push and pull request to `main` | `gates`: `make check verify-determinism verify-analysis`, `make check-ids`, `make check-tests-registry`, `make sources` (every external URL indexed in `docs/sources.md`), then `make test` on Python 3.15. `bibliography`: `make bib BIB_STRICT=1`. |
+| [`python-smoke.yml`](../.github/workflows/python-smoke.yml) | push or pull request touching `src/`, `tests/`, `tools/`, `pyproject.toml` or the workflow | `core` (Python 3.11, 3.13, 3.15; no extras): pytest, `demo`, `peer_demo`, the smoke suite (once with timing, then twice with `--no-timing`, compared with `cmp`), MobilityBench v0.1, the fail-closed checks above (including the receipt exit codes without `signing`) and the `agent-movement` CLI with its exit-2 hints (including `demo --receipts` without `signing`). `extras` (Python 3.11, 3.13; all extras plus a pinned, checksum-verified `gitleaks`): pytest, every demo including `peer_demo --delivery hpke` and `relocation_demo --two-store`, the nine receipt fixtures with `--trust`, every CLI subcommand, `tools/cli_reference.py --check`, `demo --receipts` with its bundle verified (0) and a tampered copy rejected (1), the operator reconciliation walkthrough, and the v0.1 smoke subset with B2 and B3 scored. Both upload their result files as artifacts for 7 days. |
+| [`a2a-interop.yml`](../.github/workflows/a2a-interop.yml) | push or pull request touching the A2A modules, `interop/`, the A2A tests or `pyproject.toml`; manual | Optional, `continue-on-error`: `js-interop` (an `@a2a-js/sdk` client against the Python server, `tests/test_a2a_js_interop.py`) and `conformance` (the A2A TCK and Inspector at pinned commits). See [interop and conformance](a2a-adapter.md#interop-and-conformance-run-locally). |
 | [`docs-links.yml`](../.github/workflows/docs-links.yml) | push to `main` and every pull request | `relative-links`: lychee in offline mode over all Markdown files |
 
 ### Adding a MobilityBench case
@@ -219,7 +248,7 @@ There are two suites, and they are extended differently.
 
 If only one part exists, the CLI exits 2 with `case_fixture_invalid`: a declaration without an evaluator is reported as `no evaluator for scenario <name>`, and an evaluator without a declaration as `packaged declarations do not cover every evaluator`. In a rehearsal on a scratch copy of the package with one added `pass` case, the declaration alone and the evaluator alone each exited 2, and both together gave 21 cases (18 `pass`, 3 `known_gap`) with exit 0. `tests/test_mobilitybench.py` derives its counts from the declarations and passed, but `tests/test_mobilitybench_v01.py` (`test_run_smoke_report_verify_and_legacy_entrypoint`) still asserts that the smoke output has exactly 20 lines and failed, so update that number in the same change.
 
-**MobilityBench v0.1 (`fixtures/mobilitybench-v0.1/`).** This release is frozen and must not be edited in place: a new task, rubric or ground truth needs a new suite version and a new fixture directory ([versioning rule](mobilitybench-v0.1.md#frozen-release)). At `4809bdf` the harness knows one suite (`mobilitybench_v01.SUITES = {"v0.1": ...}`), and `verify_fixtures` requires the manifest's `suite_version` to equal `SUITE_VERSION`. A new release therefore also needs a change in `mobilitybench_v01.py` and in the `package-data` pattern in `pyproject.toml`. You can draft and test a case in a copy without touching the release:
+**MobilityBench v0.1 (`fixtures/mobilitybench-v0.1/`).** This release is frozen and must not be edited in place: a new task, rubric or ground truth needs a new suite version and a new fixture directory ([versioning rule](mobilitybench-v0.1.md#frozen-release)). At `326e65e` the harness knows one suite (`mobilitybench_v01.SUITES = {"v0.1": ...}`), and `verify_fixtures` requires the manifest's `suite_version` to equal `SUITE_VERSION`. A new release therefore also needs a change in `mobilitybench_v01.py` and in the `package-data` pattern in `pyproject.toml`. You can draft and test a case in a copy without touching the release:
 
 ```bash
 DRAFT=$(mktemp -d)/mobilitybench-draft
