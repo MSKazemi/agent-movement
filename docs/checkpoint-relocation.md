@@ -364,7 +364,7 @@ Notes on specific rows:
 | Operator API and CLI mark a parked effect `confirmed_done` or `confirmed_absent` with a reason and an operator identity; the decision is an auditable event fenced by the current ownership epoch | `Coordinator.reconcile` and the [operator CLI](#operator-cli); [protocol](#protocol) steps 2–3; `reconciliation_events` |
 | After `confirmed_absent` the effect may be retried once with a new effect ID; after `confirmed_done` the task continues without re-execution | C13a (one call, under `publish-report.retry-1`), C14d (one call, no re-execution), R5 (no second retry) |
 | Rows C13/C14 extended with both resolutions | C13a, C13d, C14d, C14a, in both store modes |
-| Tests cover both resolutions, a stale-epoch decision (denied) and a double resolution (idempotent or denied) | `tests/test_relocation_reconcile.py` (registry rows REG-038 to REG-041); rows R1 (stale), R2 (identical replay), R3 (opposite decision) |
+| Tests cover both resolutions, a stale-epoch decision (denied) and a double resolution (idempotent or denied) | `tests/test_relocation_reconcile.py` (registry rows REG-041 to REG-044); rows R1 (stale), R2 (identical replay), R3 (opposite decision) |
 | No exactly-once claim; the human-in-the-loop trust assumption is explained | [Trust assumption](#trust-assumption-a-human-in-the-loop); misresolved rows C13d and C14a |
 
 ## References

@@ -87,13 +87,16 @@ is printed); receipts verify also uses 3 for an unverifiable bundle.
 ### `agent-movement demo`
 
 ```text
-usage: agent-movement demo [-h]
+usage: agent-movement demo [-h] [--receipts OUTDIR]
 
 Core local handoff demo: a loopback receiver process, an approved handoff, an idempotent replay, a
 denied request and stale-epoch fencing. Synthetic, stdlib-only, not A2A.
 
 options:
-  -h, --help  show this help message and exit
+  -h, --help         show this help message and exit
+  --receipts OUTDIR  opt in: sign movement receipts and write OUTDIR/live-run/ (evidence bundle)
+                     and OUTDIR/trust-anchors.json (out-of-band anchors); needs the 'signing'
+                     extra
 ```
 
 ### `agent-movement a2a-demo`
@@ -376,37 +379,41 @@ options:
 
 ```text
 usage: python -m agent_movement.receipts verify [-h] [--trust TRUST | --fixture-trust] [--now NOW]
-                                                [--json]
+                                                [--revocations FILE] [--json]
                                                 path
 
 positional arguments:
   path
 
 options:
-  -h, --help       show this help message and exit
-  --trust TRUST    REQUIRED: trust anchor file obtained out of band, never from the bundle
-  --fixture-trust  synthetic fixtures only: use the trust.json shipped in the bundle or its parent
-                   directory, with a warning (such anchors prove nothing)
-  --now NOW        verifier clock, YYYY-MM-DDTHH:MM:SSZ (default: system clock)
-  --json           print the full JSON report
+  -h, --help          show this help message and exit
+  --trust TRUST       REQUIRED: trust anchor file obtained out of band, never from the bundle
+  --fixture-trust     synthetic fixtures only: use the trust.json shipped in the bundle or its
+                      parent directory, with a warning (such anchors prove nothing)
+  --now NOW           verifier clock, YYYY-MM-DDTHH:MM:SSZ (default: system clock)
+  --revocations FILE  extra JSONL file of signed issue #8 revocation notices (repeatable); the
+                      bundle's revocations.jsonl is always read
+  --json              print the full JSON report
 ```
 
 ### `agent-movement receipts timeline`
 
 ```text
 usage: python -m agent_movement.receipts timeline [-h] [--trust TRUST | --fixture-trust]
-                                                  [--now NOW]
+                                                  [--now NOW] [--revocations FILE]
                                                   path
 
 positional arguments:
   path
 
 options:
-  -h, --help       show this help message and exit
-  --trust TRUST    REQUIRED: trust anchor file obtained out of band, never from the bundle
-  --fixture-trust  synthetic fixtures only: use the trust.json shipped in the bundle or its parent
-                   directory, with a warning (such anchors prove nothing)
-  --now NOW        verifier clock, YYYY-MM-DDTHH:MM:SSZ (default: system clock)
+  -h, --help          show this help message and exit
+  --trust TRUST       REQUIRED: trust anchor file obtained out of band, never from the bundle
+  --fixture-trust     synthetic fixtures only: use the trust.json shipped in the bundle or its
+                      parent directory, with a warning (such anchors prove nothing)
+  --now NOW           verifier clock, YYYY-MM-DDTHH:MM:SSZ (default: system clock)
+  --revocations FILE  extra JSONL file of signed issue #8 revocation notices (repeatable); the
+                      bundle's revocations.jsonl is always read
 ```
 
 ### `agent-movement receipts make-fixtures`
