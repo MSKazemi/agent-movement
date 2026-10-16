@@ -12,7 +12,7 @@ Delegation is a baseline and an interoperability mechanism, **not strict movemen
 
 | Workstream | Already demonstrated (bounded) | Still missing for the north-star claim |
 | --- | --- | --- |
-| Contracts and identity | Strict core envelope, proposed 0.2 canonical JSON Schema, logical/execution IDs, peer signing/grants | Explicit and tested 0.1 runtime ↔ 0.2 proposal compatibility or migration plan; unified admission semantics on enabled paths |
+| Contracts and identity | Strict core envelope, proposed 0.2 canonical JSON Schema, logical/execution IDs, peer signing/grants | [Decision ADR-001](handoff-contract-versioning.md): 0.1 live only, explicit lossless offline 0.2 projection and refusal of unsupported semantics. Actual 0.2 wire remains future work; unified admissions still open. |
 | Transfer and persistence | Local HTTP/A2A experiments, same-runtime LangGraph checkpoint relocation, two-store digest-verified copy | End-to-end cross-worker policy composition with a single independently testable boundary; no general cross-framework resume |
 | Authority and control | Peer checks, synthetic grant/revocation/effect fencing, Continuity Guard/opt-in Continuity Runtime, bounded state-space model | Mandatory enforcement on **all enabled controlled paths** and explicit accounting for unmediated egress/alternate adapters; issue #50 |
 | Evidence | Signed receipts, fixtures, offline verifier, reconciled simulated effects | Independent end-to-end timeline with documented gaps and opposing observations; external effects remain out of scope |
