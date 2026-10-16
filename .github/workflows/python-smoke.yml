@@ -119,6 +119,12 @@ jobs:
         run: python -m agent_movement.relocation_demo --json relocation-results.json
       - name: Checkpoint relocation demo, two stores (digest-verified bundle copy, 11-row copy fault matrix)
         run: python -m agent_movement.relocation_demo --two-store --json relocation-two-store-results.json
+      - name: MobilityBench v0.1 smoke subset with B2 (A2A) and B3 (relocation) scored
+        run: |
+          python -m agent_movement.mobilitybench run --suite v0.1 --subset smoke --out mobilitybench-v0.1-extras-smoke.jsonl
+          python -m agent_movement.mobilitybench report --in mobilitybench-v0.1-extras-smoke.jsonl --out mobilitybench-v0.1-extras-smoke.md
+          # With every extra installed only B4 (not implemented) may be unavailable.
+          python -c "import json,sys; m=json.loads(open('mobilitybench-v0.1-extras-smoke.jsonl').readline())['modes']; u=sorted(k for k,v in m.items() if v['status']!='implemented'); print('unavailable:', u); sys.exit(u!=['cross_framework_reconstruct'])"
       - name: Movement-receipt fixtures give their expected verifier exit codes
         shell: bash
         run: |
@@ -143,5 +149,7 @@ jobs:
           path: |
             relocation-results.json
             relocation-two-store-results.json
+            mobilitybench-v0.1-extras-smoke.jsonl
+            mobilitybench-v0.1-extras-smoke.md
           if-no-files-found: ignore
           retention-days: 7
