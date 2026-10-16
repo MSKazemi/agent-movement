@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-movement-lab"
-version = "0.1.0"
+version = "0.2.0"
 description = "Experimental, synthetic agent-movement testbed: local task handoff, fencing, and optional A2A, peer-auth, checkpoint-relocation and signed-receipt prototypes (research-stage, not production)"
 # CPython 3.10 reached end of life on 2026-10-01.
 requires-python = ">=3.11"
