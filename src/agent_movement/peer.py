@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from .continuity_runtime import ContinuityRuntime
 from .core import (
     MAX_TEXT,
     SCHEMA_VERSION,
@@ -53,7 +54,6 @@ from .core import (
     parse_json,
     validate_envelope,
 )
-from .continuity_runtime import ContinuityRuntime
 from .trust import (
     CLASSIFICATIONS,
     HPKE_SUITE,
