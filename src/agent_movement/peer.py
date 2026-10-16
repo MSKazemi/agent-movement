@@ -53,6 +53,7 @@ from .core import (
     parse_json,
     validate_envelope,
 )
+from .continuity_runtime import ContinuityRuntime
 from .trust import (
     CLASSIFICATIONS,
     HPKE_SUITE,
@@ -280,12 +281,14 @@ class AuthorizedEffectGateway:
     would need the same check on *its* side of the boundary.
     """
 
-    def __init__(self, ledger: PeerLedger, clock: Callable[[], float] = time.time):
+    def __init__(self, ledger: PeerLedger, clock: Callable[[], float] = time.time,
+                 continuity: ContinuityRuntime | None = None):
         self.ledger = ledger
         self.clock = clock
+        self.continuity = continuity
 
     def commit(self, grant: dict[str, Any], agent_id: str, task_id: str, effect_id: str,
-               payload: str) -> bool:
+               payload: str, *, movement_id: str | None = None) -> bool:
         """True for a new commit, False for an identical replay; raises Unauthorized."""
         _id(agent_id, "agent_id")
         _id(task_id, "task_id")
@@ -302,6 +305,11 @@ class AuthorizedEffectGateway:
                 raise Unauthorized("wrong_audience")
             if grant["task_id"] != task_id:
                 raise Unauthorized("wrong_task")
+            if self.continuity is not None:
+                self.continuity.require_effect(
+                    db, grant=grant, agent_id=agent_id, task_id=task_id,
+                    effect_id=effect_id, movement_id=movement_id, now=_now(self.clock),
+                )
             existing = db.execute("SELECT payload_digest FROM authorized_effects WHERE task_id=? "
                                   "AND effect_id=?", (task_id, effect_id)).fetchone()
             if existing is not None:
@@ -359,7 +367,9 @@ class PeerReceiver:
                  capabilities: Iterable[str], *, admission_ttl: int = 60, max_clock_skew: int = 120,
                  clock: Callable[[], float] = time.time,
                  before_effect_commit: Callable[[dict[str, Any]], None] | None = None,
-                 enc_key: HpkeKey | None = None):
+                 enc_key: HpkeKey | None = None,
+                 continuity: ContinuityRuntime | None = None,
+                 secure_test_mode: bool = False):
         own = verify_card(card, trust, _now(clock))
         if own.key.kid != key.kid:
             raise ContractError("receiver card does not name the receiver key")
@@ -371,13 +381,18 @@ class PeerReceiver:
         allow = frozenset(capabilities)
         if not allow or not allow <= TASK_KINDS:
             raise ContractError("capability allowlist must be a non-empty subset of known task kinds")
+        if secure_test_mode and continuity is None:
+            raise ContractError("secure test mode requires a continuity authority")
+        if continuity is not None and (continuity.store is not store or continuity.recipient_id != own.agent_id):
+            raise ContractError("continuity authority is not bound to this receiver and store")
+        self.continuity, self.secure_test_mode = continuity, secure_test_mode
         self.card, self.key, self.trust, self.store = card, key, trust, store
         self.enc_key, self.card_digest = enc_key, own.digest
         self.agent_id, self.endpoint, self.capabilities = own.agent_id, own.endpoint, allow
         self.admission_ttl, self.max_clock_skew, self.clock = admission_ttl, max_clock_skew, clock
         self.before_effect_commit = before_effect_commit
         self.ledger = PeerLedger(store)
-        self.effects = AuthorizedEffectGateway(self.ledger, clock)
+        self.effects = AuthorizedEffectGateway(self.ledger, clock, continuity)
 
     def handle(self, method: str, path: str, body: bytes) -> tuple[int, dict[str, Any]]:
         if method == "GET" and path == CARD_PATH:
@@ -458,6 +473,11 @@ class PeerReceiver:
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             check_grant_live(grant, now=now, revoked=self.ledger.is_revoked(db, grant["grant_id"]))
+            if self.continuity is not None:
+                epoch = self.continuity.require(db, kind=task["kind"], movement_id=movement_id,
+                                                task_id=task_id, now=now)
+                record["continuity_policy_epoch"] = epoch
+                record["continuity_profile_digest"] = self.continuity.profile_digest
             db.execute("DELETE FROM peer_nonces WHERE seen_at < ?", (now - 2 * self.max_clock_skew,))
             try:
                 db.execute("INSERT INTO peer_nonces VALUES(?,?,?)", (origin.agent_id, p["client_nonce"], now))
@@ -556,7 +576,15 @@ class PeerReceiver:
             raise Unauthorized("commitment_mismatch")
         grant = verify_grant(record["grant"], self.trust)
         with self.store._connection() as db:
+            if self.continuity is not None:
+                db.execute("BEGIN IMMEDIATE")
             check_grant_live(grant, now=now, revoked=self.ledger.is_revoked(db, grant["grant_id"]))
+            if self.continuity is not None:
+                epoch = record.get("continuity_policy_epoch")
+                if type(epoch) is not int or record.get("continuity_profile_digest") != self.continuity.profile_digest:
+                    raise Unauthorized("continuity_admission_binding_missing")
+                self.continuity.require(db, kind=record["kind"], movement_id=record["movement_id"],
+                                        task_id=record["logical_task_id"], policy_epoch=epoch, now=now)
         envelope = validate_envelope({
             "schema_version": SCHEMA_VERSION, "movement_id": record["movement_id"],
             "logical_task_id": record["logical_task_id"], "operation": "delegate",
@@ -571,7 +599,8 @@ class PeerReceiver:
             self.before_effect_commit(record)  # test seam: inject races here
         try:
             committed = self.effects.commit(grant, self.agent_id, record["logical_task_id"],
-                                            f"{record['movement_id']}.result", canonical(receipt["artifact"]))
+                                            f"{record['movement_id']}.result", canonical(receipt["artifact"]),
+                                            movement_id=record["movement_id"])
         except Unauthorized as exc:
             raise Unauthorized(f"effect_{exc.reason}") from exc
         response = {"type": "receipt", "admission_id": p["admission_id"],
