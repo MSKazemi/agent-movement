@@ -96,7 +96,9 @@ class PeerLedger:
     sanitized traces.
 
     Lives in the same SQLite file as ``SQLiteStore``. Stores IDs, reason codes and digests
-    of metadata only -- never task text, salts, signatures or key material.
+    of metadata only -- never task text, salts, signatures or key material; effect payload
+    digests are keyed store commitments. ``agent_movement.retention`` purges these tables
+    by age (docs/data-retention.md).
     """
 
     def __init__(self, store: SQLiteStore):
@@ -250,7 +252,8 @@ class AuthorizedEffectGateway:
         _id(effect_id, "effect_id")
         if not isinstance(payload, str) or len(payload.encode("utf-8")) > MAX_TEXT:
             raise ContractError("invalid payload")
-        fingerprint = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        # Keyed under the store secret (issue #39): the payload is the task result.
+        fingerprint = self.ledger.store.keyed_digest(hashlib.sha256(payload.encode("utf-8")).hexdigest())
         with self.ledger.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             check_grant_live(grant, now=_now(self.clock),

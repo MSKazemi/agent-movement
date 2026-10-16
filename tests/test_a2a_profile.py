@@ -171,8 +171,12 @@ class CorrelationLogTests(unittest.TestCase):
                        envelope=fixture(), artifact_digest="abc")
             log.record(message_id="../../etc/passwd one two three", outcome="rejected.InvalidParamsError")
             rows = log.rows()
+            store = SQLiteStore(Path(tmp) / "c.sqlite")
+            # Issue #39: keyed commitments under the store secret, never plain SHA-256.
+            self.assertEqual((rows[0]["envelope_digest"], rows[0]["artifact_digest"]),
+                             (store.fingerprint(fixture()), store.keyed_digest("abc")))
         self.assertEqual(rows[0]["movement_id"], "movement-1")
-        self.assertEqual(rows[0]["envelope_digest"], digest(fixture()))
+        self.assertNotEqual(rows[0]["envelope_digest"], digest(fixture()))
         self.assertTrue(rows[1]["a2a_message_id"].startswith("sha256:"))
         self.assertIsNone(rows[1]["a2a_task_id"])
         self.assertNotIn("one two three", canonical(rows))

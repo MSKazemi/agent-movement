@@ -13,7 +13,7 @@ An origin agent transfers a **specific task or resumable boundary** to a destina
 5. **Checkpoint** only at a safe boundary; persist immutable task snapshot and idempotency keys.
 6. **Dispatch** via A2A task communication (or local adapter), with scoped credential exchange and encrypted transport.
 7. **Execute** with least-privilege tool access (MCP may expose tools), telemetry and resource/time budgets.
-8. **Reconcile** after timeouts: query task status, avoid blind replay of irreversible operations.
+8. **Reconcile** after timeouts: query task status, avoid blind replay of irreversible operations. (Prototyped for one case in the [checkpoint relocation](checkpoint-relocation.md#operator-reconciliation-of-parked-effects-issue-30) experiment: an effect whose outcome cannot be queried is parked, an operator records `confirmed_done` or `confirmed_absent` at the current ownership epoch, and only then does the owner resume, without re-execution or with one retry under a new effect ID. The decision is audited, not verified.)
 9. **Return** artifacts, statuses and sanitized provenance; origin validates contract and acknowledges completion.
 10. **Expire/revoke** delegated authority, enforce retention and keep an audit trail.
 

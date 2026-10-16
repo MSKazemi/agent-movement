@@ -154,10 +154,12 @@ class A2AAdapterTests(_A2AServerCase):
         self.assertEqual((rows[0]["movement_id"], rows[0]["outcome"], rows[0]["a2a_message_id"],
                           rows[0]["a2a_context_id"]),
                          ("movement-stream", "completed", result["a2a_message_id"], result["a2a_context_id"]))
-        self.assertEqual(rows[0]["envelope_digest"], digest(value))
-        core = [e for e in SQLiteStore(self.db).audit()
+        store = SQLiteStore(self.db)  # rows hold keyed commitments under the store secret (#39)
+        self.assertEqual(rows[0]["envelope_digest"], store.fingerprint(value))
+        self.assertEqual(result["receipt"]["envelope_digest"], digest(value))  # the wire keeps plain SHA-256
+        core = [e for e in store.audit()
                 if e["movement_id"] == "movement-stream" and e["event_type"] == "handoff.completed"]
-        self.assertEqual([e["info_digest"] for e in core], [result["receipt"]["artifact_digest"]])
+        self.assertEqual([e["info_digest"] for e in core], [store.keyed_digest(result["receipt"]["artifact_digest"])])
 
     def test_http_json_binding_retry_is_new_task_same_receipt(self):
         value = envelope("movement-rest", "op-rest")

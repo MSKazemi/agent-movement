@@ -64,6 +64,7 @@ python -m pip install -e . pytest                     # core only
 agent-movement demo                                   # handoff, replay, denial, stale-epoch fencing
 agent-movement peer-demo                              # authenticated peer handoff (HS256, plaintext: no confidentiality)
 agent-movement bench verify --suite v0.1              # MobilityBench v0.1 fixture digests
+agent-movement purge --db FILE --older-than 30d --dry-run   # what a retention purge would delete
 python -m pytest -q                                   # all tests: agent_movement + corpus tooling
 
 python -m pip install -e '.[a2a,ed25519,hpke,relocation,signing]'   # every optional extra
@@ -124,6 +125,7 @@ Experimental code (synthetic, local, not production):
 - [Peer authentication and pre-disclosure authorization (synthetic, local; `python -m agent_movement.peer_demo`), with optional HPKE-sealed delivery](docs/peer-authentication.md)
 - [Same-runtime checkpoint relocation (pinned LangGraph) with a 30-row crash/duplicate fault matrix, plus a two-store mode that copies the checkpoint as a digest-verified bundle (11 copy fault rows) and operator reconciliation of parked unknown-outcome effects (9 rows)](docs/checkpoint-relocation.md) (optional extra: `pip install -e '.[relocation]'`)
 - [Signed movement receipts and offline forensic verifier (experimental, synthetic fixtures)](docs/movement-receipts.md)
+- [Data retention: what the stores keep and why, keyed (salted) digest commitments, and `agent-movement purge --older-than`](docs/data-retention.md)
 
 ## Executable human-impact research pilot
 

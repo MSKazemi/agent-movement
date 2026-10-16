@@ -3,7 +3,7 @@
 **Status:** **Proposed methodology. No results.** This document has no measured costs, prices, savings or return on investment for any system. Every formula below is a measurement plan, and the only worked numbers are labelled **synthetic** parameters.
 **Date:** 2026-10-16. Web sources were accessed on 2026-10-16. Corpus items are cited by ID (`AMP-xxx` = [paper corpus](paper-corpus/README.md), `AMN-xxx` = [news corpus](news-corpus/README.md)).
 **Tracks:** [issue #36](https://github.com/MSKazemi/agent-movement/issues/36), which covers research question 8 of [issue #1](https://github.com/MSKazemi/agent-movement/issues/1): *"How do you measure end-to-end economic value including review cost and incidents?"*
-**Depends on:** MobilityBench v0.1, which is not yet on `main`. The links to [`mobilitybench-v0.1.md`](mobilitybench-v0.1.md), [`mobilitybench-experiment-protocol.md`](mobilitybench-experiment-protocol.md) and [`checkpoint-relocation.md`](checkpoint-relocation.md) resolve after that work is merged. §5 is marked for re-verification.
+**Depends on:** [MobilityBench v0.1](mobilitybench-v0.1.md), its [experiment protocol](mobilitybench-experiment-protocol.md) and [checkpoint relocation](checkpoint-relocation.md), all on `main`. The record fields in §5 were verified against `src/agent_movement` on `main`.
 **Related questions:** [AM-14 and AM-15, and "Economic scheduling"](open-questions.md); the "Cost per completed task" metric in the [roadmap](roadmap.md#proposed-benchmark-metrics).
 
 ## Executive answer
@@ -100,12 +100,12 @@ If P_m ≤ P_b and C_m ≥ C_b, then *m* is dominated. The analysis reports **V\
 
 ## 4. Arms (baselines)
 
-| Arm | Definition | Where each arm is expected to pay (hypotheses to test, not findings) | Status on `integration` |
+| Arm | Definition | Where each arm is expected to pay (hypotheses to test, not findings) | Status on `main` |
 | --- | --- | --- | --- |
 | **B0 keep** | origin finishes, nothing moves | no transfer; under pre-emption the attempt is incomplete, so T7 is the fallback cost | implemented |
 | **B1 restart** | destination starts again from the original request | T1 re-execution; T6 rework from lost session context and duplicated effects; T5 when lost policies are violated | implemented |
-| **B2 delegate** | origin keeps ownership and sends bounded sub-work | T2 for every round trip; T7 from refusals when state is not expressible | local profile implemented; A2A unavailable (issue #7) |
-| **B3 relocate** | same-runtime checkpoint moves, origin fenced | T2 checkpoint bytes; F coordinator and fencing; T7 reconcile for opaque tools | unavailable in MobilityBench (issue #9); separate fault matrix in [`checkpoint-relocation.md`](checkpoint-relocation.md) |
+| **B2 delegate** | origin keeps ownership and sends bounded sub-work | T2 for every round trip; T7 from refusals when state is not expressible | local profile implemented; A2A (issue #7) scored in MobilityBench v0.1 only when the `a2a` extra is installed, otherwise an explicit unavailable record (issue #31) |
+| **B3 relocate** | same-runtime checkpoint moves, origin fenced | T2 checkpoint bytes; F coordinator and fencing; T7 reconcile for opaque tools | scored in MobilityBench v0.1 only when the `relocation` extra is installed, otherwise an explicit unavailable record (issue #31); separate fault matrix and operator reconciliation in [`checkpoint-relocation.md`](checkpoint-relocation.md) (issues #9, #30) |
 | **B4 reconstruct** | re-create the work in another framework from documented state | T6 from semantic loss; T4 to verify the reconstruction | unavailable |
 | **B5 non-agent workflow** *(proposed)* | a deterministic script/workflow, or a human doing the task, with no LLM agent | F authoring and maintenance; T4 human time; near-zero T1 tokens | **not in MobilityBench (proposed arm)** |
 
@@ -114,7 +114,7 @@ B5 answers research question 4 of issue #1 ("Is agent B actually better than a d
 <!-- Field names verified against src/agent_movement on main at b21da27 (2026-10-16). -->
 ## 5. Mapping to MobilityBench record fields
 
-> **Depends on unmerged work.** These fields were read on 2026-10-16 from the local `integration` branch, which is not yet on `main`. Check them again after the merge.
+> **Verified on `main`.** These field names were checked against `src/agent_movement/mobilitybench_v01.py` and `relocation_demo.py` on `main` (2026-10-16). Re-check them when the record schema changes.
 >
 > Sources:
 > - `src/agent_movement/mobilitybench_v01.py`: `METRIC_KEYS` and `run_attempt()` for attempt records; `run_suite()` for the `run_manifest` record; `run_security_cases()` for `security` records.
@@ -127,13 +127,14 @@ B5 answers research question 4 of issue #1 ("Is agent B actually better than a d
 | --- | --- | --- | --- | --- |
 | T1 compute/tokens | model calls | `model_calls` (attempt record, `mobilitybench_v01.py`); `run_version.model` | measured but always `0` / `"none"`: the executor is a deterministic interpreter | `input_tokens`, `output_tokens`, `cached_input_tokens`, `tool_calls`, `compute_seconds`, `price_table_ref` |
 | T1 compute/tokens | work done and repeated | `steps_executed`, `steps_reexecuted` (`mobilitybench_v01.py`) | **measured (deterministic proxy)**; no unit price | per-step token/compute attribution |
-| T1 (B3 only) | re-executed items | `item_reexecutions`, `opaque_invocations` (`relocation_demo.py` fault-matrix rows, not MobilityBench records) | measured in the relocation demo only | carry into MobilityBench when B3 is scored |
-| T2 transfer | bytes and messages | `transfer_bytes`, `transfer_messages` (`mobilitybench_v01.py`, `Attempt.send`) | **measured**, but as canonical-JSON sizes, **not wire bytes** (no HTTP overhead, in-process) | `wire_bytes`, `region_pair`, `checkpoint_bytes` |
+| T1 (B3 only) | re-executed items | `item_reexecutions`, `opaque_invocations` (`relocation_demo.py` fault-matrix rows, not MobilityBench records) | measured in the relocation demo only. MobilityBench B3 records (issue #31) carry `steps_reexecuted` instead, which is 0 in v0.1 because movement happens only at clean step boundaries | carry `opaque_invocations` into MobilityBench B3 records |
+| T2 transfer | bytes and messages | `transfer_bytes`, `transfer_messages` (`mobilitybench_v01.py`, `Attempt.send`) | **measured**, but as canonical-JSON sizes, **not wire bytes**: no HTTP or JSON-RPC framing. B2-local is in-process; B2 A2A crosses loopback HTTP but counts only the A2A-bound projection and the receipt; B3 counts the manifest, the checkpoint channels and the grant | `wire_bytes`, `region_pair`, `checkpoint_bytes` |
 | T3 latency | wall-clock | `elapsed_ms` (attempt and security records); `started_at` (`run_manifest`) | recorded but **not a fair latency measure** (machine-dependent, dominated by SQLite setup, `null` under `--no-timing`) | `movement_pause_ms`, `time_to_correct_completion_ms` (monotonic), measured on a fixed testbed |
 | T4 human review | reviewer time, approvals | none (approvals in v0.1 are scripted `Approval` objects) | **unmeasured** | `human_review_seconds`, `approvals_requested`, `approvals_granted`, `reviewer_role`, `review_stage` |
 | T5 incidents | incident precursors | `policy_violations`, `stale_commits_accepted`, `sensitive_transfers`, `unexpected_effects` (attempt); `verdict`, `known_gap` (security records) | **measured as counts only**: no severity, detection or recovery time, no money | `incident_severity`, `time_to_detect_ms`, `time_to_recover_ms`, `incident_ref` |
 | T6 rework | incorrect / lost constraints / wrong effects | `task_correct`, `output_correct`, `constraints_preserved`, `constraints_total`, `duplicate_effects`, `missing_effects`, `unexpected_effects` (`mobilitybench_v01.py`) | **measured** (counts); rework effort itself unmeasured | `rework_steps`, `compensation_actions` |
 | T7 failure/reconciliation | unknown outcomes, fencing, dedup, refusals | `unknown_events`, `reconciled_events`, `stale_commits_fenced`, `duplicate_deliveries_suppressed`, `outcome`, `reason`, `fault`, `fault_applied` (`mobilitybench_v01.py`) | **measured** (counts and enums) | `reconcile_ms`, `fallback_mode`, `fallback_attempt_ref` |
+| T7 (B3 only) | operator decisions on parked opaque effects | `reconciliation_events` rows (`event_type` `parked`, `confirmed_done`, `confirmed_absent`, `replayed`, `denied`, `applied`; `actor`, `epoch`, `event_time`) and the decision record in `effect_reconciliations` (`relocation.py`, issue #30; relocation experiment only, not MobilityBench records) | **recorded as events**: who decided, at which epoch, and when. No review duration, and the decision's correctness is not checked | `reconcile_interventions` in MobilityBench records; `reconcile_ms` |
 | T7 exactly-once overhead | ledger/fencing cost | none | **unmeasured** | `ledger_writes`, `ledger_bytes` |
 | F fixed | infrastructure, authoring, evaluation | none (`run_manifest` has versions, not costs) | **unmeasured** | `fixed_cost_ref` in `run_manifest`, with horizon and amortization rule |
 | all | arm identity and pairing | `mode`, `baseline`, `mode_status`, `seed`, `task_id`, `family`, `repeat` | measured | `fallback_policy` in `run_manifest` |
@@ -146,7 +147,7 @@ B5 answers research question 4 of issue #1 ("Is agent B actually better than a d
 3. **Incident severity and cost (T5).** Counts of precursors exist. Mapping them to severity and money needs a pre-declared severity scale and stakeholder-supplied impact costs. Public incident write-ups (for example AMN-033 and AMN-034) give the incident classes, not cost data.
 4. **Fair latency (T3) and wire bytes (T2).** These need a fixed multi-host testbed instead of in-process canonical sizes.
 5. **Prices.** Token, compute and egress price tables must be cited with an access date for each run. This document deliberately quotes no prices.
-6. **Non-agent arm (B5), A2A (B2), relocation (B3) and reconstruction (B4) in the same paired harness.**
+6. **Non-agent arm (B5) and reconstruction (B4) in the same paired harness.** A2A (B2) and relocation (B3) now run in it when their extras are installed (issue #31), but only with the deterministic interpreter, on one host, with movement at a single point.
 7. **Task population.** Costs depend on how often movement is triggered and on the fault rates. The v0.1 fixtures are authored to exercise mechanisms, not sampled from practice. So no v0.1 count is a frequency estimate, and no expected cost computed from them generalizes.
 
 ## 7. Validity threats specific to economic claims

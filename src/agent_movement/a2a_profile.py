@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .core import SCHEMA_VERSION, ContractError, digest, validate_envelope
+from .core import SCHEMA_VERSION, ContractError, SQLiteStore, digest, validate_envelope
 
 PROFILE_VERSION = "0.2.0-draft"
 REPOSITORY_URL = "https://github.com/MSKazemi/agent-movement"
@@ -230,11 +230,16 @@ class A2ACorrelationLog:
 
     Lives in the same SQLite file as :class:`agent_movement.core.SQLiteStore`
     but in its own table, so the core schema is unchanged. Rows contain only
-    identifiers, outcome codes and digests -- never task text.
+    identifiers, outcome codes and digests -- never task text. The envelope and
+    artifact digests are keyed commitments under the store secret
+    (:meth:`SQLiteStore.keyed_digest`), not plain SHA-256 (issue #39).
     """
 
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path, store: SQLiteStore | None = None):
         self.path = str(path)
+        self.store = SQLiteStore(path) if store is None else store
+        if self.store.path != self.path:
+            raise ValueError("the correlation log must share its store's file")
         with self._connect() as db:
             db.execute("""
                 CREATE TABLE IF NOT EXISTS a2a_correlations (
@@ -265,8 +270,8 @@ class A2ACorrelationLog:
             None if envelope is None else envelope["movement_id"],
             None if envelope is None else envelope["observability"]["trace_id"],
             outcome,
-            None if envelope is None else digest(envelope),
-            artifact_digest,
+            None if envelope is None else self.store.fingerprint(envelope),
+            None if artifact_digest is None else self.store.keyed_digest(artifact_digest),
             datetime.now(timezone.utc).isoformat(),
         )
         db = self._connect()

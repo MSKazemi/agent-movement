@@ -104,7 +104,7 @@ Metadata keyed by the extension URI follows the spec's extension examples (§4.6
 | `movement_id, trace_id, envelope_digest, artifact_digest, replayed` | `Artifact.metadata[<profile URI>]`, keyed by the URI the request used |
 | Policy denial / idempotency conflict | Terminal state `TASK_STATE_REJECTED`. The status message holds one data part `{"error": "approval_denied" \| "idempotency_conflict"}` |
 
-**Provider-private state is never serialized.** The mapping copies fields by explicit allowlist from an envelope that has already passed `validate_envelope`, which rejects any unknown field at any level. The receiver then requires exact key sets again: one part only, no part metadata or filename, no request-level metadata, no metadata keys other than the profile URI, no `taskId` or `referenceTaskIds` (no continuation). It also recomputes `envelope_digest`. The A2A task store keeps no message history (`new_task(..., history=None)`). The receiver's audit and correlation tables hold IDs, outcome codes and SHA-256 digests only. Tests assert that the raw task text never appears in them.
+**Provider-private state is never serialized.** The mapping copies fields by explicit allowlist from an envelope that has already passed `validate_envelope`, which rejects any unknown field at any level. The receiver then requires exact key sets again: one part only, no part metadata or filename, no request-level metadata, no metadata keys other than the profile URI, no `taskId` or `referenceTaskIds` (no continuation). It also recomputes `envelope_digest`. The A2A task store keeps no message history (`new_task(..., history=None)`). The receiver's audit and correlation tables hold IDs, outcome codes and keyed (HMAC-SHA256) digest commitments only ([data retention](data-retention.md)). Tests assert that the raw task text never appears in them.
 
 Protobuf `Value` turns every JSON number into a double (`5` arrives as `5.0`). `verify_receipt` converts integral doubles back to integers before it recomputes `artifact_digest`.
 
@@ -136,7 +136,9 @@ Every pre-task rejection is still recorded in `a2a_correlations` with outcome `r
 
 The receiver keeps a new table, `a2a_correlations` (`A2ACorrelationLog`), in the same SQLite file as the core `audit_events`. Each A2A request adds one row: `a2a_task_id, a2a_context_id, a2a_message_id, movement_id, trace_id, outcome, envelope_digest, artifact_digest`. Correlation chain:
 
-`client a2a_message_id / a2a_task_id` → `a2a_correlations` row → `movement_id` → core `audit_events` (`handoff.accepted` with `info_digest = envelope_digest`, `handoff.completed` with `info_digest = artifact_digest`) → receipt artifact `artifact_digest`, verified again by the client.
+`client a2a_message_id / a2a_task_id` → `a2a_correlations` row → `movement_id` → core `audit_events` (`handoff.accepted` with `info_digest = keyed(envelope_digest)`, `handoff.completed` with `info_digest = keyed(artifact_digest)`) → receipt artifact `artifact_digest`, verified again by the client.
+
+Since [issue #39](data-retention.md), the stored digests (`envelope_digest` and `artifact_digest` in `a2a_correlations`, `info_digest` in `audit_events`) are keyed commitments, `keyed(h)` = HMAC-SHA256 under the store secret over a domain label and `h`, not the plain SHA-256 `h` that travels on the wire. To join a wire digest to a stored row, compute `SQLiteStore(db).keyed_digest(h)`. Old rows can be deleted with `agent-movement purge`.
 
 An exact retry is a **new A2A task** (new `a2a_task_id`, and by default a new server-generated `a2a_context_id`). The logical task is joined by `movement_id` and `logical_task_id`, not by the context. The core receiver answers it from its idempotency ledger (`replayed: true`, identical `artifact_digest`), so the core audit still shows a single `handoff.completed`.
 
