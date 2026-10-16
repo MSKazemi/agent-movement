@@ -22,6 +22,14 @@ their own SQLite transaction (in two-store mode the authority file is ATTACHed, 
 No exactly-once claim is made for arbitrary tools. Node execution is
 at-least-once; an effect whose outcome cannot be queried is reported as
 ``unknown`` and parked for reconciliation instead of being retried blindly.
+
+Operator reconciliation (issue #30): a parked effect is registered in the authority
+file; an operator records ``confirmed_done`` or ``confirmed_absent`` with a reason and
+an identity (:meth:`Coordinator.reconcile`), fenced by the task's current ownership
+epoch and written to an append-only event log; the owning worker then resumes the task
+(:meth:`Worker.resume_reconciled`). The protocol enforces the fence and the audit
+trail, NOT the truth of the operator's claim: a wrong decision loses or duplicates the
+effect (human-in-the-loop trust assumption).
 """
 
 from __future__ import annotations
@@ -34,6 +42,7 @@ import sqlite3
 import threading
 from collections import Counter
 from contextlib import closing, contextmanager
+from datetime import datetime, timezone
 from importlib import metadata
 from pathlib import Path
 from typing import Annotated, Any, Iterator, TypedDict
@@ -135,6 +144,32 @@ CREATE TABLE IF NOT EXISTS opaque_effects (
     execution_id TEXT NOT NULL,
     epoch INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS effect_reconciliations (
+    task_id TEXT NOT NULL,
+    effect_id TEXT NOT NULL,
+    tool TEXT NOT NULL,
+    payload_digest TEXT NOT NULL,
+    parked_by TEXT NOT NULL,
+    parked_epoch INTEGER NOT NULL,
+    retry_of TEXT,
+    status TEXT NOT NULL,
+    decision_json TEXT,
+    decision_digest TEXT,
+    retry_effect_id TEXT,
+    applied_by TEXT,
+    applied_epoch INTEGER,
+    PRIMARY KEY (task_id, effect_id)
+);
+CREATE TABLE IF NOT EXISTS reconciliation_events (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    effect_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    epoch INTEGER,
+    detail_json TEXT NOT NULL,
+    event_time TEXT NOT NULL
+);
 """
 # Worker state: what a worker's OWN store holds in two-store mode (plus LangGraph's
 # checkpoints/writes tables). In single-store mode both schemas share one file.
@@ -169,6 +204,11 @@ CREATE TABLE IF NOT EXISTS bundle_imports (
 );
 """
 SCHEMA = AUTHORITY_SCHEMA + STATE_SCHEMA
+
+# Operator reconciliation of parked (unknown-outcome) effects, issue #30.
+DECISIONS = ("confirmed_done", "confirmed_absent")
+RETRY_SUFFIX = ".retry-1"  # the ONE retry a confirmed_absent decision authorizes
+MAX_REASON_BYTES = 512
 
 
 class SimulatedCrash(BaseException):
@@ -303,6 +343,79 @@ def owner_of(store: SQLiteStore, task_id: str) -> tuple[str, int] | None:
     return None if row is None else (row[0], row[1])
 
 
+# --- operator reconciliation records (authority file) ------------------------------
+
+RECONCILIATION_FIELDS = ("task_id", "effect_id", "tool", "payload_digest", "parked_by", "parked_epoch",
+                         "retry_of", "status", "decision_json", "decision_digest", "retry_effect_id",
+                         "applied_by", "applied_epoch")
+EVENT_FIELDS = ("seq", "task_id", "effect_id", "event_type", "actor", "epoch", "detail_json", "event_time")
+
+
+def _authority_schema(schema: str) -> str:
+    if schema not in ("main", AUTHORITY):
+        raise ContractError("unknown authority schema")
+    return schema
+
+
+def _reconciliation_row(db: Any, schema: str, task_id: str, effect_id: str) -> dict[str, Any] | None:
+    row = db.execute(f"SELECT {', '.join(RECONCILIATION_FIELDS)} FROM {_authority_schema(schema)}."
+                     "effect_reconciliations WHERE task_id=? AND effect_id=?", (task_id, effect_id)).fetchone()
+    if row is None:
+        return None
+    record = dict(zip(RECONCILIATION_FIELDS, row))
+    record["decision"] = canonical_load(record.pop("decision_json"))
+    return record
+
+
+def _reconciliation_event(db: Any, schema: str, task_id: str, effect_id: str, event_type: str,
+                          actor: str, epoch: int | None, detail: dict[str, Any]) -> None:
+    """Append one audit event; this module never updates or deletes one."""
+    db.execute(f"INSERT INTO {_authority_schema(schema)}.reconciliation_events(task_id, effect_id, "
+               "event_type, actor, epoch, detail_json, event_time) VALUES(?,?,?,?,?,?,?)",
+               (task_id, effect_id, event_type, actor, epoch, canonical(detail),
+                datetime.now(timezone.utc).isoformat()))
+
+
+def _park(db: Any, schema: str, task_id: str, effect_id: str, execution_id: str, epoch: int) -> None:
+    """Register an unknown-outcome effect for operator reconciliation.
+
+    Runs inside the caller's fenced ledger transaction, so the ledger's ``unknown`` and the
+    authority's ``parked`` record commit together (in two-store mode across both files).
+    """
+    schema = _authority_schema(schema)
+    tool, payload_digest = db.execute("SELECT tool, payload_digest FROM main.effect_intents WHERE "
+                                      "task_id=? AND effect_id=?", (task_id, effect_id)).fetchone()
+    origin = db.execute(f"SELECT effect_id FROM {schema}.effect_reconciliations WHERE task_id=? AND "
+                        "retry_effect_id=?", (task_id, effect_id)).fetchone()
+    retry_of = None if origin is None else origin[0]
+    added = db.execute(f"INSERT OR IGNORE INTO {schema}.effect_reconciliations(task_id, effect_id, tool, "
+                       "payload_digest, parked_by, parked_epoch, retry_of, status) "
+                       "VALUES(?,?,?,?,?,?,?,'parked')",
+                       (task_id, effect_id, tool, payload_digest, execution_id, epoch, retry_of))
+    if added.rowcount == 1:
+        _reconciliation_event(db, schema, task_id, effect_id, "parked", execution_id, epoch,
+                              {"tool": tool, "payload_digest": payload_digest, "retry_of": retry_of})
+
+
+def _decision_request(task_id: str, effect_id: str, decision: str, operator: str, reason: str,
+                      epoch: int) -> dict[str, Any]:
+    """Validate an operator decision; malformed requests are refused before any write."""
+    _id(task_id, "task_id")
+    _id(effect_id, "effect_id")
+    _id(operator, "operator")
+    if decision not in DECISIONS:
+        raise ContractError(f"decision must be one of {', '.join(DECISIONS)}")
+    if type(epoch) is not int or epoch < 1:
+        raise ContractError("invalid epoch")
+    if not isinstance(reason, str) or not reason.strip() or len(reason.encode("utf-8")) > MAX_REASON_BYTES \
+            or any(ord(c) < 32 or ord(c) == 127 for c in reason):
+        raise ContractError(f"reason must be 1..{MAX_REASON_BYTES} bytes of printable text")
+    if decision == "confirmed_absent":
+        _id(effect_id + RETRY_SUFFIX, "retry effect_id (effect ID too long to derive one)")
+    return {"task_id": task_id, "effect_id": effect_id, "decision": decision, "operator": operator,
+            "reason": reason, "epoch": epoch}
+
+
 class FencedSqliteSaver(SqliteSaver):
     """SqliteSaver whose writes commit only while (execution_id, epoch) owns the task.
 
@@ -430,7 +543,58 @@ class EffectLedger:
                                  (status, execution_id, epoch, bump, task_id, effect_id))
             if updated.rowcount != 1:
                 raise Conflict("no recorded intent for effect")
+            if status == "unknown":
+                _park(db, schema, task_id, effect_id, execution_id, epoch)
             db.commit()
+
+    def decision(self, task_id: str, effect_id: str) -> dict[str, Any] | None:
+        """The authority's reconciliation record for an effect (``None`` if never parked)."""
+        with self._connection() as (db, schema):
+            return _reconciliation_row(db, schema, task_id, effect_id)
+
+    def apply_decision(self, task_id: str, effect_id: str, execution_id: str,
+                       epoch: int) -> dict[str, Any] | None:
+        """Apply a recorded operator decision to this ledger: fenced, atomic and idempotent.
+
+        Returns the reconciliation record, or ``None`` while no decision is recorded.
+        ``confirmed_done`` settles the intent without re-execution; ``confirmed_absent``
+        settles it as absent and records ONE retry intent under the decision's new effect ID.
+        """
+        with self._connection() as (db, schema):
+            db.execute("BEGIN IMMEDIATE")
+            _fence(db, task_id, execution_id, epoch, schema)
+            record = _reconciliation_row(db, schema, task_id, effect_id)
+            if record is None or record["status"] not in DECISIONS:
+                db.commit()
+                return None
+            intent = db.execute("SELECT payload_digest, tool, status FROM main.effect_intents WHERE "
+                                "task_id=? AND effect_id=?", (task_id, effect_id)).fetchone()
+            if intent is None or intent[0] != record["payload_digest"]:
+                raise Conflict("operator decision does not match the recorded effect intent")
+            if intent[2] in ("attempt_started", "unknown"):
+                db.execute("UPDATE main.effect_intents SET status=?, execution_id=?, epoch=? WHERE "
+                           "task_id=? AND effect_id=?", (record["status"], execution_id, epoch, task_id, effect_id))
+            elif intent[2] != record["status"]:
+                raise Conflict(f"ledger status {intent[2]} disagrees with operator decision {record['status']}")
+            if record["status"] == "confirmed_absent":
+                retry_id = record["retry_effect_id"]
+                found = db.execute("SELECT payload_digest FROM main.effect_intents WHERE task_id=? AND "
+                                   "effect_id=?", (task_id, retry_id)).fetchone()
+                if found is None:
+                    db.execute("INSERT INTO main.effect_intents(task_id, effect_id, payload_digest, tool, "
+                               "status, execution_id, epoch) VALUES(?,?,?,?,'intent',?,?)",
+                               (task_id, retry_id, intent[0], intent[1], execution_id, epoch))
+                elif found[0] != intent[0]:
+                    raise Conflict("retry effect ID already recorded with a different payload")
+            if record["applied_by"] is None:
+                db.execute(f"UPDATE {schema}.effect_reconciliations SET applied_by=?, applied_epoch=? "
+                           "WHERE task_id=? AND effect_id=?", (execution_id, epoch, task_id, effect_id))
+                _reconciliation_event(db, schema, task_id, effect_id, "applied", execution_id, epoch,
+                                      {"decision": record["status"],
+                                       "retry_effect_id": record["retry_effect_id"]})
+                record = {**record, "applied_by": execution_id, "applied_epoch": epoch}
+            db.commit()
+            return record
 
 
 class OpaqueTool:
@@ -521,11 +685,28 @@ def build_graph(worker: Worker | None, saver: SqliteSaver):
         assert worker is not None
         steps = log("effect_commit")
         task, effect = worker.task_id, dict(state["effect"])
-        effect_id, tool = effect["effect_id"], state["constraints"]["effect_tool"]
+        tool = state["constraints"]["effect_tool"]
         payload = effect_payload(task, state)
-        intent = worker.ledger.get(task, effect_id)
-        if intent is None or intent["payload_digest"] != digest(payload):
-            raise Conflict("effect commit without a matching durable intent")
+        while True:
+            effect_id = effect["effect_id"]
+            intent = worker.ledger.get(task, effect_id)
+            if intent is None or intent["payload_digest"] != digest(payload):
+                raise Conflict("effect commit without a matching durable intent")
+            if tool == "opaque" and intent["status"] in ("attempt_started", "unknown"):
+                # Operator reconciliation (issue #30): apply a recorded decision, if any.
+                decided = worker.ledger.apply_decision(task, effect_id, worker.execution_id, worker.epoch)
+                if decided is not None:
+                    intent = {**intent, "status": decided["status"]}
+            if intent["status"] != "confirmed_absent":
+                break
+            if "retry_of" in effect:
+                raise Conflict("retry budget exhausted: the retry itself was confirmed absent")
+            # The operator confirmed that the effect never happened: ONE retry under a new effect ID.
+            retry_id = worker.ledger.decision(task, effect_id)["retry_effect_id"]
+            effect = {**effect, "effect_id": retry_id, "retry_of": effect_id}
+        if intent["status"] == "confirmed_done":
+            return {"effect": {**effect, "status": "committed", "reconciled": "operator_confirmed_done"},
+                    "step_log": steps}
         if intent["status"] in ("committed", "reconciled_committed"):
             return {"effect": {**effect, "status": "committed"}, "step_log": steps}
         reconciled = False
@@ -555,6 +736,8 @@ def build_graph(worker: Worker | None, saver: SqliteSaver):
         result = {**effect, "status": "committed"}
         if reconciled:
             result["reconciled"] = "retried_same_effect_id"
+        elif "retry_of" in effect:
+            result["reconciled"] = "operator_confirmed_absent_retried"
         return {"effect": result, "step_log": steps}
 
     def finalize(state: TaskState) -> dict[str, Any]:
@@ -876,6 +1059,106 @@ class Coordinator:
         self.request_bundle(manifest, source_store)
         return {**self.transfer(movement_id, receiver_profile), "bundle": path}
 
+    # --- operator reconciliation of parked effects (issue #30) -------------------
+    def parked_effects(self, task_id: str | None = None) -> list[dict[str, Any]]:
+        """Every effect ever parked for reconciliation, with its decision (operator view)."""
+        query = f"SELECT {', '.join(RECONCILIATION_FIELDS)} FROM effect_reconciliations"
+        args: tuple[Any, ...] = ()
+        if task_id is not None:
+            query, args = query + " WHERE task_id=?", (_id(task_id, "task_id"),)
+        with self.store._connection() as db:
+            rows = db.execute(query + " ORDER BY task_id, effect_id", args).fetchall()
+        records = []
+        for row in rows:
+            record = dict(zip(RECONCILIATION_FIELDS, row))
+            record["decision"] = canonical_load(record.pop("decision_json"))
+            records.append(record)
+        return records
+
+    def reconciliation_events(self, task_id: str | None = None) -> list[dict[str, Any]]:
+        """The append-only reconciliation audit log, oldest first."""
+        query = f"SELECT {', '.join(EVENT_FIELDS)} FROM reconciliation_events"
+        args: tuple[Any, ...] = ()
+        if task_id is not None:
+            query, args = query + " WHERE task_id=?", (_id(task_id, "task_id"),)
+        with self.store._connection() as db:
+            rows = db.execute(query + " ORDER BY seq", args).fetchall()
+        events = []
+        for row in rows:
+            event = dict(zip(EVENT_FIELDS, row))
+            event["detail"] = canonical_load(event.pop("detail_json"))
+            events.append(event)
+        return events
+
+    def reconcile(self, task_id: str, effect_id: str, decision: str, *, operator: str, reason: str,
+                  epoch: int) -> dict[str, Any]:
+        """Record an operator's decision about a parked effect whose outcome is unknown.
+
+        ``decision`` is ``confirmed_done`` (the effect happened: continue without
+        re-execution) or ``confirmed_absent`` (it did not: the owner may retry it ONCE under
+        the new effect ID ``<effect_id>.retry-1``). ``epoch`` is the ownership epoch the
+        operator inspected; the decision is fenced by it in the same transaction, so a
+        decision made against an older epoch is denied. A replay of the identical decision
+        (same decision, operator and reason) is deduplicated; any other second decision is
+        denied. Every outcome, denials included, is appended to ``reconciliation_events``.
+
+        The coordinator cannot verify the claim itself: it trusts the operator's
+        out-of-band check of the external system (human-in-the-loop trust assumption).
+        """
+        request = _decision_request(task_id, effect_id, decision, operator, reason, epoch)
+        with self.store._connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            try:
+                result = self._decide(db, request)
+            except (PolicyDenied, Conflict) as exc:
+                db.rollback()
+                db.execute("BEGIN IMMEDIATE")
+                _reconciliation_event(db, "main", task_id, effect_id, "denied", operator, epoch,
+                                      {"decision": decision, "reason": reason, "error": type(exc).__name__,
+                                       "message": str(exc)})
+                db.commit()
+                raise
+            db.commit()
+        return result
+
+    def _decide(self, db: sqlite3.Connection, request: dict[str, Any]) -> dict[str, Any]:
+        """Inside the caller's ``BEGIN IMMEDIATE``: fence, double-resolution check, record."""
+        task_id, effect_id, decision = request["task_id"], request["effect_id"], request["decision"]
+        owner = db.execute("SELECT agent_id, epoch FROM owners WHERE task_id=?", (task_id,)).fetchone()
+        if owner is None:
+            raise Conflict("task has no owner")
+        if owner[1] != request["epoch"]:
+            raise PolicyDenied(f"stale operator decision: made at epoch {request['epoch']}, "
+                               f"the task is now at epoch {owner[1]}")
+        record = _reconciliation_row(db, "main", task_id, effect_id)
+        if record is None:
+            raise Conflict("effect is not parked for reconciliation")
+        fingerprint = digest(request)
+        result = {**request, "owner": {"execution_id": owner[0], "epoch": owner[1]}}
+        if record["status"] != "parked":
+            prior = record["decision"]
+            if (prior["decision"], prior["operator"], prior["reason"]) != \
+                    (decision, request["operator"], request["reason"]):
+                raise Conflict(f"effect already resolved as {record['status']} by {prior['operator']}")
+            _reconciliation_event(db, "main", task_id, effect_id, "replayed", request["operator"],
+                                  request["epoch"], {"decision": decision, "decision_digest": fingerprint,
+                                                     "recorded_digest": record["decision_digest"]})
+            return {**result, "retry_effect_id": record["retry_effect_id"],
+                    "decision_digest": record["decision_digest"], "replayed": True}
+        retry_id = None
+        if decision == "confirmed_absent":
+            if record["retry_of"] is not None:
+                raise PolicyDenied(f"retry budget exhausted: {effect_id} is already the one retry of "
+                                   f"{record['retry_of']}")
+            retry_id = effect_id + RETRY_SUFFIX
+        db.execute("UPDATE effect_reconciliations SET status=?, decision_json=?, decision_digest=?, "
+                   "retry_effect_id=? WHERE task_id=? AND effect_id=? AND status='parked'",
+                   (decision, canonical(request), fingerprint, retry_id, task_id, effect_id))
+        _reconciliation_event(db, "main", task_id, effect_id, decision, request["operator"], request["epoch"],
+                              {"decision": decision, "reason": request["reason"], "decision_digest": fingerprint,
+                               "retry_effect_id": retry_id})
+        return {**result, "retry_effect_id": retry_id, "decision_digest": fingerprint, "replayed": False}
+
 
 def canonical_load(raw: str | None) -> Any:
     return None if raw is None else json.loads(raw)
@@ -961,6 +1244,35 @@ class Worker:
                 "next": [t.name for t in snapshot.tasks], "status": snapshot.values.get("status"),
                 "checkpoint_id": snapshot.config["configurable"]["checkpoint_id"],
                 "node_runs": dict(self.node_runs)}
+
+    def resume_reconciled(self, max_supersteps: int | None = None) -> dict[str, Any]:
+        """Continue a task parked as ``reconcile_required`` once an operator decision exists.
+
+        Writes one fenced checkpoint that re-enters the graph at ``effect_commit`` (as if
+        ``effect_intent`` had just completed) and runs on. ``effect_commit`` applies the
+        decision: ``confirmed_done`` continues without re-execution, ``confirmed_absent``
+        retries the effect ONCE under the decision's new effect ID. Only the current owner
+        may resume; any other execution is denied by the same fence as every other write.
+        """
+        if self.task_id is None or self.epoch is None:
+            raise ContractError("worker is not attached to a task")
+        if not self.owns():
+            raise PolicyDenied("execution no longer owns the task; paused")
+        with _runtime(self.state_path, self.task_id, self, self.authority) as (graph, _saver):
+            config = self._config()
+            snapshot = graph.get_state(config)
+            values = snapshot.values or {}
+            if values.get("status") != "reconcile_required" or snapshot.tasks:
+                raise Conflict("task is not parked for reconciliation")
+            effect_id = values["effect"]["effect_id"]
+            record = self.ledger.decision(self.task_id, effect_id)
+            if record is None or record["status"] not in DECISIONS:
+                raise Conflict(f"no operator decision is recorded for parked effect {effect_id}")
+            graph.update_state(config, {"status": "running", "step_log": [{
+                "node": "operator_reconcile", "index": None, "execution_id": self.execution_id,
+                "epoch": self.epoch, "effect_id": effect_id, "decision": record["status"]}]},
+                as_node="effect_intent")
+        return self.run(max_supersteps)
 
     def export(self, movement_id: str, to_execution: str) -> dict[str, Any]:
         """Origin side: pause at the current safe boundary and ask the coordinator to relocate."""
@@ -1184,6 +1496,11 @@ def observe(path: str | Path, task_id: str, effect_id: str = "publish-report",
         relocations = db.execute("SELECT movement_id, mode, from_execution, from_epoch, to_execution, "
                                  "to_epoch, status FROM relocations WHERE task_id=? ORDER BY rowid",
                                  (task_id,)).fetchall()
+        reconciliations = db.execute("SELECT effect_id, status, retry_of, retry_effect_id, decision_json, "
+                                     "applied_by, applied_epoch FROM effect_reconciliations WHERE task_id=? "
+                                     "ORDER BY effect_id", (task_id,)).fetchall()
+        opaque_calls = db.execute("SELECT effect_id, COUNT(*) FROM opaque_effects WHERE task_id=? "
+                                  "GROUP BY effect_id ORDER BY effect_id", (task_id,)).fetchall()
     owner = owner_of(store, task_id)
     if stores is None:
         views = {"": _store_view(str(path), task_id)}
@@ -1221,6 +1538,12 @@ def observe(path: str | Path, task_id: str, effect_id: str = "publish-report",
         "head_checkpoint_id": None if head is None else head.checkpoint["id"],
         "values": None if head is None else head.checkpoint["channel_values"],
         "lineage": [lineage_by_id[k] for k in sorted(lineage_by_id)],
+        # Operator reconciliation state (issue #30); the audit log itself is not observed here.
+        "reconciliations": [{"effect_id": e, "status": st, "retry_of": rof, "retry_effect_id": rid,
+                             "operator": (canonical_load(dj) or {}).get("operator"),
+                             "applied_by": ab, "applied_epoch": ae}
+                            for e, st, rof, rid, dj, ab, ae in reconciliations],
+        "opaque_calls_by_effect": dict(opaque_calls),
     }
     if stores is not None:
         result["stores"] = {worker: {"checkpoints": len(v["lineage"]), "effect_records": v["effect_records"],
