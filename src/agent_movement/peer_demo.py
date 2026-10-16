@@ -3,6 +3,12 @@
 The parent process plays the synthetic test CA, the synthetic user authority, the honest
 origin ``agent-a`` and several attackers; ``agent-b`` runs as a separate OS process on
 loopback. All keys are generated per run and deleted with the temp directory.
+
+``--delivery hpke`` (the default with ``--alg Ed25519``) gives agent-b a CA-signed X25519
+key and seals every delivery to it, so the task canary must not appear in *any* captured
+bytes, not even for the successful handoff. ``--delivery plaintext`` (the default with the
+stdlib-only ``HS256``) has **no confidentiality**: the successful delivery carries the text
+in clear, and the output says so.
 """
 
 from __future__ import annotations
@@ -23,8 +29,8 @@ from .core import canonical
 from .peer import (DELIVERY_PATH, HandoffAborted, HttpTransport, PeerClient, RecordingTransport,
                    TRACE_FIELDS)
 from .peer_http import make_peer_server
-from .trust import (ED25519, HS256, TrustStore, ed25519_available, generate_key, issue_card,
-                    issue_grant, issue_revocation)
+from .trust import (ED25519, HS256, HpkeKey, TrustStore, ed25519_available, generate_key,
+                    hpke_available, issue_card, issue_grant, issue_revocation)
 
 TASK_CANARY = "CANARY-TASK-demo-5a7b"
 PROVIDER_CANARY = "CANARY-PROVIDER-TOKEN-demo-not-real"
@@ -47,9 +53,16 @@ class _Static:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Authenticated pre-disclosure handoff demo (NOT A2A)")
     parser.add_argument("--alg", choices=[HS256, ED25519], default=HS256)
-    alg = parser.parse_args().alg
+    parser.add_argument("--delivery", choices=["auto", "plaintext", "hpke"], default="auto",
+                        help="auto: hpke with Ed25519, plaintext (no confidentiality) with HS256")
+    options = parser.parse_args()
+    alg = options.alg
+    delivery = options.delivery if options.delivery != "auto" else ("hpke" if alg == ED25519 else "plaintext")
     if alg == ED25519 and not ed25519_available():
         raise SystemExit("Ed25519 needs the optional extra: pip install -e '.[ed25519]'")
+    if delivery == "hpke" and not hpke_available():
+        raise SystemExit("HPKE delivery needs the optional extra: pip install -e '.[hpke]'")
+    enc_b = HpkeKey.generate("agent-b-enc") if delivery == "hpke" else None
     now = int(time.time())
     ca, users = generate_key(alg, "test-ca"), generate_key(alg, "user-authority")
     keys = {n: generate_key(alg, f"{n}-key") for n in ("agent-a", "agent-b", "agent-c")}
@@ -59,8 +72,8 @@ def main() -> None:
     b_url = f"http://127.0.0.1:{_free_port()}"
     cards = {"agent-a": issue_card(ca, agent_id="agent-a", endpoint_url="local://agent-a",
                                    capabilities=["word_count"], agent_key=keys["agent-a"], **window),
-             "agent-b": issue_card(ca, agent_id="agent-b", endpoint_url=b_url,
-                                   capabilities=["word_count"], agent_key=keys["agent-b"], **window),
+             "agent-b": issue_card(ca, agent_id="agent-b", endpoint_url=b_url, capabilities=["word_count"],
+                                   agent_key=keys["agent-b"], enc_key=enc_b, **window),
              "agent-c": issue_card(ca, agent_id="agent-c", endpoint_url="local://agent-c",
                                    capabilities=["word_count"], agent_key=keys["agent-c"], **window)}
 
@@ -73,8 +86,11 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="agent-movement-peer-") as root:
         db = Path(root) / "receiver.sqlite"
         config = Path(root) / "receiver.json"
-        config.write_text(canonical({"card": cards["agent-b"], "key": keys["agent-b"].export(),
-                                     "trust": trust.export(), "capabilities": ["word_count"], "db": str(db)}))
+        provisioning = {"card": cards["agent-b"], "key": keys["agent-b"].export(),
+                        "trust": trust.export(), "capabilities": ["word_count"], "db": str(db)}
+        if enc_b is not None:
+            provisioning["enc_key"] = enc_b.export()
+        config.write_text(canonical(provisioning))
         os.chmod(config, 0o600)
         process = subprocess.Popen([sys.executable, "-m", "agent_movement.peer_http", "--config", str(config)],
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -93,7 +109,8 @@ def main() -> None:
                 wire = RecordingTransport(HttpTransport(), on_request=before)
                 extra = {"schema_version": schema} if schema else {}
                 client = PeerClient(cards[agent], key or keys[agent], trust, wire,
-                                    never_send=[PROVIDER_CANARY], **extra)
+                                    never_send=[PROVIDER_CANARY],
+                                    require_confidentiality=delivery == "hpke", **extra)
                 outcome = {"scenario": name}
                 try:
                     receipt = client.handoff(url=url, destination_id="agent-b", movement_id=f"mv-{name}",
@@ -143,7 +160,9 @@ def main() -> None:
         traces = [dict(zip(TRACE_FIELDS, row)) for row in rows]
         stored = b"".join(p.read_bytes() for p in Path(root).iterdir() if p.name.startswith("receiver.sqlite"))
 
-    print(json.dumps({"alg": alg, "scenarios": results, "receiver_sanitized_trace": traces,
+    confidentiality = "hpke" if delivery == "hpke" else "none (plaintext delivery, no confidentiality)"
+    print(json.dumps({"alg": alg, "delivery_confidentiality": confidentiality, "scenarios": results,
+                      "receiver_sanitized_trace": traces,
                       "task_canary_in_receiver_db": TASK_CANARY.encode() in stored}, indent=2))
     expected_completed = {"success"}
     in_flight = {"revoked-in-flight"}  # documented window: payload sent, then refused
@@ -152,6 +171,8 @@ def main() -> None:
             raise SystemExit(f"unexpected outcome: {r}")
         if r["provider_canary_on_wire"]:
             raise SystemExit(f"provider credential leaked: {r['scenario']}")
+        if delivery == "hpke" and r["task_canary_on_wire"]:
+            raise SystemExit(f"task text visible on the wire despite HPKE delivery: {r['scenario']}")
         if r["result"] == "denied" and r["scenario"] not in in_flight and (
                 r["payload_sent"] or r["delivery_requests"] or r["task_canary_on_wire"]):
             raise SystemExit(f"task content disclosed before denial: {r['scenario']}")
