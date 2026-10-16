@@ -61,17 +61,22 @@ The core needs Python 3.11+ and only the standard library. Each optional extra a
 
 ```sh
 python -m pip install -e . pytest                     # core only
-python -m agent_movement.demo                         # handoff, replay, denial, stale-epoch fencing
-python -m agent_movement.peer_demo                    # authenticated peer handoff (HS256, plaintext: no confidentiality)
+agent-movement demo                                   # handoff, replay, denial, stale-epoch fencing
+agent-movement peer-demo                              # authenticated peer handoff (HS256, plaintext: no confidentiality)
+agent-movement bench verify --suite v0.1              # MobilityBench v0.1 fixture digests
 python -m pytest -q                                   # all tests: agent_movement + corpus tooling
 
 python -m pip install -e '.[a2a,ed25519,hpke,relocation,signing]'   # every optional extra
-python -m agent_movement.a2a_demo                     # A2A v1 delegation via the official a2a-sdk
-python -m agent_movement.peer_demo --alg Ed25519      # asymmetric peer keys, HPKE-sealed delivery
-python -m agent_movement.relocation_demo              # LangGraph checkpoint relocation fault matrix
-python -m agent_movement.relocation_demo --two-store  # same, checkpoint copied into Worker B's own store
-python -m agent_movement.receipts verify tests/fixtures/movement-receipts/01-valid-delegation --trust tests/fixtures/movement-receipts/trust.json --now 2026-10-16T00:00:00Z
+agent-movement version                                # package version and installed extras
+agent-movement a2a-demo                               # A2A v1 delegation via the official a2a-sdk
+agent-movement peer-demo --alg Ed25519                # asymmetric peer keys, HPKE-sealed delivery
+agent-movement relocate                               # LangGraph checkpoint relocation fault matrix
+agent-movement relocate --two-store                   # same, checkpoint copied into Worker B's own store
+agent-movement receipts verify tests/fixtures/movement-receipts/01-valid-delegation \
+    --trust tests/fixtures/movement-receipts/trust.json --now 2026-10-16T00:00:00Z
 ```
+
+Each `agent-movement` subcommand forwards its arguments unchanged to an existing module, so `python -m agent_movement.demo`, `python -m agent_movement.mobilitybench` and the others still work. A subcommand whose optional extra is missing prints the install command and exits 2. Every subcommand and flag is listed in the [CLI reference](docs/cli.md), which a test checks against the live `--help` output.
 
 The core demo outputs a completed task, an idempotent replay, a denied unapproved request, and a rejected stale epoch. On 2026-10-16, `python -m pytest -q` gave **351 passed, 1 skipped** with every extra installed (CPython 3.11 and 3.13) and **276 passed, 76 skipped** with the core only (CPython 3.13 and 3.15); the skipped tests are the ones that need a missing extra. CI runs both configurations ([`python-smoke.yml`](.github/workflows/python-smoke.yml)). No model credentials, live external tool effects, private data or public endpoints are required.
 
@@ -110,6 +115,7 @@ Further research notes:
 Experimental code (synthetic, local, not production):
 
 - [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md)
+- [`agent-movement` CLI reference: every subcommand, flag, optional extra and exit code](docs/cli.md)
 - [Language and SDK strategy (public proposal; Python-first, with what is implemented so far)](docs/language-and-sdk-strategy.md)
 - [Optional A2A v1 adapter on the official SDK: delegation, not migration; experimental, unauthenticated](docs/a2a-adapter.md)
 - [A2A profile extension spec: the resolvable extension URI, envelope ↔ A2A field mapping, error codes and the server-generated contextId policy](docs/a2a-profile-extension.md)
@@ -123,13 +129,13 @@ The [human-impact research lab protocol](docs/human-impact-research-lab.md) maps
 
 ~~~sh
 python -m pip install -e . pytest
-python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
+agent-movement bench smoke --output mobilitybench-local.jsonl   # = python -m agent_movement.mobilitybench --output ...
 python -m pytest -q          # all tests: agent_movement + corpus tooling
 ~~~
 
 The local smoke suite models 20 cases. Each case declares its expected verdict in a packaged fixture and runs in its own temporary database, and `--no-timing` makes two runs byte-identical. On 2026-10-16, **17 cases reproduced their expected narrow behavior and 3 reproduced known gaps, which are not security successes.** The three gap cases attack the core path: a forged origin claim, an effect commit after revocation, and a forged unsigned receipt. The peer-authentication and signed-receipt modules close them on separate paths only. This is not A2A, trusted peer identity, portable live state or a production system. See the experiment protocol for limits and next steps.
 
-[MobilityBench v0.1](docs/mobilitybench-v0.1.md) extends this with 18 frozen, digest-verified synthetic tasks across three workload families: document work, constrained coding and simulated tools. It compares keep-on-origin, restart-on-destination and the PR #6 local delegate under seeded faults. With the optional extras installed (`pip install -e '.[a2a,relocation]'`) it also scores delegation over the official A2A v1 SDK and same-runtime checkpoint relocation; without them those two modes are explicit **unavailable** records. Cross-framework reconstruction is always reported as unavailable. Run it with `python -m agent_movement.mobilitybench run --suite v0.1 --out results.jsonl`, then `report --in results.jsonl`. The suite is deterministic and LLM-free, so it supports no general statistical claims.
+[MobilityBench v0.1](docs/mobilitybench-v0.1.md) extends this with 18 frozen, digest-verified synthetic tasks across three workload families: document work, constrained coding and simulated tools. It compares keep-on-origin, restart-on-destination and the PR #6 local delegate under seeded faults. With the optional extras installed (`pip install -e '.[a2a,relocation]'`) it also scores delegation over the official A2A v1 SDK and same-runtime checkpoint relocation; without them those two modes are explicit **unavailable** records. Cross-framework reconstruction is always reported as unavailable. Run it with `agent-movement bench run --suite v0.1 --out results.jsonl`, then `agent-movement bench report --in results.jsonl` (or the same subcommands of `python -m agent_movement.mobilitybench`). The suite is deterministic and LLM-free, so it supports no general statistical claims.
 
 ## Recommended initial experiment
 

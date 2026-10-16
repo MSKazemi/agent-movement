@@ -9,6 +9,10 @@ description = "Experimental, synthetic agent-movement testbed: local task handof
 # CPython 3.10 reached end of life on 2026-10-01.
 requires-python = ">=3.11"
 
+[project.scripts]
+# Unified CLI; each subcommand forwards to an existing `python -m agent_movement.<module>` entry point.
+agent-movement = "agent_movement.cli:main"
+
 [project.optional-dependencies]
 # Optional A2A v1 adapter (src/agent_movement/a2a_*.py). The core stays dependency-free.
 # a2a-sdk is pinned exactly to the release the integration tests were run against.
