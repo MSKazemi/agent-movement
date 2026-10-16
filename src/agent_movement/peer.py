@@ -61,6 +61,14 @@ TRACE_FIELDS = ("seq", "at", "stage", "outcome", "reason", "movement_id", "peer"
 _NONCE = re.compile(r"[A-Za-z0-9_-]{22,64}\Z")
 _HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 _ADMISSION = re.compile(r"adm-[0-9a-f]{32}\Z")
+# What makes a second preflight a retry of an admitted movement rather than a new one.
+# The commitment, nonce and digests differ on every attempt (fresh salt and nonce).
+MOVEMENT_BINDING = ("origin_id", "logical_task_id", "grant_id", "kind", "classification",
+                    "idempotency_key", "trace_id")
+_GRANT_USES_TABLE = """CREATE TABLE grant_uses (
+    grant_id TEXT NOT NULL, movement_id TEXT NOT NULL, origin_id TEXT NOT NULL,
+    use_number INTEGER NOT NULL CHECK (use_number >= 1), max_uses INTEGER NOT NULL,
+    at INTEGER NOT NULL, PRIMARY KEY (grant_id, movement_id), UNIQUE (grant_id, use_number))"""
 
 
 class HandoffAborted(PolicyDenied):
@@ -78,8 +86,14 @@ def _now(clock: Callable[[], float]) -> int:
 # ------------------------------------------------------------------- ledger
 
 
+def _binding(record: dict[str, Any]) -> tuple[Any, ...]:
+    values = {**record, "grant_id": record["grant"]["payload"]["grant_id"]}
+    return tuple(values[name] for name in MOVEMENT_BINDING)
+
+
 class PeerLedger:
-    """Receiver-side nonces, admissions, revocations, authorized effects and sanitized traces.
+    """Receiver-side nonces, admissions, grant uses, revocations, authorized effects and
+    sanitized traces.
 
     Lives in the same SQLite file as ``SQLiteStore``. Stores IDs, reason codes and digests
     of metadata only -- never task text, salts, signatures or key material.
@@ -109,6 +123,65 @@ class PeerLedger:
                     outcome TEXT NOT NULL, reason TEXT NOT NULL, movement_id TEXT, peer TEXT,
                     claimed_peer TEXT, admission_id TEXT);
             """)
+        self._ensure_grant_uses()
+
+    def _ensure_grant_uses(self) -> None:
+        """Create ``grant_uses`` (issue #29), backfilled from existing admissions.
+
+        A ledger written before use counting holds admissions but no use rows. Each of those
+        admissions counts as one use of its grant, so upgrading never hands a grant extra
+        uses. Creation and backfill share one write transaction; concurrent openers re-check
+        under the lock.
+        """
+        exists = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='grant_uses'"
+        with self.store._connection() as db:
+            if db.execute(exists).fetchone():
+                return
+            db.execute("BEGIN IMMEDIATE")
+            if db.execute(exists).fetchone():
+                db.commit()
+                return
+            db.execute(_GRANT_USES_TABLE)
+            used: dict[str, int] = {}
+            for (raw,) in db.execute("SELECT record_json FROM peer_admissions ORDER BY rowid").fetchall():
+                record = json.loads(raw)
+                payload = record["grant"]["payload"]
+                grant_id = payload["grant_id"]
+                used[grant_id] = used.get(grant_id, 0) + 1
+                db.execute("INSERT INTO grant_uses VALUES(?,?,?,?,?,?)",
+                           (grant_id, record["movement_id"], record["origin_id"], used[grant_id],
+                            payload.get("max_uses", 1), record["expires_at"]))
+            db.commit()
+
+    @staticmethod
+    def consume_use(db: sqlite3.Connection, grant: dict[str, Any], movement_id: str,
+                    origin_id: str, at: int) -> bool:
+        """Count one use of ``grant`` for ``movement_id``. Call inside the write transaction
+        that records the admission, so the count and the admission commit or roll back
+        together and concurrent preflights serialize on the lock.
+
+        True: a new use was recorded. False: this movement already holds a use of this grant
+        (a retry), so nothing is consumed. Raises ``Unauthorized("grant_uses_exhausted")``
+        when ``max_uses`` distinct movements were already admitted.
+        """
+        grant_id = grant["grant_id"]
+        if db.execute("SELECT 1 FROM grant_uses WHERE grant_id=? AND movement_id=?",
+                      (grant_id, movement_id)).fetchone():
+            return False
+        used = db.execute("SELECT COUNT(*) FROM grant_uses WHERE grant_id=?", (grant_id,)).fetchone()[0]
+        if used >= grant["max_uses"]:
+            raise Unauthorized("grant_uses_exhausted")
+        db.execute("INSERT INTO grant_uses VALUES(?,?,?,?,?,?)",
+                   (grant_id, movement_id, origin_id, used + 1, grant["max_uses"], at))
+        return True
+
+    def grant_uses(self, grant_id: str | None = None) -> list[dict[str, Any]]:
+        names = ("grant_id", "movement_id", "origin_id", "use_number", "max_uses")
+        query = f"SELECT {','.join(names)} FROM grant_uses"
+        with self.store._connection() as db:
+            rows = (db.execute(query + " ORDER BY grant_id, use_number").fetchall() if grant_id is None
+                    else db.execute(query + " WHERE grant_id=? ORDER BY use_number", (grant_id,)).fetchall())
+        return [dict(zip(names, row)) for row in rows]
 
     @staticmethod
     def is_revoked(db: sqlite3.Connection, grant_id: str) -> bool:
@@ -337,6 +410,8 @@ class PeerReceiver:
                   "idempotency_key": execution["idempotency_key"], "trace_id": trace["trace_id"],
                   "client_nonce": p["client_nonce"], "preflight_digest": digest(sealed),
                   "expires_at": expires_at}
+        # One write transaction: liveness/revocation, nonce, grant use and admission commit
+        # together or not at all, and concurrent preflights for the same grant serialize.
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             check_grant_live(grant, now=now, revoked=self.ledger.is_revoked(db, grant["grant_id"]))
@@ -345,18 +420,26 @@ class PeerReceiver:
                 db.execute("INSERT INTO peer_nonces VALUES(?,?,?)", (origin.agent_id, p["client_nonce"], now))
             except sqlite3.IntegrityError as exc:
                 raise Conflict("replayed preflight nonce") from exc
-            try:
+            previous = db.execute("SELECT record_json FROM peer_admissions WHERE movement_id=?",
+                                  (movement_id,)).fetchone()
+            if previous is not None and _binding(json.loads(previous[0])) != _binding(record):
+                raise Conflict("movement ID already admitted")
+            self.ledger.consume_use(db, grant, movement_id, origin.agent_id, now)
+            if previous is None:
                 db.execute("INSERT INTO peer_admissions VALUES(?,?,?,?)",
                            (admission_id, movement_id, canonical(record), expires_at))
-            except sqlite3.IntegrityError as exc:
-                raise Conflict("movement ID already admitted") from exc
+            else:
+                # A retry of an admitted movement (e.g. the admission reply was lost): the new
+                # admission supersedes the old one and consumes no further grant use.
+                db.execute("UPDATE peer_admissions SET admission_id=?, record_json=?, expires_at=? "
+                           "WHERE movement_id=?", (admission_id, canonical(record), expires_at, movement_id))
             db.commit()
         ctx.admission_id = admission_id
         admission = {"type": "admission", "admission_id": admission_id, "movement_id": movement_id,
                      "destination": {"agent_id": self.agent_id, "endpoint": self.endpoint},
                      "client_nonce": p["client_nonce"], "preflight_digest": record["preflight_digest"],
                      "expires_at": expires_at}
-        return 200, seal("admission", admission, self.key), "admitted"
+        return 200, seal("admission", admission, self.key), "admitted" if previous is None else "readmitted"
 
     def delivery_info(self, record: dict[str, Any], admission_id: str) -> bytes:
         """The HPKE ``info`` for an admitted movement, rebuilt from receiver-side state only."""
@@ -437,7 +520,8 @@ class PeerReceiver:
             "authority": {"approval_ref": grant["grant_id"]},
             "execution": {"idempotency_key": record["idempotency_key"]},
             "observability": {"trace_id": record["trace_id"]}})
-        receipt = self.store.receive(envelope)  # pure, idempotent computation
+        # Pure, idempotent computation; the key is scoped to the *authenticated* origin.
+        receipt = self.store.receive(envelope, sender=origin.agent_id)
         if self.before_effect_commit is not None:
             self.before_effect_commit(record)  # test seam: inject races here
         try:

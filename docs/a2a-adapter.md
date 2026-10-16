@@ -16,7 +16,7 @@ The core package keeps zero runtime dependencies. The adapter is an opt-in extra
 
 ~~~sh
 python -m pip install -e '.[a2a]'            # or: uv venv .venv && uv pip install -e '.[a2a]'
-python -m pytest -q                           # without the extra, the 21 adapter tests skip
+python -m pytest -q                           # without the extra, the 33 A2A tests skip
 python -m agent_movement.a2a_demo             # exit 0 only if every check below passes
 ~~~
 
@@ -37,6 +37,9 @@ contextId options. By default the client sends no `contextId`, and the server ge
 | `a2a-sdk[http-server]` | **==1.2.2** (exact pin) | Latest release on PyPI on 2026-10-16, uploaded 2026-10-05 (<https://pypi.org/pypi/a2a-sdk/json>) |
 | `uvicorn` | >=0.54 (0.54.0 tested) | Latest on PyPI on 2026-10-16. The ASGI server is not included in `a2a-sdk[http-server]` |
 | Transitively resolved | starlette 1.8.0, sse-starlette 3.5.0, httpx 0.28.1, protobuf 7.36.2, pydantic 2.14.1 | `uv pip install -e '.[a2a]'` |
+| `@a2a-js/sdk` (interop client only) | **1.3.0** (exact pin, `interop/js/package-lock.json`; jose 6.2.12 transitively) | Latest on npm on 2026-10-16, published 2026-09-29 (<https://www.npmjs.com/package/@a2a-js/sdk>). Node.js 24.21.0 locally, `node-version: "24"` in CI |
+| A2A TCK | `a2aproject/a2a-tck` main @ `263b9cf` (2026-09-01; package version 1.0.0; vendors A2A spec v1.0.0 @ `1736957`) | No GitHub release exists. The newest tag, `1.0.0.alpha2` (2026-05-27), predates the TCK's redirect fix (a2a-tck PR #230), see [Conformance](#conformance-official-a2a-tck-and-inspector) |
+| A2A Inspector | `a2aproject/a2a-inspector` main @ `8aa0646` (2026-08-08) | The only tag, `v0.1.0`, is from 2025 and targets A2A v0.3 |
 
 Results recorded on 2026-10-16 (Linux x86_64):
 
@@ -48,7 +51,7 @@ Results recorded on 2026-10-16 (Linux x86_64):
 
 The table records the adapter branch before integration, run with `unittest`. On the integrated tree the suite runs with `python -m pytest -q`, because `tests/` also holds the pytest-style corpus tests.
 
-CI: `.github/workflows/python-smoke.yml` has a core-only job (no extras; the adapter tests skip and `a2a_demo` must exit 2) and an `extras` job on 3.11 and 3.13. The extras job installs every optional extra, prints the resolved versions, runs the full suite and runs this demo.
+CI: `.github/workflows/python-smoke.yml` has a core-only job (no extras; the A2A tests skip and `a2a_demo` must exit 2) and an `extras` job on 3.11 and 3.13. The extras job installs every optional extra, prints the resolved versions, runs the full suite and runs this demo. The cross-SDK and conformance checks run in a separate, optional workflow, `.github/workflows/a2a-interop.yml` (see [below](#interop-and-conformance-run-locally)).
 
 ## Architecture
 
@@ -67,13 +70,14 @@ origin process (agent_movement.a2a_client)              destination process (age
   get_task(id) for the final state                         SQLite: deliveries, audit_events, a2a_correlations
 ```
 
-Modules: `a2a_profile.py` (stdlib only: mapping, receipt verification, correlation log), `a2a_server.py`, `a2a_client.py`, `a2a_demo.py` (stdlib-only orchestrator). `core.py` is unchanged.
+Modules: `a2a_profile.py` (stdlib only: mapping, receipt verification, correlation log), `a2a_server.py`, `a2a_client.py`, `a2a_demo.py` (stdlib-only orchestrator). `core.py` is unchanged. Outside the package: `interop/js/` (the `@a2a-js/sdk` interop client) and `interop/conformance/` (TCK and Inspector smoke); see [Conformance](#conformance-official-a2a-tck-and-inspector) and [Cross-SDK interop](#cross-sdk-interop-a2a-jssdk-client).
 
 ## Capability advertisement (Agent Card)
 
 The destination worker serves an A2A v1 Agent Card at `/.well-known/agent-card.json` with:
 
-- `supportedInterfaces`: `JSONRPC` at `/a2a/jsonrpc` and `HTTP+JSON` at `/a2a/rest`, both `protocolVersion: "1.0"`.
+- `supportedInterfaces`: `JSONRPC` at `/a2a/jsonrpc` and `HTTP+JSON` at `/a2a/rest`, both `protocolVersion: "1.0"`. The HTTP+JSON routes are mounted under `/a2a/rest`, so the optional tenant segment follows the interface URL (`/a2a/rest/{tenant}/message:send`, as in the A2A v1.0 `a2a.proto` HTTP bindings), and `POST /a2a/jsonrpc/` gets a 307 redirect to `/a2a/jsonrpc`.
+- Caching (A2A v1.0 §8.6.1): the card response carries `Cache-Control: public, max-age=60` and a content-hash `ETag` from the SDK; `If-None-Match` gets a 304. There is no `Last-Modified` (a MAY).
 - `capabilities`: `streaming: true`, `pushNotifications: false`, `extendedAgentCard: false`, and two extension entries:
   - The profile, at its resolvable URI `https://github.com/MSKazemi/agent-movement/blob/main/docs/a2a-profile-extension.md`, marked `required: true`. Its `params` declare `profile_version`, the schema version, `operations: ["delegate"]`, the destination ID, `context_id: "server-generated"`, `client_context_id` (`"rejected"` by default, `"bound-to-logical-task-id"` with `--accept-client-context-id`), `deprecated_aliases`, `proves: "delegation-not-migration"` and `authentication: "none-experimental"`. The schema of these params is in [the extension spec §3](a2a-profile-extension.md#3-agent-card-declaration).
   - The deprecated alias `urn:agent-movement:a2a-handoff-profile:0.1.0-draft`, marked `required: false` with `params.deprecated: true` and `replaced_by`. It is listed so that profile 0.1 clients, which look for the URN on the card, keep working for one profile version.
@@ -108,11 +112,16 @@ Protobuf `Value` turns every JSON number into a double (`5` arrives as `5.0`). `
 
 Admission runs in `HandoffRequestHandler._admit` **before the SDK creates a task**. Only `core.HandoffReceiver.receive` executes anything, and it runs only the two pure functions `word_count` and `sha256`. There is no tool, shell, network or file access.
 
+Admission order: first the two core-spec checks whose errors A2A v1.0 fixes for any agent (a stated part media type the card does not declare; a `taskId`), then the required-extension check, then the profile shape, then the advertised skill. The first two were added after the [TCK run](#conformance-official-a2a-tck-and-inspector) showed that the profile's `InvalidParamsError` masked them.
+
 | Case | Where | A2A result |
 |---|---|---|
+| A part states a `mediaType` that neither `defaultInputModes` nor any skill's `inputModes` declares | server (SDK `validate_input_modes`) | `ContentTypeNotSupportedError`, `-32005` (§3.1.1); HTTP+JSON 400 in `a2a-sdk` 1.2.2 |
+| `taskId` names no existing task | server | `TaskNotFoundError`, `-32001`, HTTP+JSON 404 (§3.4.2: MUST) |
+| `taskId` names an existing task (every handoff task is already terminal) | server | `UnsupportedOperationError`, `-32004` (§3.1.1: messages to terminal tasks); no continuation |
 | Client did not activate the required profile extension | server | `ExtensionSupportRequiredError`, JSON-RPC `-32008`. The spec says this is a MUST (§3.3.4) |
 | `A2A-Version: 0.3`, or the header is missing (read as 0.3 per §3.6.2) | SDK | `VersionNotSupportedError`, `-32009` |
-| Unknown schema version, unknown task kind, `operation: relocate`, extra or missing fields, smuggled `provider_state`, extra metadata namespace, plain-text part, more than one part, digest mismatch, a profile URI that is foreign, duplicated or not the activated one | server | `InvalidParamsError`, `-32602`; no task is created |
+| Unknown schema version, unknown task kind, `operation: relocate`, extra or missing fields, smuggled `provider_state`, extra metadata namespace, plain-text part (no `mediaType`), more than one part, digest mismatch, `referenceTaskIds`, a profile URI that is foreign, duplicated or not the activated one | server | `InvalidParamsError`, `-32602`; no task is created |
 | Client-supplied `contextId` on a server that did not opt in, or one that differs from `logical_task_id` | server | `InvalidParamsError`, `-32602`; no task is created (A2A v1.0 §3.4.1: an agent that cannot accept it MUST reject the request) |
 | Client wants to send a `contextId`, but the card advertises `client_context_id: "rejected"` | client | `CapabilityMismatch`; nothing is sent |
 | Kind is valid in the schema but not advertised by this worker (e.g. `sha256` when only `word_count` is enabled) | server | `UnsupportedOperationError`, `-32004`; no task is created |
@@ -176,10 +185,91 @@ Command: `python -m agent_movement.a2a_demo` (exit 0). UUIDs differ per run. The
 "failures": []
 ~~~
 
+## Conformance: official A2A TCK and Inspector
+
+Run on 2026-10-16 (Linux x86_64, CPython 3.13.15) against `python -m agent_movement.a2a_server --db <tmp> --port 0`, the CLI defaults, which advertise only `agent-movement.word_count`. Tool versions are in the [pin table](#version-pins-and-test-matrix). The TCK was run in its own virtual environment.
+
+~~~sh
+./run_tck.py --sut-host http://127.0.0.1:<port>      # inside the a2a-tck checkout; all transports in the card
+~~~
+
+The TCK reads `supportedInterfaces` and tests `JSONRPC` and `HTTP+JSON`. Its 72 gRPC tests skip because this agent offers no gRPC interface. Results per TCK requirement (`reports/compatibility.json`, 129 requirements):
+
+| Server | PASS | FAIL | SKIPPED | NOT TESTED | pytest summary | TCK "overall" |
+|---|---|---|---|---|---|---|
+| Before this change (`main` @ `e5f8ae8`) | 26 | 44 | 21 | 38 | 45 passed, 76 failed, 134 skipped, 4 xfailed, 6 errors | 24.1% |
+| After the fixes below | **35** | **17** | 41 | 36 | 74 passed, 24 failed, 161 skipped, 6 xfailed | 39.8% |
+| After the fixes, TCK with a2a-tck PR #197 applied (activates required extensions) | 35 | 17 | 41 | 36 | same counts. The 12 D1 failures sent through the TCK transport clients become D2 failures. DM-SERIAL-005 and the D3 tests use raw requests without the header and stay as they were | 39.8% |
+
+All 17 remaining failures are the known deviations D1–D5 below. Each one is recorded in [`interop/conformance/tck-expected.json`](../interop/conformance/tck-expected.json). The "overall" percentage counts every skipped and untested requirement against the agent, so it is not a conformance score for a single-purpose, profile-only agent. The newest TCK tag, `1.0.0.alpha2`, could not test the JSON-RPC binding at all (74 failed, mostly JSON decode errors): its harness POSTs to `<interface url>/` and, before a2a-tck PR #230, did not follow the 307 redirect. That is why `main` is pinned.
+
+**Fixed here (real non-conformances found by the TCK).** Each fix has a regression test in `tests/test_a2a_conformance.py`, and each test fails on the previous server.
+
+| TCK finding | Spec | Cause | Fix |
+|---|---|---|---|
+| Every JSON-RPC test failed with a JSON decode error: `POST /a2a/jsonrpc/` returned a plain-text 404 instead of Starlette's 307 to `/a2a/jsonrpc` | A2A v1.0 `a2a.proto` HTTP bindings put the tenant **after** the interface URL | With `path_prefix`, `a2a-sdk` 1.2.2's `create_rest_routes` also adds a root-level `Mount('/{tenant}')`. It put the tenant segment before the interface URL (`/{tenant}/a2a/rest/...`) and captured every two-segment path, including `/a2a/jsonrpc/` | Mount the HTTP+JSON routes under `/a2a/rest` instead (`/a2a/rest/{tenant}/...`). The advertised URLs are unchanged |
+| CORE-MULTI-004: a message with an unknown `taskId` got `-32602` / 400 | §3.4.2: "Agents MUST return a `TaskNotFoundError`" | The profile check refused every `taskId` as "no continuation" | Look the task up first: unknown → `TaskNotFoundError` (`-32001`, 404); known → `UnsupportedOperationError` (`-32004`, §3.1.1 messages to terminal tasks) |
+| CORE-SEND-003: a part with `mediaType: application/x-unsupported-tck-type` got `-32602` | §3.1.1: a media type the agent does not support gives `ContentTypeNotSupportedError` | The profile check ran before the SDK's input-mode check | Run the SDK's `validate_input_modes` first: `-32005` (the TCK still marks the requirement failed; see D4) |
+| CARD-CACHE-001: no `Cache-Control` on the Agent Card | §8.6.1: SHOULD include `Cache-Control` with `max-age` | Not configured | `create_agent_card_routes(card, cache_control="public, max-age=60")`; the SDK already sent an `ETag` |
+
+**Known deviations (intentional, or upstream).**
+
+| ID | Requirements (transports) | Why | Spec reference |
+|---|---|---|---|
+| D1 | CORE-SEND-001, CORE-STREAM-001/002/003, CORE-EXECUTION-MODE-001/002, CORE-MULTI-001/001a/002/002a/003, JSONRPC-FMT-001, DM-SERIAL-005 (JSON-RPC and HTTP+JSON) | The handoff profile is a **required** extension. The TCK at this commit sends no `A2A-Extensions` header for required card extensions (a2a-tck PR #197, open), so every positive-path message gets `ExtensionSupportRequiredError` (`-32008` / 400). This is the behaviour the spec demands, not a defect | A2A v1.0 §3.3.4 (MUST return `ExtensionSupportRequiredError`), §4.4.4 `AgentExtension.required`; [profile §4](a2a-profile-extension.md#4-request-envelope--a2a-message) |
+| D2 | The same requirements, when the extension is activated (PR #197 applied) | The TCK's messages are plain text or TCK scenario prompts, not handoff messages. The profile refuses them with `InvalidParamsError` (`-32602`) **before any task exists**, by design: no arbitrary input is executed. Therefore every TCK test that first needs a task it created (cancel, get, history, subscribe, stream ordering, multi-turn) is **SKIPPED**, and this agent's task lifecycle is not TCK-verified | [Profile §4 and §7](a2a-profile-extension.md#7-errors); A2A v1.0 §3.1.1 lets an agent refuse a message with an error |
+| D3 | HTTP_JSON-STATUS-001 (HTTP+JSON), JSONRPC-SSE-002 (JSON-RPC) | These send a deliberately wrong HTTP `Content-Type` header and expect `ContentTypeNotSupportedError` and HTTP 415. Here D1 answers first. Even with the extension activated, `a2a-sdk` 1.2.2 does not check the request `Content-Type` header, and it maps `ContentTypeNotSupportedError` to HTTP **400**, not the 415 of the spec's mapping table. That is upstream SDK behaviour; this adapter does not override SDK framing | A2A v1.0 §5.4 (error code mappings: `-32005`, `INVALID_ARGUMENT`, 415) |
+| D4 | CORE-SEND-003 (JSON-RPC and HTTP+JSON) | The server now returns the correct `ContentTypeNotSupportedError` (`-32005`, reason `CONTENT_TYPE_NOT_SUPPORTED`). However, this TCK requirement declares no `expected_error`, so the TCK validator counts any error response as a failure. This is a TCK defect | A2A v1.0 §3.1.1 |
+| D5 | CARD-CACHE-003 (Agent Card) | No `Last-Modified` header. The card has `Cache-Control` and an `ETag` | A2A v1.0 §8.6.1 (MAY) |
+
+One ordering decision is deliberate. A message with an unknown `taskId` or an undeclared media type gets that core-spec error even when the profile extension is not activated. When both rules apply, the more specific, extension-independent error comes first. Both are MUST-level rules (§3.3.4 and §3.4.2), and the spec does not order them.
+
+**A2A Inspector.** The Inspector is an interactive web app. Its chat composes only text and file parts and never sets `Message.extensions`, so it cannot send a handoff message (D1, D2). Its validators (`backend/validators.py`, the same checks the UI shows) were therefore run headless by `interop/conformance/run_conformance.py`. The script applied them to the Agent Card and to every event of one streamed handoff, converted the way the Inspector backend converts v1.0 events (`MessageToDict` plus its `kind` field). Result: **0 validation errors** on the card and on all four events (`task` SUBMITTED, `status-update` WORKING, `artifact-update`, `status-update` COMPLETED).
+
+## Cross-SDK interop: `@a2a-js/sdk` client
+
+[`interop/js/handoff.mjs`](../interop/js/handoff.mjs) is an origin client written against the official JavaScript SDK, `@a2a-js/sdk` 1.3.0 (`ClientFactory`, `JsonRpcTransportFactory`/`RestTransportFactory`, `withA2AExtensions`). It shares no code with the Python package. It re-implements the profile from the [extension spec](a2a-profile-extension.md): the 11-key metadata allowlist, the single `data` part, sorted-key canonical JSON with SHA-256 digests, the Agent Card capability check and the receipt verification. It resolves the card, checks for the profile and the skill, sends one handoff, fetches the final task with `GetTask`, and verifies the receipt artifact against the envelope it sent.
+
+`tests/test_a2a_js_interop.py` starts the Python server as a separate process and runs the JS client against it. Results on 2026-10-16 (Node.js 24.21.0, CPython 3.13.15), 5 passed:
+
+| Case | Result |
+|---|---|
+| JSON-RPC, streaming | `TASK_STATE_COMPLETED`, observed `SUBMITTED → WORKING → COMPLETED`, receipt verified by the JS client, server-generated `contextId`. The JS `envelope_digest` equals Python's `core.digest(envelope)`, and the receiver's `a2a_correlations` row matches the JS message, task and context IDs |
+| HTTP+JSON, blocking, then an exact retry | Both `COMPLETED`. The retry is a new A2A task with `replayed: true` and the identical `artifact_digest`; the core audit shows one execution |
+| No `A2A-Extensions` header | `JsonRpcExtensionSupportRequiredError` (the server's `-32008` decoded by the JS SDK); nothing executed |
+| Unapproved handoff | `TASK_STATE_REJECTED`, no receipt |
+
+A pass therefore shows that two official SDKs, in two languages, agree on the A2A v1.0 wire format of this profile: Agent Card, both bindings, SSE streaming, task lifecycle, data parts, extension activation and error codes. It also shows that a second, independent profile implementation computes the same digests. It is still one client direction (JS client → Python server) on loopback.
+
+## Interop and conformance: run locally
+
+Both checks are optional and need network access once, to fetch the JS packages and the pinned tools.
+
+~~~sh
+# 1. Cross-SDK handoff: Node.js >= 20 and the Python [a2a] extra
+python -m pip install -e '.[a2a]' "pytest>=9.1"
+npm ci --prefix interop/js                                   # @a2a-js/sdk 1.3.0 from the lockfile
+A2A_INTEROP_REQUIRED=1 python -m pytest -q tests/test_a2a_js_interop.py   # unset: missing prerequisites skip
+
+# ...or by hand, against a running server
+python -m agent_movement.a2a_server --db /tmp/a2a.sqlite --port 0 --task-id task-1 --approval approval-1
+node interop/js/handoff.mjs --url http://127.0.0.1:<port> --envelope envelope.json [--binding HTTP+JSON] [--no-stream]
+
+# 2. Conformance smoke: the A2A TCK and the Inspector validators at the pinned commits
+interop/conformance/fetch_tools.sh .a2a-tools               # clones both; TCK venv via uv sync --frozen (or pip)
+python interop/conformance/run_conformance.py --tck .a2a-tools/a2a-tck \
+    --inspector .a2a-tools/a2a-inspector --out a2a-conformance
+~~~
+
+`run_conformance.py` starts the server, runs the TCK, and compares every requirement's status with `tck-expected.json`. It exits 1 if an expected PASS no longer passes, or if a FAIL is not a recorded deviation. A deviation that starts passing is reported as an improvement; update the expectations file then. It also exits 1 if an Inspector validator reports an error. Run against the server before this change, it reports 29 regressions, so it does detect them. Reports, the TCK log and `summary.json` are written to `--out`.
+
+In CI, `.github/workflows/a2a-interop.yml` runs both as two jobs (`js-interop` with `A2A_INTEROP_REQUIRED=1`, and `conformance`) on changes to the adapter, `interop/` or the A2A tests, and on manual dispatch. Both jobs are `continue-on-error: true`, and the workflow is not a required check. An npm, PyPI or GitHub outage, or an upstream tool problem, therefore shows up as a failed optional job and never blocks the core `python-smoke` and `corpus` workflows.
+
 ## What this does not establish
 
 - **Not migration.** No state, checkpoint or ownership moves. The `EffectGateway` fencing experiment is not wired into A2A.
 - **No authentication or transport security.** There is no TLS, signed Agent Card (`signatures`), mTLS, OAuth or OIDC. Agent IDs are claims. Approval is a local, pre-configured record (issue #8).
-- **No independent interoperability check yet.** Both ends use the same SDK and version. The tests include raw wire-level JSON-RPC requests (no SDK client) and raw Agent Card fetches. The official A2A Inspector and TCK, and a second non-Python implementation, have **not** been run against this worker.
+- **Limited interoperability evidence.** One second SDK (`@a2a-js/sdk` 1.3.0) has been tested, in one direction only: a JS client against this Python server, on loopback. No other SDK (Go, Java, .NET) has been tested, and neither has a non-Python *server* with the Python client. The gRPC binding is not offered.
+- **Partial conformance evidence.** The official TCK passes 35 of its 129 requirements, and the 17 failures are documented deviations (D1–D5). But 41 requirements are skipped and 36 are not tested. Above all, the TCK cannot exercise this agent's task lifecycle (get, cancel, subscribe, history, stream ordering), because it cannot create a task with its own messages (D2). Those behaviours come from the SDK and are covered only by this repository's tests. The TCK and the Inspector were run at unreleased `main` commits, because neither has a current release.
 - **Not durable on the A2A side.** The SDK `InMemoryTaskStore` loses A2A task records when the process restarts. The core SQLite receipts and correlation rows persist. Cancellation is unsupported, because tasks complete synchronously.
 - **Experimental profile.** The [extension spec](a2a-profile-extension.md) is published in this repository, and its URI is that document's URL on `main`. The URL resolves only once the spec is on `main`. It is not a registered or officially reviewed A2A extension, and the URI has no version segment (see the spec §2). The server does not echo activated extensions in an `A2A-Extensions` response header.

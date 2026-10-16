@@ -1,12 +1,18 @@
-"""Loopback-only demonstration transport. NOT A2A and NOT production auth."""
+"""Loopback-only demonstration transport. NOT A2A and NOT production auth.
+
+``--receipts-log FILE`` (default off) makes the receiver sign movement receipts for its
+accept/reject decisions with an ephemeral synthetic key (issue #32, ``signing`` extra).
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 
 from .core import Approval, Conflict, ContractError, HandoffReceiver, PolicyDenied, SQLiteStore, parse_json
 
@@ -15,8 +21,17 @@ class LocalServer(ThreadingHTTPServer):
     daemon_threads = True
 
 
+def _record(event: Any, *args: Any) -> None:
+    """Receipt emission must never change the HTTP outcome of a handoff."""
+    try:
+        event(*args)
+    except Exception:
+        pass
+
+
 def make_server(receiver: HandoffReceiver, port: int = 0,
-                read_timeout: float = 10.0) -> LocalServer:
+                read_timeout: float = 10.0, receipts: Any = None) -> LocalServer:
+    """``receipts`` is an optional ``live_receipts.ReceiptEmitter``; None (default) emits nothing."""
     class Handler(BaseHTTPRequestHandler):
         # Per-socket timeout: a client that declares a Content-Length and then
         # stalls must not pin a handler thread forever (TimeoutError closes it).
@@ -62,6 +77,8 @@ def make_server(receiver: HandoffReceiver, port: int = 0,
             except ContractError:
                 self.respond(400, {"error": "invalid_contract"})
             except PolicyDenied:
+                if receipts is not None:  # the envelope was valid; the receiver's policy refused it
+                    _record(receipts.rejected, message)
                 self.respond(403, {"error": "approval_denied"})
             except Conflict:
                 self.respond(409, {"error": "idempotency_conflict"})
@@ -69,6 +86,8 @@ def make_server(receiver: HandoffReceiver, port: int = 0,
                 # Never drop the connection without an answer (e.g. sqlite "database is locked").
                 self.respond(500, {"error": "internal_error"})
             else:
+                if receipts is not None:  # signed before answering, so the log is complete on return
+                    _record(receipts.accepted, message, receipt)
                 self.respond(200, receipt)
 
     # Intentionally impossible to expose on a public interface via this API.
@@ -84,13 +103,28 @@ def main() -> None:
     parser.add_argument("--task-id", default="demo-task")
     parser.add_argument("--approval", default="demo-approval")
     parser.add_argument("--kind", choices=["sha256", "word_count"], default="word_count")
+    parser.add_argument("--receipts-log", type=Path, metavar="FILE",
+                        help="opt in: sign accept/reject receipts with an ephemeral synthetic key and append "
+                             "them to FILE; the public key is advertised on stdout (needs the 'signing' extra)")
     options = parser.parse_args()
     approval = Approval(options.approval, options.task_id, options.origin_id,
                         options.receiver_id, options.kind,
                         expires_at=datetime.now(timezone.utc) + timedelta(minutes=10))
+    receipts = None
+    if options.receipts_log is not None:
+        from .live_receipts import ReceiptEmitter
+        from .receipts import ReceiptError
+        try:
+            receipts = ReceiptEmitter(options.receipts_log, name=options.receiver_id)
+        except ReceiptError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            raise SystemExit(2) from exc
     receiver = HandoffReceiver(options.receiver_id, SQLiteStore(options.db), [approval])
-    server = make_server(receiver, options.port)
-    print(json.dumps({"port": server.server_port, "agent": options.receiver_id}), flush=True)
+    server = make_server(receiver, options.port, receipts=receipts)
+    advertised: dict[str, Any] = {"port": server.server_port, "agent": options.receiver_id}
+    if receipts is not None:
+        advertised["receipt_key"] = receipts.descriptor()  # public half only
+    print(json.dumps(advertised), flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

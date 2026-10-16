@@ -33,7 +33,9 @@ OWNED = sorted([*(p for p in FIXTURES.rglob("*") if p.is_file()),
                 ROOT / "src" / "agent_movement" / "receipts.py",
                 ROOT / "src" / "agent_movement" / "receipt_fixtures.py",
                 ROOT / "src" / "agent_movement" / "jcs.py",
+                ROOT / "src" / "agent_movement" / "live_receipts.py",
                 ROOT / "tests" / "test_movement_receipts.py",
+                ROOT / "tests" / "test_live_receipts.py",
                 Path(__file__).resolve(),
                 ROOT / "docs" / "movement-receipts.md"])
 

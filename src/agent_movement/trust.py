@@ -599,31 +599,51 @@ def verify_card(sealed: Any, trust: TrustStore, now: int) -> VerifiedCard:
 # ----------------------------------------------------------------------- grants
 
 GRANT_FIELDS = {"type", "grant_id", "issuer", "subject", "actor", "audience", "task_id",
-                "capabilities", "classification", "not_before", "expires_at"}
+                "capabilities", "classification", "not_before", "expires_at", "max_uses"}
+# Grants signed before issue #29 carry no ``max_uses``; they verify as single-use (the default
+# and the most restrictive value). The field cannot be stripped: the signature covers it.
+LEGACY_GRANT_FIELDS = GRANT_FIELDS - {"max_uses"}
+DEFAULT_GRANT_USES = 1
+MAX_GRANT_USES = 1_000_000  # bounded so that no value can silently mean "unlimited"
+
+
+def grant_uses(value: Any) -> int:
+    if type(value) is not int or not 1 <= value <= MAX_GRANT_USES:
+        raise ContractError("invalid max_uses")
+    return value
 
 
 def issue_grant(issuer_key: Any, *, grant_id: str, subject: str, actor: str, audience: str,
                 task_id: str, capabilities: Iterable[str], not_before: int, expires_at: int,
-                classification: str = "synthetic") -> dict[str, Any]:
+                classification: str = "synthetic", max_uses: int = DEFAULT_GRANT_USES) -> dict[str, Any]:
     """Synthetic user authority delegates ONE task to ONE destination for ONE actor.
 
     The grant is not a reusable user or provider credential: it is useless for any other
     task/audience, and the receiver also requires the actor's own signature (sender-
-    constrained, proof-of-possession) on every request that presents it.
+    constrained, proof-of-possession) on every request that presents it. ``max_uses``
+    (signed, default 1) bounds how many distinct movements the receiver admits under it;
+    retries of an admitted movement do not count again (``PeerLedger.consume_use``).
     """
     payload = {"type": "grant", "grant_id": grant_id, "issuer": issuer_key.kid,
                "subject": subject, "actor": actor, "audience": audience, "task_id": task_id,
                "capabilities": sorted(capabilities), "classification": classification,
-               "not_before": not_before, "expires_at": expires_at}
+               "not_before": not_before, "expires_at": expires_at, "max_uses": grant_uses(max_uses)}
     return seal("grant", payload, issuer_key)
 
 
 def verify_grant(sealed: Any, trust: TrustStore) -> dict[str, Any]:
-    """Signature and structure only; scope and liveness are checked by check_grant_*."""
+    """Signature and structure only; scope and liveness are checked by check_grant_*.
+
+    The returned payload always has ``max_uses`` (1 for a legacy grant that predates it).
+    Use counting is stateful and lives in the receiver's ledger, not here.
+    """
     issuer = _resolve(trust.grant_issuers, sealed, "grant", "untrusted_grant_issuer")
     p = unseal("grant", sealed, issuer, "bad_grant_signature")
     try:
-        _fields(p, GRANT_FIELDS, "grant")
+        if not isinstance(p, dict) or set(p) not in (GRANT_FIELDS, LEGACY_GRANT_FIELDS):
+            raise ContractError("invalid grant fields")
+        p = {"max_uses": DEFAULT_GRANT_USES, **p}
+        grant_uses(p["max_uses"])
         if p["type"] != "grant" or p["issuer"] != issuer.kid:
             raise ContractError("invalid grant")
         for name in ("grant_id", "subject", "actor", "audience", "task_id"):

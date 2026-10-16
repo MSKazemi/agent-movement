@@ -1,6 +1,6 @@
 # Verifiable movement receipts and an independent forensic timeline (experiment)
 
-**Status (2026-10-16):** Tested experimental profile `agent-movement.receipt/0.1-draft`. **Not a standard, not production-secure, not A2A.** It covers synthetic fixtures and a local offline verifier only. Tracking issues: #11, and #21 (out-of-band trust anchors, fixture exit codes in CI, seed-derived canaries). It builds on the unsigned PR #6 receipts in [local-implementation.md](local-implementation.md) and the research design in [agent-forensics-and-fingerprints.md](agent-forensics-and-fingerprints.md).
+**Status (2026-10-16):** Tested experimental profile `agent-movement.receipt/0.1-draft`. **Not a standard, not production-secure, not A2A.** It covers synthetic fixtures, opt-in emission from the local loopback demo and a local offline verifier only. Tracking issues: #11, #21 (out-of-band trust anchors, fixture exit codes in CI, seed-derived canaries) and #32 (receipts from the live HTTP path, verified revocation notices). It builds on the unsigned PR #6 receipts in [local-implementation.md](local-implementation.md) and the research design in [agent-forensics-and-fingerprints.md](agent-forensics-and-fingerprints.md).
 
 PR #6 receipts carry digests but no signature or attestation field, so nobody outside the receiver can check them. This experiment adds three things:
 
@@ -20,6 +20,8 @@ python -m agent_movement.receipts verify $R/04-forged-identity --trust $R/trust.
 python -m agent_movement.receipts timeline $R/09-clock-skew --trust $R/trust.json
 python -m agent_movement.receipts verify $R --fixture-trust     # same, with a warning: see "Trust anchors"
 python -m agent_movement.receipts make-fixtures /tmp/regenerated   # byte-identical to the committed set
+python -m agent_movement.demo --receipts /tmp/am-receipts          # live run: bundle + separate trust file
+python -m agent_movement.receipts verify --trust /tmp/am-receipts/trust-anchors.json /tmp/am-receipts/live-run
 python -m pytest -q
 ```
 
@@ -29,14 +31,15 @@ The core package stays dependency-free. Without the `signing` extra:
 
 - the verifier still checks schema, body digests, exact replays, credential-like content, subject digests and redaction;
 - every signature is reported as `UNCHECKED`, and the run exits with code 3;
-- the 16 receipt tests that need Ed25519 skip, and so does the gitleaks-binary test when `gitleaks` is not installed.
+- the receipt tests that need Ed25519 skip (including the live-path and signed-notice tests), and so does the gitleaks-binary test when `gitleaks` is not installed;
+- `python -m agent_movement.demo --receipts DIR` exits 2 before starting anything; the plain demo is unaffected.
 
 | Exit code | Meaning |
 | --- | --- |
 | 0 | No receipt was rejected and nothing conflicts. **This does not mean the evidence is complete.** Claims can still be `UNKNOWN`, and gaps can exist. |
-| 1 | At least one receipt was rejected (`TAMPERED`, `REPLAYED`, `UNTRUSTED` or `MALFORMED`), a statement conflicts, or a subject digest does not match. |
-| 2 | Usage or I/O error, for example no `--trust`, or a `--trust` file inside the bundle being verified. |
-| 3 | Verification is incomplete: signatures were not checked, or no receipt is valid. |
+| 1 | At least one receipt or revocation notice was rejected (`TAMPERED`, `REPLAYED`, `UNTRUSTED` or `MALFORMED`), a statement conflicts, or a subject digest does not match. |
+| 2 | Usage or I/O error, for example no `--trust`, a `--trust` file inside the bundle being verified, an HS256 revocation authority in the anchor file, or a missing `--revocations` file. |
+| 3 | Verification is incomplete: signatures (of receipts or revocation notices) were not checked, or no receipt is valid. |
 
 ## Event schema: claims are not principals
 
@@ -51,7 +54,7 @@ A receipt body is a strict JSON object. Every field must be present. An unknown 
 | `execution` (`execution_id`, `parent_execution_id`, `agent_instance_id`, `definition_digest`) | The runtime attempt, kept apart from the logical task | Signed claim. Two executions that share a `definition_digest` stay **distinct**. |
 | `movement` (`movement_id`, `parent_movement_id`, `lineage_relation`) | One directed transfer and its ancestry: `delegate`, `relocate`, `clone`, `fork`, `replicate` or `fan_out` | Signed claim, shown as lineage edges |
 | `correlation` (`trace_id`, `span_id`) | W3C-shaped correlation hints | **Correlation only.** Never authentication, never a reason to merge two movements. |
-| `subjects[]` (`role`, `ref`, `digest`) | `sha256:` JCS digests of **salted commitment documents** `{"commitment_salt", "value"}` for the envelope, artifact, checkpoint or effect payload. They can also reference an external `revocation_notice` or `policy_decision` by digest only. | Integrity against the signed reference. This does not establish authorship or correctness, and referenced external notices are not parsed or verified here. |
+| `subjects[]` (`role`, `ref`, `digest`) | `sha256:` JCS digests of **salted commitment documents** `{"commitment_salt", "value"}` for the envelope, artifact, checkpoint or effect payload. They can also reference an external `revocation_notice` or `policy_decision` by digest only. | Integrity against the signed reference. This does not establish authorship or correctness. Subjects that reference notices are not parsed; key-revocation notices are verified separately (see "Revocation"). |
 | `effect` (`effect_id`, `tool_principal`, `status`, `fencing_epoch`) | An effect the agent claims, or the tool-side record of it | Confirmed only by an independent `tool.effect_recorded` receipt signed by a key with role `tool` |
 | `seq`, `prev_receipt_digest`, `nonce`, `issued_at`, `audience` | Per-signer chain, replay protection, **claimed** time, intended reader | The signer, see the limits below |
 
@@ -99,8 +102,15 @@ Receipt types: `movement.dispatched`, `movement.accepted`, `movement.rejected`, 
 
 **Revocation:**
 
-- An anchor can also carry `revocation_ref`: the digest of an **external** signed revocation notice, for example one produced by a peer-authentication component.
-- The verifier cites that reference in its rejection reason, but neither fetches nor verifies the notice. This profile does not depend on any revocation implementation.
+- An anchor can carry `revoked_at` and `revocation_ref`: the digest of an **external** signed revocation notice. On its own, that reference is cited in the rejection reason but not fetched.
+- **Signed revocation notices (issue #32)** in the [peer-authentication](peer-authentication.md) format (`trust.issue_revocation`: `{"alg", "kid", "payload": {"type": "revocation", "issuer", "grant_id", "revoked_at"}, "sig"}`) are **verified** when present. The verifier reads them from `revocations.jsonl` in the bundle and from every `--revocations FILE`, and checks each with `trust.verify_revocation` against the revocation authorities pinned in the anchor file's optional `revocation_issuers` list (`[{"alg": "Ed25519", "kid", "public"}]`, the `Ed25519Key.export(private=False)` form).
+  - **Mapping (profile convention):** a notice revokes the receipt key whose `key_id` equals the notice's `grant_id`, from its `revoked_at` (Unix seconds, UTC) on. Issue #8 uses the same notice to revoke a user grant; here the "grant" is the signing authority of one receipt key.
+  - A **VALID** notice is applied: receipts from that key with a claimed `issued_at` at or after `revoked_at` become `UNTRUSTED` with the reason `key was revoked before the claimed issue time (verified signed revocation notice sha256:...)`. The earliest verified time wins over a later notice and over the anchor file's own `revoked_at`; a notice can only make a key *less* trusted. A notice that matches an anchor's `revocation_ref` is reported as corroborating it.
+  - A notice signed by a key that is not a pinned authority is `UNTRUSTED`; a broken signature, an edited payload or a kid whose pinned key did not sign it is `TAMPERED`; a malformed line, or one carrying credential-like content, is `MALFORMED`. None of these is applied, and each makes the run exit 1: unauthenticated revocation material is reported, never silently dropped.
+  - Notices may travel **inside** the bundle because they are self-authenticating: only the anchor file (obtained out of band) decides which authority counts. A VALID notice that names no anchored key has no effect and says so.
+  - HS256 notices are `UNTRUSTED`, and an HS256 authority in the anchor file is refused (exit 2): a MAC verification key is a shared secret, and its holder could forge notices.
+  - Without the `signing` extra, notices are `UNCHECKED`, not applied, and the run exits 3.
+  - The report lists every notice under `revocation_notices` (`source`, `verdict`, `digest`, `issuer`, `revoked_key_id`, `revoked_at`, `applied`, `reasons`); the text output prints one line each.
 - PR #6's `Approval.revoked` is a static configuration flag with no runtime revoke API. Its `handoff.denied` audit events are **not** evidence that a revocation mechanism exists or ran.
 
 - **Fixture keys:** derived as `sha256("agent-movement/SYNTHETIC-PUBLIC-TEST-KEY/v1/" + name)`. Their private halves are public by construction, so they are test vectors, never credentials. No private key is stored in any file.
@@ -114,7 +124,7 @@ Receipt types: `movement.dispatched`, `movement.accepted`, `movement.rejected`, 
 
 ## Verification algorithm
 
-Records are processed per bundle in ingestion order: `receipts.jsonl`, then `tool-records.jsonl` (independent tool-side records), then unsigned `telemetry.jsonl`.
+Records are processed per bundle in ingestion order: `receipts.jsonl`, then `tool-records.jsonl` (independent tool-side records), then unsigned `telemetry.jsonl`. Signed revocation notices (`revocations.jsonl`, then `--revocations` files) are verified first and applied to the anchors; see "Revocation".
 
 1. Parse with strict JSON: duplicate keys are rejected, and a line is limited to 16 KiB.
 2. Check the exact wire format. **A credential-like value makes the receipt `MALFORMED`, and its content is withheld from the report.**
@@ -123,7 +133,7 @@ Records are processed per bundle in ingestion order: `receipts.jsonl`, then `too
 5. Look up the key in the trust anchors → `UNTRUSTED` if it is unknown.
 6. Verify Ed25519 → `TAMPERED` on failure. Without the extra → `UNCHECKED`.
 7. Check key validity and revocation at the claimed time, issuer principal consistency, and signer role → `UNTRUSTED`.
-8. Detect replays. Replay keys are always **per issuer**, `(key_id, nonce)` and `(key_id, receipt_id)`, never a global key. That differs from PR #6's idempotency keys, which are global rather than per sender. Only receipts whose signature passed enter the replay table, so a forger cannot pre-register a nonce:
+8. Detect replays. Replay keys are always **per issuer**, `(key_id, nonce)` and `(key_id, receipt_id)`, never a global key. PR #6's core idempotency keys were global; since issue #29 they are also scoped per sender, `(sender, idempotency_key)`. Only receipts whose signature passed enter the replay table, so a forger cannot pre-register a nonce:
    - an identical body seen again under the same `(key_id, nonce)` or `(key_id, receipt_id)` → `REPLAYED`, deduplicated;
    - the same nonce or receipt_id with a *different* body from the same key → both receipts `CONFLICTING`, because that is signer equivocation and not something an outsider could replay.
 
@@ -142,6 +152,29 @@ Verdicts: `VALID`, `UNCHECKED`, `UNTRUSTED`, `TAMPERED`, `REPLAYED`, `MALFORMED`
 - **Status:** each entry is `VERIFIABLE`, `UNVERIFIABLE` or `CONFLICTING`.
 - **Ordering:** causal edges (per-signer sequence; dispatch → response → execution; parent response → child dispatch) take precedence over claimed timestamps. `ordering_basis` says which one placed an entry.
 - **Clock disagreements:** when a claimed time precedes a causal predecessor, a note flags clock skew or a false timestamp, and the causal order is kept.
+
+## Live HTTP path (issue #32)
+
+Receipt emission on the PR #6 loopback path is **off by default** and needs the `signing` extra.
+
+```sh
+python -m agent_movement.demo --receipts OUTDIR      # whole demo, both processes, receipts on
+python -m agent_movement.http --db FILE --receipts-log FILE   # the receiver alone
+```
+
+| Event | Signed by | Receipt |
+| --- | --- | --- |
+| Sender, before any byte is sent | `agent-a` (demo process) | `movement.dispatched`, naming the destination principal the receiver advertised |
+| Receiver, new delivery (HTTP 200), before it answers | `agent-b` (receiver process) | `movement.accepted`, then `execution.completed` with the artifact commitment |
+| Receiver, policy denial (HTTP 403) | `agent-b` | `movement.rejected` |
+| Fenced effect commit attempt | `effect-gateway` (role `tool`) | `tool.effect_recorded`, `committed` or `rejected` (stale epoch), with the `fencing_epoch` |
+
+- **Keys.** Each participant draws a fresh Ed25519 seed per run and keeps it in memory; only public halves leave the process. The receiver advertises its public key on its stdout line (`receipt_key`, only with `--receipts-log`); the demo, acting as the operator, builds `OUTDIR/trust-anchors.json` from those public keys. The anchor file is written **beside** the bundle `OUTDIR/live-run/`, never inside it, and the verifier refuses it if it is copied in.
+- **No task text.** Envelopes, artifacts and effect payloads are referenced only by digests of salted commitments (a fresh 128-bit salt per subject). The commitment documents stay in the emitting process (`ReceiptEmitter.commitments`) and are not exported, so the report lists those subjects as `UNKNOWN`. PR #6's unsalted digests are never copied. A test asserts that neither the task text nor any unsalted digest appears in the bundle or the anchor file.
+- **One statement per event.** An idempotent replay, a 409 conflict and a 400 invalid request sign nothing; a retried dispatch of the same movement is not signed twice; a receiver signs at most one response per movement.
+- **Best effort, never outcome-changing.** If a receipt cannot be signed or written, the handoff still gets its normal HTTP answer, the emitter counts a failure, and the verifier sees an absent receipt (`UNKNOWN`), never a fabricated one.
+- **What the demo's bundle shows.** 7 `VALID` receipts and exit 0: both movements reach grade E3 with `VERIFIED` source and destination principals, the denied movement's outcome is `rejected`, and the effect is `TOOL_RECORD_ONLY` with records `committed` and `rejected`. The demo verifies its own export and fails if the exit code is not 0; a copy with one receipt field edited (with or without a recomputed `body_digest`) exits 1 as `TAMPERED` (tested, and run in CI).
+- **Limits.** PR #6 does not authenticate the sender, so the receiver's receipts keep the source principal `null` and the agent labels are claims. The trace ID is not carried (PR #6 trace IDs are opaque, not W3C). Execution IDs are `null` because PR #6 has none. Claimed times have second precision and come from the local clock. The demo's anchor file is only as trustworthy as the channel that delivered the public keys, here a local pipe.
 
 ## Reproducible fixture set (`tests/fixtures/movement-receipts/`)
 
@@ -168,7 +201,7 @@ Every exit code in the table is asserted twice: by `test_cli_fixture_matrix_exit
 - always, with the standard library: 19 default rules copied verbatim (`generic-api-key` with its entropy cut-off and allowlists, `jwt`, `jwt-base64`, `private-key`, AWS, GitHub, GitLab, Slack, OpenAI, Anthropic, GCP, Stripe, Hugging Face, PyPI). It is stricter than gitleaks: no keyword pre-filter and no stopword list. Runtime-built positive controls prove the rules fire.
 - with the real `gitleaks` binary and all default rules, when it is on `PATH` or named by `$GITLEAKS`. The CI extras job installs a pinned, SHA-256-verified v8.30.1, so this test runs there instead of skipping.
 
-The scope is the files this feature owns (the fixture set, `receipts.py`, `receipt_fixtures.py`, `jcs.py`, both receipt test files and this document), not the whole repository.
+The scope is the files this feature owns (the fixture set, `receipts.py`, `receipt_fixtures.py`, `jcs.py`, `live_receipts.py`, the receipt test files and this document), not the whole repository.
 
 **Verifier output, abbreviated, for `06-conflicting-accounts`:**
 
@@ -226,14 +259,17 @@ timeline: 1 VERIFIABLE, 0 UNVERIFIABLE, 6 CONFLICTING
 - **Timestamps are claims.** There is no trusted timestamping, so backdating inside a key's validity window, or before a revocation, cannot be detected. Ordering uses causal links first.
 - **Replay detection is per verifier run.** `ReplayGuard` is in memory. A persistent, cross-bundle replay ledger is not implemented.
 - **Agent labels and trace IDs are never authenticated.** Principals are only as meaningful as the trust anchor file.
-- **Not implemented:** SPIFFE/SVID verification, key rotation protocols, in-toto/Sigstore envelopes, a transparency log, receipt emission inside the live HTTP path (the PR #6 bridge `body_from_handoff` wraps receipts after the fact), and production key storage.
+- **Revocation times are claims too.** A notice's `revoked_at` is its issuer's statement, and a compromised key can backdate a receipt to before it. Notices are only as current as the copies the verifier is given; there is no online status check.
+- **Not implemented:** SPIFFE/SVID verification, key rotation protocols, in-toto/Sigstore envelopes, a transparency log, receipt emission on the A2A or peer-authenticated paths (only the PR #6 loopback path emits; `body_from_handoff` still wraps PR #6 receipts after the fact), and production key storage.
 
 ## Files
 
 - `src/agent_movement/jcs.py`: canonical JSON subset.
-- `src/agent_movement/receipts.py`: schema, signer, trust anchors, `ReplayGuard`, verifier, timeline, CLI, and the PR #6 bridge `body_from_handoff`.
+- `src/agent_movement/receipts.py`: schema, signer, trust anchors, signed revocation-notice verification, `ReplayGuard`, verifier, timeline, CLI, and the PR #6 bridge `body_from_handoff`.
+- `src/agent_movement/live_receipts.py`: opt-in emission on the live HTTP path (`ReceiptEmitter`, `RecordingEffectGateway`) and `export_run` (bundle plus separate anchor file). The hooks are in `http.py` (`--receipts-log`) and `demo.py` (`--receipts`).
 - `src/agent_movement/receipt_fixtures.py`: deterministic synthetic keys and scenarios, and the hand-written expectations.
 - `tests/test_movement_receipts.py`: canonicalization, schema, redaction, the path without the extra, fixture expectations and exit codes, adversarial mutation, replay, trace-as-correlation, fail-closed trust anchors, runtime canaries, and the PR #6 bridge, salted commitments and the external revocation reference.
+- `tests/test_live_receipts.py`: the live HTTP path (emission per event, export, tampered copy, no task text, failure isolation, the demo flag) and every revocation-notice path (revoked before/at/after `issued_at`, forged, tampered, unpinned, HS256, malformed, unknown key, out-of-band file, without the extra).
 - `tests/test_movement_receipts_secret_scan.py`: the gitleaks default-rule checks described above.
 
 References: [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785.html), [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032), [W3C Trace Context](https://www.w3.org/TR/trace-context/), [SPIFFE SVIDs](https://spiffe.io/docs/latest/deploying/svids/), [in-toto attestation](https://github.com/in-toto/attestation), [NIST SP 800-86](https://csrc.nist.gov/pubs/sp/800/86/final), [cryptography on PyPI](https://pypi.org/project/cryptography/).

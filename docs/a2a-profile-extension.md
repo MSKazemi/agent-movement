@@ -7,7 +7,7 @@
 | **Envelope schema** | `0.1.0-draft` (the [local handoff envelope](local-implementation.md)) |
 | **A2A version** | v1.0 (`A2A-Version: 1.0`) |
 | **Deprecated alias** | `urn:agent-movement:a2a-handoff-profile:0.1.0-draft`, accepted in profile 0.2.x and removed in 0.3.0 |
-| **Status** | Experimental draft. One implementation: [`a2a_server.py` / `a2a_client.py`](a2a-adapter.md) on the official `a2a-sdk` 1.2.2. Not an official or registered A2A extension |
+| **Status** | Experimental draft. Reference implementation: [`a2a_server.py` / `a2a_client.py`](a2a-adapter.md) on the official `a2a-sdk` 1.2.2. A second, client-only implementation on `@a2a-js/sdk` 1.3.0 is in [`interop/js/`](../interop/js/handoff.mjs). Not an official or registered A2A extension |
 | **Authentication** | Out of scope. See [issue #8](https://github.com/MSKazemi/agent-movement/issues/8) and [peer authentication](peer-authentication.md) |
 
 The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY in this document are requirements of **this profile only**. Where this document quotes a rule from the A2A specification, it gives the section number.
@@ -136,13 +136,18 @@ An exact retry (same envelope, same `idempotency_key`) is a **new A2A task** wit
 
 ## 7. Errors
 
-Pre-task refusals are A2A errors. No task is created, and the destination records the refusal by A2A message ID. The JSON-RPC codes are from A2A v1.0. The HTTP+JSON mapping is the one in `a2a-sdk` 1.2.2 (`a2a.utils.errors.A2A_ERROR_MAPPING`).
+Pre-task refusals are A2A errors. No task is created, and the destination records the refusal by A2A message ID. The JSON-RPC codes are from A2A v1.0. The HTTP+JSON mapping is the one in `a2a-sdk` 1.2.2 (`a2a.utils.errors.A2A_ERROR_MAPPING`); it differs from the A2A v1.0 §5.4 table for `ContentTypeNotSupportedError` (400, not 415).
+
+The two core-spec conditions marked "checked first" are answered with the errors A2A v1.0 assigns to them, before the extension and profile checks, even when the profile is not activated. These rows were split out of `InvalidParamsError` in profile 0.2.0-draft after the A2A TCK run ([adapter doc](a2a-adapter.md#conformance-official-a2a-tck-and-inspector)). They are a backward-compatible change under §2, because they affect only requests that were already refused.
 
 | Condition | A2A error | JSON-RPC | HTTP+JSON |
 |---|---|---|---|
 | Neither profile URI activated in `A2A-Extensions` | `ExtensionSupportRequiredError` | -32008 | 400 `EXTENSION_SUPPORT_REQUIRED` |
 | `A2A-Version` missing or not `1.0` (enforced by the SDK) | `VersionNotSupportedError` | -32009 | 400 `VERSION_NOT_SUPPORTED` |
-| Message URI not activated, more than one or an unknown profile URI, wrong metadata or part shape, extra or missing field, unknown `schema_version`, kind or operation, digest mismatch, `taskId` or `referenceTaskIds` present, request-level metadata, or a `contextId` refused under §5 | `InvalidParamsError` (message `handoff profile rejected: <reason>`) | -32602 | 400 `INVALID_PARAMS` |
+| A part states a `mediaType` that the Agent Card does not declare (checked first) | `ContentTypeNotSupportedError` | -32005 | 400 `CONTENT_TYPE_NOT_SUPPORTED` |
+| `Message.taskId` names no existing task (checked first; A2A v1.0 §3.4.2) | `TaskNotFoundError` | -32001 | 404 `TASK_NOT_FOUND` |
+| `Message.taskId` names an existing task: no continuation (every handoff task is terminal; A2A v1.0 §3.1.1) | `UnsupportedOperationError` | -32004 | 400 `UNSUPPORTED_OPERATION` |
+| Message URI not activated, more than one or an unknown profile URI, wrong metadata or part shape, extra or missing field, unknown `schema_version`, kind or operation, digest mismatch, `referenceTaskIds` present, request-level metadata, or a `contextId` refused under §5 | `InvalidParamsError` (message `handoff profile rejected: <reason>`) | -32602 | 400 `INVALID_PARAMS` |
 | Task kind valid for the schema but not advertised by this agent | `UnsupportedOperationError` | -32004 | 400 `UNSUPPORTED_OPERATION` |
 
 Refusals after the task exists end in the terminal state `TASK_STATE_REJECTED`. The status message holds one `data` part (`application/json`):
@@ -168,6 +173,8 @@ Cancellation is not supported: tasks complete synchronously, and the executor's 
 ## 9. Conformance and limitations
 
 - Reference implementation and tests: [`docs/a2a-adapter.md`](a2a-adapter.md), `src/agent_movement/a2a_*.py`, `tests/test_a2a_profile.py` and `tests/test_a2a_adapter.py`. The tests also send the profile 0.1 wire shape through the alias.
-- Both ends use the same SDK and version. The official A2A Inspector and TCK, and a second implementation, have not been run against this profile.
+- Reference implementation and tests also include `tests/test_a2a_conformance.py` and `tests/test_a2a_js_interop.py`.
+- Second implementation: [`interop/js/handoff.mjs`](../interop/js/handoff.mjs), an origin client on the official `@a2a-js/sdk` 1.3.0 that implements §3, §4 and §6 independently (client side only). It completes handoffs against the reference server over both bindings, and its digests match the server's.
+- The official A2A TCK and the A2A Inspector validators have been run against the reference server. The TCK cannot complete a handoff, because its messages are not profile messages (refused per §4 and §7), so it checks the Agent Card, the bindings and the error mapping, not the task lifecycle. Results and deviations are in [the adapter doc](a2a-adapter.md#conformance-official-a2a-tck-and-inspector).
 - The server does not echo activated extensions in an `A2A-Extensions` response header, which the A2A Extensions topic recommends (SHOULD). `a2a-sdk` 1.2.2 does not do this automatically.
 - The destination's correlation log does not record which profile URI a request used, so use of the deprecated alias is visible only in the request itself, not in the audit.
