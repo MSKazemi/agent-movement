@@ -30,8 +30,8 @@ The workload families are `document`, `coding` and `tools` (FACT: `mobilitybench
 | Task | Question it answers | v0.1 families used | v0.1 modes and faults used | Implemented today | Planned |
 | --- | --- | --- | --- | --- | --- |
 | **EV-A** single-agent tool use | Is a single agent better than a deterministic workflow on the same frozen tool-use cases, and what does it cost in human interventions and review? | `tools` (primary), plus `coding` and `document` | B0 under `none`, `effect_ack_lost` and `duplicate_delivery` | Frozen plans executed by a **deterministic interpreter** (`EXECUTOR = "deterministic-interpreter-v0.1"`, `MODEL = "none"`), the fenced effect gateway, the rubric and the `neg-instruction-in-data` placeholder | An LLM executor (v0.1 "Next versions: Later"); the B5 arm as a scored mode; adversarial variants; the intervention fields |
-| **EV-B** A2A-delegated researcher / implementer / reviewer | Does splitting work across three delegated roles beat one agent doing all roles, and at what transfer, review and intervention cost? | `document` (researcher), `coding` (implementer; plans end with an `open_review` effect) | B0 as the one-agent baseline, B2-local, B2 (unavailable) | B2-local delegates only the pure ops `word_count` and `sha256` (`core.py::validate_envelope`), so it refuses role work with `incompatible_state`. The A2A v1 adapter exists outside MobilityBench ([a2a-adapter.md](a2a-adapter.md)) | A multi-role task family (needs a new suite version, because `FAMILIES` is frozen); scoring `a2a_delegate` ([issue #31](https://github.com/MSKazemi/agent-movement/issues/31)); interoperability ([issue #28](https://github.com/MSKazemi/agent-movement/issues/28)); cross-agent injection variants ([issue #35](https://github.com/MSKazemi/agent-movement/issues/35)) |
-| **EV-C** resume after process interruption | After the origin dies, which continuation keeps correctness, constraints and effect identity, and how many human reconcile decisions remain? | All three | B0, B1 and B3 under `origin_preempted` (also `stale_origin_returns`, `effect_ack_lost`) | B0 and B1 are scored. B3 runs only in the separate 30-row relocation fault matrix ([checkpoint-relocation.md](checkpoint-relocation.md), `relocation_demo.py`, `[relocation]` extra) | B3 in MobilityBench ([#31](https://github.com/MSKazemi/agent-movement/issues/31)); mid-step crashes, partitions and a `restart-stable-ids` variant ([#40](https://github.com/MSKazemi/agent-movement/issues/40)); operator reconciliation of parked effects ([#30](https://github.com/MSKazemi/agent-movement/issues/30)) |
+| **EV-B** A2A-delegated researcher / implementer / reviewer | Does splitting work across three delegated roles beat one agent doing all roles, and at what transfer, review and intervention cost? | `document` (researcher), `coding` (implementer; plans end with an `open_review` effect) | B0 as the one-agent baseline, B2-local, B2 (scored only with the `a2a` extra) | B2-local delegates only the pure ops `word_count` and `sha256` (`core.py::validate_envelope`), so it refuses role work with `incompatible_state`. B2 `a2a_delegate` sends the same envelope over the A2A v1 adapter ([a2a-adapter.md](a2a-adapter.md)) and is scored when the `a2a` extra is installed ([issue #31](https://github.com/MSKazemi/agent-movement/issues/31)); without it, it is an explicit unavailable record. It refuses the same role work | A multi-role task family (needs a new suite version, because `FAMILIES` is frozen) and a contract that lets B2 carry role work; interoperability ([issue #28](https://github.com/MSKazemi/agent-movement/issues/28)); cross-agent injection variants ([issue #35](https://github.com/MSKazemi/agent-movement/issues/35)) |
+| **EV-C** resume after process interruption | After the origin dies, which continuation keeps correctness, constraints and effect identity, and how many human reconcile decisions remain? | All three | B0, B1 and B3 under `origin_preempted` (also `stale_origin_returns`, `effect_ack_lost`) | B0 and B1 are scored. B3 `checkpoint_relocate` is scored when the `relocation` extra is installed ([#31](https://github.com/MSKazemi/agent-movement/issues/31)), with movement only at the movement point; without the extra it is an explicit unavailable record. Separately, the relocation fault matrix ([checkpoint-relocation.md](checkpoint-relocation.md), `relocation_demo.py`, `[relocation]` extra) adds crashes at every transition and operator reconciliation of parked opaque effects ([#30](https://github.com/MSKazemi/agent-movement/issues/30)) | Mid-step crashes, partitions and a `restart-stable-ids` variant ([#40](https://github.com/MSKazemi/agent-movement/issues/40)); reconcile interventions counted in MobilityBench records |
 
 **ANALYSIS (central caveat).** In v0.1 the "agent" is a scripted interpreter that is **given** the frozen plan. So v0.1's B0 is itself a deterministic, non-agent workflow, but one that holds an **oracle plan** taken from the fixture. It is an upper bound for B5, not a fair B5. A fair B5 has to be written from the task specification alone, without seeing the evaluation cases (see §3.2). None of the three tasks can test an agent until an LLM executor exists.
 
@@ -70,8 +70,8 @@ The workload families are `document`, `coding` and `tools` (FACT: `mobilitybench
 | **B0 keep** | One executor runs the whole task, with no movement and no delegation. In EV-B this **is the one-agent baseline**: a single executor plays every role. | Implemented (deterministic interpreter only) |
 | **B1 restart** | The destination restarts from the original request, without session context | Implemented |
 | **B2-local** | In-process PR #6 delegate. Pure ops only. | Implemented |
-| **B2 A2A delegate** | Delegation over the official A2A v1 SDK | Adapter implemented ([a2a-adapter.md](a2a-adapter.md)); unavailable as a MobilityBench mode ([#31](https://github.com/MSKazemi/agent-movement/issues/31)) |
-| **B3 relocate** | Same-runtime checkpoint relocation with origin fencing | Fault matrix implemented ([checkpoint-relocation.md](checkpoint-relocation.md)); unavailable as a MobilityBench mode ([#31](https://github.com/MSKazemi/agent-movement/issues/31)) |
+| **B2 A2A delegate** | Delegation over the official A2A v1 SDK | Implemented ([a2a-adapter.md](a2a-adapter.md)). Scored as MobilityBench mode `a2a_delegate` when the `a2a` extra is installed; otherwise an explicit unavailable record ([#31](https://github.com/MSKazemi/agent-movement/issues/31)) |
+| **B3 relocate** | Same-runtime checkpoint relocation with origin fencing | Implemented, with a separate fault matrix ([checkpoint-relocation.md](checkpoint-relocation.md)). Scored as MobilityBench mode `checkpoint_relocate` when the `relocation` extra is installed; otherwise an explicit unavailable record ([#31](https://github.com/MSKazemi/agent-movement/issues/31)) |
 | **B4 reconstruct** | Cross-framework reconstruction | Unavailable; not scheduled |
 | **B5 non-agent workflow** | A deterministic script or workflow written from the task specification and the development split only. It calls the same simulated tools through the same gateway. It may stop and ask a human, and those requests are counted as interventions (§3.4). | **Planned.** Proposed mode `non_agent_workflow` ([economic evaluation](economic-evaluation.md#5-mapping-to-mobilitybench-record-fields)) |
 
@@ -106,7 +106,7 @@ The variant kinds specific to each task are listed in that task's section.
   - `correct`: the human edits an analysis or an output;
   - `approve` / `deny`: the human makes a decision at a gate;
   - `takeover` / `abort`: the human performs or stops an action;
-  - `reconcile`: the human resolves an `unknown` effect outcome, as in [issue #30](https://github.com/MSKazemi/agent-movement/issues/30);
+  - `reconcile`: the human resolves an `unknown` effect outcome, as an operator does for parked opaque effects in the relocation experiment ([issue #30](https://github.com/MSKazemi/agent-movement/issues/30));
   - `fallback`: the human routes a refused or incomplete attempt to its pre-declared fallback arm.
 
 **Measurement without human participants (planned).**
@@ -225,8 +225,8 @@ Each role boundary is a delegation from an orchestrator, which keeps ownership o
 - **Families:** `document` and `coding`. v0.1 has no multi-role family. Its coding plans end with an `open_review` effect (FACT: 6 `open_review` effects in `tasks.jsonl`), but the review is a scripted effect, not a reviewing agent.
 - **Modes:**
   - B0 is the one-agent baseline.
-  - B2-local is implemented but can carry only `word_count` and `sha256` tasks (FACT: `core.py::validate_envelope`), so v0.1 refuses role work with `incompatible_state:<ops>`. v0.1 refused 36 of 54 B2-local attempts this way ([pilot observations](mobilitybench-v0.1.md#pilot-observations-2026-10-16-python-31116-release-920e9a2f)).
-  - B2 `a2a_delegate` is unavailable.
+  - B2-local is implemented but can carry only `word_count` and `sha256` tasks (FACT: `core.py::validate_envelope`), so v0.1 refuses role work with `incompatible_state:<ops>`. v0.1 refused 36 of 54 B2-local attempts this way ([pilot observations](mobilitybench-v0.1.md#pilot-observations-harness-020-2026-10-16-release-920e9a2f)).
+  - B2 `a2a_delegate` is scored only when the `a2a` extra is installed, and is otherwise an explicit unavailable record ([#31](https://github.com/MSKazemi/agent-movement/issues/31)). It carries the same envelope as B2-local, so it refused the same 36 of 54 attempts in the pilot.
 - **Implemented:**
   - the A2A v1 adapter on the official SDK, which proves "DELEGATION, not migration" of one allowlisted pure task, unauthenticated ([a2a-adapter.md](a2a-adapter.md));
   - peer authentication before disclosure ([peer-authentication.md](peer-authentication.md));
@@ -234,7 +234,7 @@ Each role boundary is a delegation from an orchestrator, which keeps ownership o
 - **Planned:**
   - a new multi-role family in a new suite version;
   - a delegation contract that can carry role inputs and artifacts;
-  - `a2a_delegate` scored in MobilityBench ([#31](https://github.com/MSKazemi/agent-movement/issues/31));
+  - `a2a_delegate` scored on the multi-role family, which needs that contract (v0.1 scores it on the pure-op envelope only, [#31](https://github.com/MSKazemi/agent-movement/issues/31));
   - independent interoperability ([#28](https://github.com/MSKazemi/agent-movement/issues/28));
   - cross-agent injection fixtures ([#35](https://github.com/MSKazemi/agent-movement/issues/35)).
 
@@ -270,7 +270,7 @@ At least 30 benign chains, plus variants.
 - **B0:** one executor plays all three roles. This is issue #1's one-agent baseline.
 - **B5:** a deterministic pipeline: scripted extraction, scripted edit, test-based review.
 - **B2-local**, scored only on the delegable subset and reported with its refusals.
-- **B2 A2A**, when available.
+- **B2 A2A**, when the `a2a` extra is installed (otherwise reported as unavailable).
 
 **Hypotheses.**
 
@@ -295,7 +295,7 @@ At least 30 benign chains, plus variants.
 
 ## 6. EV-C: resume after process interruption
 
-**Purpose.** EV-C tests what continuation preserves after the process doing the work dies mid-task: correctness, session-context constraints, effect identity and ownership. It is the closest task to the project's core claim, and the one where B3 is the comparator that v0.1 says is missing.
+**Purpose.** EV-C tests what continuation preserves after the process doing the work dies mid-task: correctness, session-context constraints, effect identity and ownership. It is the closest task to the project's core claim, and the one where B3 is the decisive comparator. v0.1 scores B3 only when the `relocation` extra is installed, and only with movement at a single, clean step boundary.
 
 **Mapping to MobilityBench v0.1.**
 
@@ -305,17 +305,17 @@ At least 30 benign chains, plus variants.
   - B0 is incomplete under pre-emption by construction.
   - B1 completes, but hears only post-movement session events and issues fresh effect IDs.
   - B2-local cannot survive pre-emption, because ownership never moves.
-  - B3 is unavailable in MobilityBench.
+  - B3 is scored when the `relocation` extra is installed and is otherwise an explicit unavailable record ([#31](https://github.com/MSKazemi/agent-movement/issues/31)). It fails over from the durable checkpoint under pre-emption.
 - **Implemented:**
-  - B0 and B1 scored on the 18 frozen tasks;
+  - B0 and B1 scored on the 18 frozen tasks, and B3 too when the `relocation` extra is installed;
   - the fault schedule `mobilitybench_v01.py::fault_schedule`;
   - fencing and deduplication evidence fields;
   - the negative fixtures `neg-stale-origin` and `neg-revocation-not-at-effect` (a known gap: "The gateway checks epochs, not grants");
-  - **separately**, a 30-row crash and duplicate fault matrix for same-runtime LangGraph relocation, including opaque-tool rows that end `reconcile_required` (FACT: `relocation.py`, `relocation_demo.py`).
+  - **separately**, a 30-row crash and duplicate fault matrix for same-runtime LangGraph relocation, including opaque-tool rows that end `reconcile_required` (FACT: `relocation.py`, `relocation_demo.py`);
+  - **separately**, 9 operator-reconciliation rows in which an operator resolves those parked effects as `confirmed_done` or `confirmed_absent`. Each decision is fenced by the ownership epoch and appended to a `reconciliation_events` audit log, but it is not verified: a false decision loses or duplicates the effect (FACT: `relocation.py::Coordinator.reconcile`, `relocation_demo_reconcile.py`; `tests/test_relocation_reconcile.py`; [checkpoint-relocation.md](checkpoint-relocation.md#operator-reconciliation-of-parked-effects-issue-30)). These are recorded `reconcile` events in the relocation experiment, not fields of MobilityBench records.
 - **Planned:**
-  - B3 scored in MobilityBench ([#31](https://github.com/MSKazemi/agent-movement/issues/31));
   - mid-step crashes, partitions and the `restart-stable-ids` variant ([#40](https://github.com/MSKazemi/agent-movement/issues/40));
-  - operator reconciliation of parked effects ([#30](https://github.com/MSKazemi/agent-movement/issues/30)), which is where `reconcile` interventions become real events.
+  - `reconcile` intervention counts in MobilityBench records. Operator reconciliation exists only in the relocation experiment ([#30](https://github.com/MSKazemi/agent-movement/issues/30)), and v0.1 still reconciles `unknown` effects automatically through its gateway lookup.
 
 **Frozen cases (planned).** The v0.1 task schema with **several interruption points per case**: before, between and after effects, and while an effect's outcome is unknown. Session events are placed before and after each point. At least 30 benign cases.
 
@@ -348,9 +348,10 @@ At least 30 benign chains, plus variants.
 
 - **EV-C-H1 (HYPOTHESIS):** on a new held-out case set with interruption points inside the plan, B1 loses pre-interruption session constraints and duplicates pre-interruption effects, and B3 does neither.
   - *Falsified if* B3's constraint retention or duplicate-effect count is not better than B1's on paired cases.
-  - The v0.1 pilot observed the B1 side on its own 18 tasks only ([observations](mobilitybench-v0.1.md#pilot-observations-2026-10-16-python-31116-release-920e9a2f)). That observation is not evidence for this hypothesis on new cases.
+  - The v0.1 pilot observed both sides on its own 18 tasks, with movement only at the movement point ([observations](mobilitybench-v0.1.md#pilot-observations-harness-020-2026-10-16-release-920e9a2f)): B1 kept 12/30 constraints with 30 duplicate effects, and B3 (with the `relocation` extra) kept 30/30 with 0 duplicates. B3's result holds by construction, because its checkpoint carries the interpreter's complete state. Neither observation is evidence for this hypothesis on new cases with interruption points inside the plan.
 - **EV-C-H2 (HYPOTHESIS):** B3 does not reduce `reconcile` interventions to zero. Opaque-tool cases still need a human decision, because no lookup can resolve them.
   - *Falsified if* B3 resolves opaque-tool cases without a human decision **and** without a duplicate or a lost effect.
+  - The relocation experiment's reconciliation rows are consistent with this by design, not as evidence: a parked opaque effect is resumed only after an operator decision, and the decision's correctness depends on the operator ([checkpoint-relocation.md](checkpoint-relocation.md#trust-assumption-a-human-in-the-loop)).
 - **EV-C-H3 (HYPOTHESIS):** restart with stable effect IDs removes most of B1's duplicate effects but none of its lost session constraints.
   - *Falsified if* stable IDs leave duplicate effects unchanged, or also restore the constraints.
 
@@ -377,10 +378,10 @@ At least 30 benign chains, plus variants.
 
 ## 8. Order of work
 
-1. **EV-C on the existing harness:** score B3 and the stable-ID restart ([#31](https://github.com/MSKazemi/agent-movement/issues/31), [#40](https://github.com/MSKazemi/agent-movement/issues/40)), and add the intervention fields with the scripted operator. No LLM is needed.
+1. **EV-C on the existing harness:** B3 is now scored when the `relocation` extra is installed ([#31](https://github.com/MSKazemi/agent-movement/issues/31)). Remaining: the stable-ID restart and crashes inside the plan ([#40](https://github.com/MSKazemi/agent-movement/issues/40)), and the intervention fields with the scripted operator. No LLM is needed.
 2. **B5 as a mode** (`non_agent_workflow`) for all three tasks, written against a development split.
 3. **EV-A with an LLM executor** behind the same interface, with pinned models.
-4. **EV-B:** a new multi-role family and delegation contract, then `a2a_delegate` scoring ([#31](https://github.com/MSKazemi/agent-movement/issues/31)) and cross-agent injection fixtures ([#35](https://github.com/MSKazemi/agent-movement/issues/35)).
+4. **EV-B:** a new multi-role family and delegation contract, then `a2a_delegate` scoring on that family (v0.1 already scores it on the pure-op envelope when the `a2a` extra is installed, [#31](https://github.com/MSKazemi/agent-movement/issues/31)) and cross-agent injection fixtures ([#35](https://github.com/MSKazemi/agent-movement/issues/35)).
 5. **Registration** of the frozen plan and case digests before any of the scored runs above are reported as results.
 
 ## References
