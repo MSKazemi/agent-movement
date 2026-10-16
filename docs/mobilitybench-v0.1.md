@@ -250,7 +250,7 @@ The `report` subcommand regenerates these tables, the per-family breakdown, the 
 | Property of v0.1 | Where it is fixed in the code |
 | --- | --- |
 | Each task moves **once**, at a single integer `movement_at` that falls strictly inside the plan | `src/agent_movement/mobilitybench_v01.py::validate_task`, `::Attempt` (`self.m`) |
-| There are exactly two executors, `agent-a` (origin) and `agent-b` (destination) | `::run_restart`, `::run_local_delegate` |
+| There are exactly two executors, `agent-a` (origin) and `agent-b` (destination) | `::run_restart`, `::run_local_delegate`; `mobilitybench_optional.py::run_a2a_delegate` (receiver `agent-b`), `::run_checkpoint_relocate` |
 | No model is called: a scripted interpreter executes the plans | `::EXECUTOR`, `::MODEL` (`"none"`) |
 | Three modes are always implemented (B0, B1, B2-local); B2 A2A and B3 relocation are implemented when their optional extra is installed (otherwise recorded as unavailable); B4 reconstruction is always recorded as unavailable | `::MODE_SPECS`, `::mode_table`, `mobilitybench_optional.py` |
 | Each (seed, task) gets one of five fault kinds; the movement-related kinds act on that single move (pre-emption at `movement_at`, duplicated transfer messages, a stale origin after the move) | `::FAULT_KINDS`, `::fault_schedule`, `::run_keep`, `::run_restart`, `::Attempt.send` |
@@ -272,7 +272,7 @@ v0.1 therefore measures a single hop. It cannot say how constraints, evidence or
 - **Evaluation:** programmatic invariant checks wherever possible, and blind human review for ambiguous semantic outcomes. A deterministic interpreter gives zero variance, so statistical claims need the planned LLM executor with repeated sampling. The final sample size is set from pilot variance, with denominators and confidence intervals reported.
 - **Critical falsifier:** if a restart or single-agent baseline wins on cost-adjusted quality, or if the invariant check misses known planted violations, then mobility-first framing is abandoned for those task classes and the result is published as a negative finding.
 
-**Prerequisites before any result is claimed:** the multi-hop fixture schema and ground truth, at least one implemented movement comparator beyond B2-local, and a pre-registered protocol update in the [experiment protocol](mobilitybench-experiment-protocol.md).
+**Prerequisites before any result is claimed:** the multi-hop fixture schema and ground truth, at least one movement comparator beyond B2-local implemented for chains of hops (v0.1's B2 A2A and B3 move once, and only with their extras installed), and a pre-registered protocol update in the [experiment protocol](mobilitybench-experiment-protocol.md).
 
 ## Next versions
 
