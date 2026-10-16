@@ -140,13 +140,15 @@ options:
 ### `agent-movement relocate`
 
 ```text
-usage: agent-movement relocate [-h] [--json JSON]
+usage: agent-movement relocate [-h] [--json JSON] [--two-store]
 
 Synthetic same-runtime checkpoint relocation experiment
 
 options:
   -h, --help   show this help message and exit
   --json JSON  also write full results as JSON
+  --two-store  give each worker its own SQLite store and copy the checkpoint as a digest-verified
+               bundle (copy-specific fault matrix)
 ```
 
 ### `agent-movement bench`
