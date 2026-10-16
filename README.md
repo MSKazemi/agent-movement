@@ -116,6 +116,8 @@ Suggested reading order:
 
 Further research notes:
 
+- **[Algorithmic foundations research handoff (2026-10-16)](docs/algorithmic-research-handoff-2026-10-16.md)** — verified milestones, undecided scientific questions, guarded-runtime dependencies and next reproducible tests
+
 - [Underexplored dimensions and proposed experiments (2026-10-16 gap audit)](docs/missing-dimensions-and-research-gaps.md): multi-principal authority, portable obligations, self-change, quarantine, human control and context freshness
 - [Twenty high-impact research questions for AI agents and human life (reasoned agenda, not a systematic review)](docs/top-20-human-impact-questions-for-agentic-ai.md)
 
