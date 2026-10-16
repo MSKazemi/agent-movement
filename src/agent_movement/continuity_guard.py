@@ -144,10 +144,16 @@ def _valid_proposal(proposal: Proposal) -> bool:
             and _obligations_ok(proposal.obligations))
 
 
-def _valid_facts(facts: ObservedFacts) -> bool:
-    if not isinstance(facts, ObservedFacts) or not isinstance(facts.grants, tuple):
+def _tuple(value: object) -> bool:
+    return isinstance(value, tuple)
+
+
+def _valid_facts(facts: object) -> bool:
+    if not isinstance(facts, ObservedFacts):
         return False
-    if not isinstance(facts.observations, tuple) or not _digest(facts.measured_manifest_digest):
+    if not _tuple(facts.grants) or not _tuple(facts.observations):
+        return False
+    if not _digest(facts.measured_manifest_digest):
         return False
     if not _digest(facts.recipient_ack_digest):
         return False
@@ -217,12 +223,12 @@ def evaluate(proposal: Proposal, policy: Policy, facts: ObservedFacts, *, now: i
     if ambiguous:
         reasons.append("ambiguous_grants")
     for principal in sorted(policy.required_principals):
-        grant = grant_by_principal.get(principal)
-        if grant is None:
+        approval = grant_by_principal.get(principal)
+        if approval is None:
             reasons.append("principal_missing")
-        elif (not grant.verified or grant.revoked or grant.destination != proposal.destination
-              or grant.policy_epoch != policy.policy_epoch or grant.expires_at <= now
-              or not proposal.scopes <= grant.scopes):
+        elif (not approval.verified or approval.revoked or approval.destination != proposal.destination
+              or approval.policy_epoch != policy.policy_epoch or approval.expires_at <= now
+              or not proposal.scopes <= approval.scopes):
             reasons.append("principal_denied")
 
     required = policy.required_obligations
@@ -248,11 +254,11 @@ def evaluate(proposal: Proposal, policy: Policy, facts: ObservedFacts, *, now: i
             reasons.append("ambiguous_observations")
         observations[observation.name] = observation
     for name in sorted(policy.required_observations):
-        observation = observations.get(name)
-        if observation is None:
+        observed = observations.get(name)
+        if observed is None:
             reasons.append("evidence_missing")
-        elif (not observation.verified or observation.observed_at > now
-              or observation.valid_until <= now or observation.valid_until <= observation.observed_at):
+        elif (not observed.verified or observed.observed_at > now
+              or observed.valid_until <= now or observed.valid_until <= observed.observed_at):
             reasons.append("evidence_stale")
 
     unique_reasons = tuple(dict.fromkeys(reasons))
