@@ -99,6 +99,10 @@ gated tree.
   - agent lifecycle and liveness notes;
   - device compatibility matrix;
   - agent forensics research.
+- **Doc syncs after the code landed:** a SECURITY.md note that private reporting is enabled (PR #63),
+  per-sender idempotency keys and counted grants (PR #73), the five MobilityBench modes and
+  operator reconciliation (PR #76), and runtime revocation, keyed retention and MobilityBench v0.2
+  across the security, architecture, development and evaluation docs (PR #81).
 - **Community and citation:** SECURITY.md (private vulnerability reporting is enabled),
   CONTRIBUTING.md, issue and PR templates (#27, PR #57, PR #63), and CITATION.cff with a
   how-to-cite guide.
