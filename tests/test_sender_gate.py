@@ -6,6 +6,9 @@ A2A remain outside this sender-side check and require separate OS/process gates.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from agent_movement.core import ContractError
@@ -62,6 +65,41 @@ def test_positive_sender_authorization_retains_receiver_effect_checks(world):
     receipt = world.handoff(client=client(world))
     assert receipt["effect"] == "committed"
     assert world.wire.paths() == [CARD_PATH, PREFLIGHT_PATH, "/v0/deliveries"]
+    assert len(world.receiver.ledger.effects()) == 1
+
+
+@pytest.mark.skipif(
+    __import__("sys").platform != "linux",
+    reason="independent seccomp experiment requires Linux x86_64",
+)
+def test_independent_process_broker_obeys_operator_sender_gate(world):
+    from agent_movement.egress_lab import run_guarded_agent
+    from agent_movement.egress_sandbox import supported
+
+    if not supported():
+        pytest.skip("only the Linux x86_64 ABI is covered")
+
+    probe = Path(__file__).resolve().parents[1] / "src/agent_movement/egress_probe.py"
+    bad = policy(world, destinations={("agent-b", "local://other")})
+    result = run_guarded_agent(
+        probe, {"task-1": lambda: world.handoff(client=client(world, gate=bad))["effect"]},
+        probe_port=1,
+    )
+    assert result.exit_code == 0, result.stderr
+    assert result.broker_status == "denied"
+    assert world.wire.paths() == []
+    assert world.receiver.ledger.effects() == []
+    observations = json.loads(result.stdout)
+    assert all(observations[name] == "blocked" for name in (
+        "tcp", "legacy_http", "a2a_http", "udp", "ipv6", "unix", "spawn", "fork", "raw_syscall",
+    ))
+
+    authorized = run_guarded_agent(
+        probe, {"task-1": lambda: world.handoff(client=client(world))["effect"]},
+        probe_port=1,
+    )
+    assert authorized.exit_code == 0, authorized.stderr
+    assert authorized.broker_status == "committed"
     assert len(world.receiver.ledger.effects()) == 1
 
 
