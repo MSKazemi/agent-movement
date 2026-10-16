@@ -1,6 +1,6 @@
 # Peer authentication and pre-disclosure authorization (synthetic, local)
 
-**Status:** Tested experimental software for [issue #8](https://github.com/MSKazemi/agent-movement/issues/8), with HPKE-sealed delivery from [issue #19](https://github.com/MSKazemi/agent-movement/issues/19). **Synthetic test keys only. Not A2A, not OAuth/RFC 8693, not a PKI, not production-secure.** It builds on the [local proof of concept](local-implementation.md) and the [threat model](security-and-trust.md).
+**Status:** Tested experimental software for [issue #8](https://github.com/MSKazemi/agent-movement/issues/8), with HPKE-sealed delivery from [issue #19](https://github.com/MSKazemi/agent-movement/issues/19) and counted (single-use by default) grants from [issue #29](https://github.com/MSKazemi/agent-movement/issues/29). **Synthetic test keys only. Not A2A, not OAuth/RFC 8693, not a PKI, not production-secure.** It builds on the [local proof of concept](local-implementation.md) and the [threat model](security-and-trust.md).
 
 > **Two delivery modes.** With the optional `hpke` extra and an `enc_key` in the receiver's card, the task text and the receipt cross the wire **only as ciphertext** (see [Delivery confidentiality](#delivery-confidentiality-hpke-issue-19)). The stdlib-only mode (no extra, no `enc_key`) still works but has **no confidentiality**: anyone who controls the receiver's address can read the delivered text.
 
@@ -20,7 +20,7 @@ This slice adds an explicit trust model in new modules (`trust.py`, `peer.py`, `
 |---|---|---|---|
 | **Peer identity** | Proof of possession of the key named in a card, shown by a signature over a fresh, nonce-bearing message | The pinned synthetic **test CA** (binding) plus the peer's own signature (possession) | That the agent is benign, or what software or model runs behind the key |
 | **Claimed agent metadata** | `endpoint`, `capabilities` and `schema_versions` inside the CA-signed card | The test CA endorses the binding. The values are still the agent's *claims* | That the agent really implements or limits itself to those capabilities. The receiver enforces its own allowlist separately |
-| **User authorization** | A grant signed by a **separate** synthetic user authority. Fields: `subject` (user), `actor` (origin agent), `audience` (destination agent), `task_id`, `capabilities`, `classification`, `not_before`/`expires_at`, plus revocation | The user authority key, pinned by the receiver | That the user understood the task. It is a synthetic stand-in for a consent step |
+| **User authorization** | A grant signed by a **separate** synthetic user authority. Fields: `subject` (user), `actor` (origin agent), `audience` (destination agent), `task_id`, `capabilities`, `classification`, `not_before`/`expires_at`, `max_uses` (default 1), plus revocation | The user authority key, pinned by the receiver | That the user understood the task. It is a synthetic stand-in for a consent step |
 
 The receiver's sanitized trace records **two separate fields**. `peer` is set only after signature verification. `claimed_peer` is the unauthenticated claim. A forged request therefore shows `peer: null, claimed_peer: "agent-a"`.
 
@@ -40,7 +40,9 @@ origin agent-a                                                receiver agent-b
  |                                   verify card + signature (identity), freshness,
  |                                   destination binding, receiver allowlist,
  |                                   grant signature/scope/liveness/revocation,
- |                                   nonce single-use      -> else 400/401/403/409
+ |                                   nonce single-use, one grant use consumed
+ |                                   (max_uses) in the admission transaction
+ |                                                         -> else 400/401/403/409
  |  <---------------- admission [signed by agent-b key]: echoes client_nonce,
  |                    preflight digest, destination, short expiry
  |  verify admission with the key in the card       -> else ABORT (no text sent)
@@ -63,6 +65,20 @@ Design points:
 - **Domain-separated signatures.** Each signature covers `purpose || canonical JSON`, so a card signature can never verify as a grant, an admission or a delivery.
 - **Salted commitment.** The preflight binds the task (`sha256(domain || 32-byte salt || canonical(task))`) without disclosing it. A plain hash of short text could be brute-forced. The salt is sent only with the delivery.
 - **Sender-constrained grant.** A stolen grant is useless without the actor's key, because every preflight and delivery must carry the actor's own signature (a proof-of-possession idea similar to DPoP).
+- **Counted grants (issue #29).** See [Grant uses and retries](#grant-uses-and-retries-issue-29).
+
+### Grant uses and retries (issue #29)
+
+A grant admits at most `max_uses` distinct movements. `max_uses` is an integer from 1 to 1,000,000 inside the signed grant payload, so nobody but the user authority can change it. `issue_grant` defaults it to **1**. A grant signed before issue #29 has no `max_uses` field and verifies as single-use, the most restrictive value. The field cannot be stripped from a newer grant, because the signature covers it.
+
+- **Where a use is consumed.** At preflight, inside the same `BEGIN IMMEDIATE` transaction that checks liveness and revocation, records the nonce and writes the admission. The use (a `grant_uses` row) and the admission therefore commit or roll back together. Concurrent preflights for one grant serialize on the SQLite write lock, so a single-use grant admits exactly one movement even when many threads or processes race (`test_single_use_grant_admits_one_movement_under_thread_concurrency`, `CountedGrantProcessTests`). Beyond the limit, the receiver answers 403 with the trace reason `grant_uses_exhausted`. That happens at preflight, so the refused task's text is never sent.
+- **Retries do not consume uses.** A use is counted per `(grant_id, movement_id)`.
+  - An identical **delivery** retry does not touch the grant counter. It returns the idempotent receipt (`replayed: true`, effect `replayed`).
+  - A **preflight retry of an admitted movement**, for example after the admission reply was lost, is also allowed. It carries a fresh nonce and salt. The receiver issues a new admission that **supersedes** the old one (the old admission ID then gets 403 `unknown_admission`), records the trace reason `readmitted` and consumes no use. It does this even when the grant is otherwise exhausted. The retry must match the admitted movement's origin, logical task, grant ID, task kind, classification, idempotency key and trace ID; any difference is a 409 conflict, and no use is consumed.
+- **Idempotency keys are per sender.** Delivery deduplication in the core store is keyed by `(authenticated origin, idempotency_key)`, so two peers can use the same key. Movement IDs remain unique across senders.
+- **Upgrading a ledger.** When `PeerLedger` opens a file without `grant_uses`, it creates the table and backfills one use for every existing admission, in one transaction. An upgrade therefore never hands a grant extra uses.
+
+What this does **not** do: a use is consumed at admission, not at effect commit. An admission that expires unused still holds its use, although the same movement can be re-admitted with a retry. Uses are counted per receiver database, so a grant whose audience runs several receivers on separate databases is counted separately on each one. Counts are keyed by `grant_id` alone, as revocations are, so two issuers that sign the same `grant_id` share one counter (this fails closed). There is no API to inspect or reset counts other than `PeerLedger.grant_uses()`.
 - **Coarse errors to peers.** Peers see only `400 invalid_contract|unsupported_schema`, `401 unauthenticated`, `403 forbidden` or `409 conflict`. The precise reason goes only to the receiver's local, sanitized trace.
 - **Loopback/in-process endpoints only.** Cards may name only `http://127.0.0.1:<port>` or `local://<name>`. A forged card therefore cannot point a sender at an arbitrary host (SSRF).
 
@@ -133,6 +149,9 @@ The two HPKE classes are skipped cleanly when the extra is absent. "Before discl
 | Expired, not-yet-valid, revoked (signed notice), untrusted-issuer grant | receiver, preflight 403/401 | yes |
 | Forged revocation notice | receiver 401; the grant keeps working | n/a |
 | Wrong audience, wrong task, capability not granted | receiver, preflight 403 | yes |
+| Second movement under a single-use grant / a third under `max_uses=2` (`tests/test_grant_uses_and_sender_keys.py`) | receiver, preflight 403 (`grant_uses_exhausted`) | yes |
+| Preflight retry of an admitted movement with a changed idempotency key or grant | receiver, preflight 409; no use consumed | yes |
+| Tampered `max_uses` / re-signed invalid `max_uses` | receiver 401 (`bad_grant_signature`) / 403 (`malformed_grant`) | yes |
 | Capability not allowlisted | client (not advertised) **and** receiver (`capability_not_allowlisted`) | yes |
 | Unsupported schema | client (not advertised) **and** receiver 400 `unsupported_schema` | yes |
 | Preflight addressed to another endpoint (relay to the real receiver) | receiver 403 (`wrong_destination`) | yes |
@@ -203,7 +222,7 @@ The fake-receiver and unsupported-schema scenarios produce **no receiver trace a
   - **Library, not a certified HPKE.** The suite comes from `cryptography`'s HPKE implementation, which this repository has only checked against one RFC 9180 test vector. It has not been audited here.
   - **Not TLS.** This is not mTLS or TLS channel binding (e.g. [RFC 9266](https://www.rfc-editor.org/rfc/rfc9266)).
   - **Misdirection.** As before, misdirection to an endpoint that the destination card does not name is prevented in both modes.
-- **Replay.** Each preflight nonce is single-use for each origin. Nonces are pruned after 2× the skew window, and stale `issued_at` values are rejected, so replay is impossible outside the window. Inside the window, an observer who copied a preflight can replay it to the real receiver once. That creates an orphan admission and burns the movement ID (squatting/DoS), but it cannot be completed without the origin's key. An identical delivery can be replayed while its admission is valid, but it is idempotent (`replayed: true`, effect `replayed`). Signed receipts can be replayed as evidence. They are bound to an admission ID, not to a verifier challenge.
+- **Replay.** Each preflight nonce is single-use for each origin. Nonces are pruned after 2× the skew window, and stale `issued_at` values are rejected, so replay is impossible outside the window. Inside the window, an observer who copied a preflight can replay it to the real receiver once. That creates an orphan admission and consumes the grant's use for that movement, but it cannot be completed without the origin's key. The genuine origin can still finish the same movement with a preflight retry, which is re-admitted without consuming another use. An identical delivery can be replayed while its admission is valid, but it is idempotent (`replayed: true`, effect `replayed`). Signed receipts can be replayed as evidence. They are bound to an admission ID, not to a verifier challenge.
 - **Cancellation.** There is no cancel operation. Revoking the grant is the only way to stop a transfer. It prevents *future* deliveries and effect commits but does not undo a committed effect. An admission that is never used simply expires (TTL ≤ 60 s, also capped by grant and card expiry).
 - **Partitions.** A receiver that is cut off from the user authority never learns about a revocation and keeps honouring the grant until `expires_at`. The bound is therefore the grant lifetime, so keep grants short. A sender that loses the receipt cannot tell whether the effect committed. It can retry the identical delivery within the admission TTL and get the idempotent answer. After that, the outcome must be reconciled out of band. There is no `unknown` lifecycle state for a peer handoff yet.
 - **Revocation races.** These are linearized **only inside this receiver's SQLite database**: a revocation that commits first always wins at the effect gateway. Three gaps remain:
@@ -218,14 +237,15 @@ The fake-receiver and unsupported-schema scenarios produce **no receiver trace a
   - No card revocation or key rotation.
   - Clock skew is assumed small.
   - Preflight verification costs CPU before authentication succeeds, so DoS is not addressed.
-  - Grants can be reused for several movements of the *same* task until expiry. There is no use counter.
+  - Grant uses are counted per receiver database and consumed at admission. See [Grant uses and retries](#grant-uses-and-retries-issue-29) for what that leaves open.
   - In HS256 mode, any verifier could forge cards and messages.
   - The peer protocol and A2A message framing are separate. An official A2A adapter remains a different issue.
 
 ## Code map
 
 - `src/agent_movement/trust.py`: keys (HS256/Ed25519), domain-separated sealing, `TrustStore`, agent cards (with the optional signed `enc_key`), grants, revocation notices and commitments. It also holds the HPKE pieces: `HpkeKey`, `delivery_info` (the transcript) and `seal_response`/`open_response`.
-- `src/agent_movement/peer.py`: `PeerReceiver` (preflight/delivery/revocation, plus opening sealed deliveries), `PeerClient` (discover → preflight → deliver, the disclosure guard and the no-downgrade rule), `DeliverySeal`, `PeerLedger` (nonces, admissions, revocations, sanitized trace), `AuthorizedEffectGateway` (grant recheck at commit), and in-process, HTTP and recording transports.
+- `src/agent_movement/peer.py`: `PeerReceiver` (preflight/delivery/revocation, plus opening sealed deliveries), `PeerClient` (discover → preflight → deliver, the disclosure guard and the no-downgrade rule), `DeliverySeal`, `PeerLedger` (nonces, admissions, grant uses, revocations, sanitized trace), `AuthorizedEffectGateway` (grant recheck at commit), and in-process, HTTP and recording transports.
 - `src/agent_movement/peer_http.py`: loopback-only HTTP wrapper and a provisioning-file entry point (with an optional `enc_key`).
 - `src/agent_movement/peer_demo.py`: two-process demo with captured sanitized traces (`--delivery auto|plaintext|hpke`).
 - `tests/test_peer.py`: the negative tests above, loopback HTTP runs in both delivery modes, and the RFC 9180 known-answer test.
+- `tests/test_grant_uses_and_sender_keys.py`: issue #29. It covers per-sender idempotency keys and the store migration, and counted grants in the HS256/plaintext and Ed25519/HPKE modes, under thread and process concurrency.
