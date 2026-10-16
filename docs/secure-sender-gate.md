@@ -4,7 +4,7 @@
 
 ## What changes
 
-An operator-created `OutboundGate` is checked **before the first discovery request**. It binds:
+An operator-created `OutboundGate` is checked **before the first discovery request** and **again immediately before task delivery** to catch a grant revoked after preflight admission. This reduces, but cannot eliminate, a revocation race without an independent egress enforcement point. It binds:
 
 - exact destination agent ID **and** endpoint to an operator-owned allowlist;
 - allowed task capability and data classification;
@@ -39,7 +39,7 @@ The peer `handoff` operation is currently only `delegate`; the gate itself expli
 python -m pytest -q tests/test_sender_gate.py tests/test_peer.py tests/test_continuity_runtime.py
 ```
 
-The tests verify a successful synthetic handoff followed by a single receiver-checked simulated effect; blocked unknown destination, disallowed classification/capability, wrong-task/audience/actor, forged issuer, expired/not-yet-valid grant, spoofed origin key with the same `kid`, revoked grant, unavailable revocation source, attempted non-delegation, and a confidentiality refusal. For **pre-disclosure denials**, `RecordingTransport.paths()` is empty and the synthetic canary is absent from `transmitted()`.
+The tests verify a successful synthetic handoff followed by a single receiver-checked simulated effect; blocked unknown destination, disallowed classification/capability, wrong-task/audience/actor, forged issuer, expired/not-yet-valid grant, spoofed origin key with the same `kid`, revoked grant, a **revocation introduced after signed preflight admission but before delivery**, unavailable revocation source, attempted non-delegation, and a confidentiality refusal. For **pre-disclosure denials**, `RecordingTransport.paths()` is empty and the synthetic canary is absent from `transmitted()`.
 
 A deliberate **red/green control** exercises the same wrong-audience grant through the legacy unguarded `PeerClient` and the guarded client. The legacy client contacts the receiver and transmits signed metadata before the receiver refuses; the guarded client refuses without sending any request. In neither case does the task text leave on the denied path. This is a measurable preflight metadata/privacy improvement, not a bypass-proof guarantee.
 
