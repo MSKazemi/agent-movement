@@ -1,9 +1,9 @@
 # As-built architecture of the `agent_movement` package
 
 **Status:** Describes the code as it is, not as it is planned. The package is a research-stage set of **synthetic, local prototypes**, not production software.
-**Last verified against commit `b21da27`** (`main`, 2026-10-16). Every module, class, function, command, table and column named here was checked against that commit with `grep` or by importing it, and every demo was run (see the [development guide](development.md#the-agent_movement-package) for the commands and their exit codes). If the code has changed since then, the code is authoritative.
+**Last verified against commit `3bf98bd`** (2026-10-16; `main` at `e3f3884` merged into this branch). Every module, class, function, command, table and column named here was checked against that commit with `grep` or by importing it, and every demo was run (see the [development guide](development.md#the-agent_movement-package) for the commands and their exit codes). If the code has changed since then, the code is authoritative.
 
-> **Snapshot notice.** At the time of writing, `src/` is being changed by follow-up work on issues #18–#42. This document describes `b21da27` only and will be refreshed after that work lands. Check `git log -- src/agent_movement` for later changes before relying on a detail.
+> **Snapshot notice.** At the time of writing, `src/` is being changed by follow-up work on issues #18–#42. This document describes `3bf98bd` only (it was first written against `b21da27` and refreshed after the MobilityBench smoke rework for issue #22 landed) and will be refreshed again as that work lands. Check `git log -- src/agent_movement` for later changes before relying on a detail.
 
 For the reasons behind each slice, see the topic documents: [local implementation](local-implementation.md), [A2A adapter](a2a-adapter.md), [peer authentication](peer-authentication.md), [checkpoint relocation](checkpoint-relocation.md), [movement receipts](movement-receipts.md) and [MobilityBench v0.1](mobilitybench-v0.1.md). For setup, tests and CI, see the [development guide](development.md#the-agent_movement-package).
 
@@ -44,11 +44,12 @@ All modules are in `src/agent_movement/`. The core is standard-library only. Eac
 | `relocation_demo.py` | `relocation` (POSIX `os.fork`) | `python -m agent_movement.relocation_demo [--json FILE]` | A headline relocation (`headline`) plus a 30-row crash, duplicate and version fault matrix (`run_matrix`). Each actor action runs in a forked child (`run_actor`). Without the extra, the import of `relocation` raises `ImportError` with an install hint (exit 1). |
 | `receipts.py` | `signing` for signature checks | `python -m agent_movement.receipts {verify,timeline,make-fixtures}` | Receipt schema `agent-movement.receipt/0.1-draft`. `validate_body`, `Ed25519Signer`, `commitment`, `body_from_handoff`, `load_trust`, `ReplayGuard`, `verify_bundle` and `render_text`. Exit codes in [§3.5](#35-receipt-verification-offline). |
 | `receipt_fixtures.py` | `signing` | through `receipts make-fixtures DIR` | Nine deterministic scenarios (`SCENARIOS`) and their `EXPECTED` results. They are built on real runs of `HandoffReceiver` and `EffectGateway` (`pr6_handoff`, `gateway_epochs`). |
-| `mobilitybench.py` | core | `python -m agent_movement.mobilitybench [--output FILE]` | A 20-case local smoke suite (`run_suite`). The subcommands `run`, `report`, `verify` and `schedule` are passed on to `mobilitybench_v01`. |
+| `mobilitybench.py` | core | `python -m agent_movement.mobilitybench [--output FILE] [--no-timing]` | The local smoke suite `mobilitybench-local-smoke-v0.2`: case declarations loaded from a packaged fixture (`load_cases`, `validate_case`, `CaseFixtureError`), one evaluator function per case (`case_*`, collected into `EVALUATORS`), `verdict_for`, `run_suite`, `outcome_digest` and `summarize`. Exits 1 if a case fails and 2 if the case fixture is invalid. The subcommands `run`, `report`, `verify` and `schedule` are passed on to `mobilitybench_v01`. |
 | `mobilitybench_v01.py` | core | through `mobilitybench {run,report,verify,schedule}` | A frozen-fixture loader with a SHA-256 manifest check (`verify_fixtures`), a scripted interpreter (`AgentState`, `Attempt`), baselines (`MODES`, `RUNNERS`), security-case handlers (`SECURITY`), `fault_schedule`, `run_suite`, `summarize` and `build_report`. `run` exits 1 on a harness error, a failed security case or a reproducibility mismatch, and 2 if the fixtures fail verification. |
+| `fixtures/mobilitybench-local-smoke/` | package data | none | `cases.jsonl`: the 20 smoke-case declarations (17 `pass`, 3 `known_gap`). |
 | `fixtures/mobilitybench-v0.1/` | package data | none | `tasks.jsonl` (18), `ground_truth.jsonl` (18), `negative.jsonl` (12), `seeds.json` and `MANIFEST.json`. |
 
-One maintainer script outside the package is related: `tools/mobilitybench_freeze.py` recomputes `ground_truth.jsonl` and `MANIFEST.json`, or checks them with `--check`.
+Two scripts outside the package are related. `tools/mobilitybench_freeze.py` recomputes the v0.1 `ground_truth.jsonl` and `MANIFEST.json`, or checks them with `--check`. `tools/schema_subset.py` is a stdlib-only validator for a documented subset of JSON Schema 2020-12; the tests use it to check documentation examples against [`schemas/handoff-envelope.schema.json`](../schemas/handoff-envelope.schema.json) (see [§6](#6-versioned-identifiers)).
 
 ### Import dependencies
 
@@ -258,7 +259,7 @@ flowchart TD
 
 ### 3.6 MobilityBench (core)
 
-`mobilitybench.run_suite` runs 20 scripted cases directly against the core classes (at `b21da27`: 17 pass, 3 are reported as `known_gap`). `mobilitybench_v01.run_suite` first loads the packaged fixtures and checks them against `MANIFEST.json`, then runs every selected task in each mode of `MODES` under the seeded `fault_schedule`, then runs the 12 negative cases of `negative.jsonl` through the 10 attack handlers in `SECURITY` (two cases share `classification_gate` and two share `run_task`). It returns the records, which the CLI writes as JSONL. Three modes are implemented: `keep_on_origin`, `restart_on_destination` and `local_delegate` (which uses an in-process `HandoffReceiver`). Three are emitted as `unavailable`: `a2a_delegate`, `checkpoint_relocate` and `cross_framework_reconstruct`. `run_suite` raises `RuntimeError` if any `redact_terms` string from the fixtures or the `CANARY` string appears in the records. No model is called (`MODEL = "none"`).
+`mobilitybench.run_suite` runs the cases declared in `fixtures/mobilitybench-local-smoke/cases.jsonl` directly against the core classes. Each declaration names its scenario, the expected observation and an `expectation` (`pass`, `known_gap` or `gap_closed`); `load_cases` requires every declaration to have a `case_<scenario>` evaluator and, for the packaged file, every evaluator to have a declaration. Each case runs in its own temporary directory, so results do not depend on order, and `verdict_for` compares the observation with the declaration: a `known_gap` case that shows its declared `closed_observation` is reported as `gap_closed`, not as a failure. At `3bf98bd` the 20 cases give 17 `pass` and 3 `known_gap`. With `--no-timing`, `duration_ms` is `null` and two runs are byte-identical; `outcome_digest` hashes the records without timing. `mobilitybench_v01.run_suite` first loads the packaged fixtures and checks them against `MANIFEST.json`, then runs every selected task in each mode of `MODES` under the seeded `fault_schedule`, then runs the 12 negative cases of `negative.jsonl` through the 10 attack handlers in `SECURITY` (two cases share `classification_gate` and two share `run_task`). It returns the records, which the CLI writes as JSONL. Three modes are implemented: `keep_on_origin`, `restart_on_destination` and `local_delegate` (which uses an in-process `HandoffReceiver`). Three are emitted as `unavailable`: `a2a_delegate`, `checkpoint_relocate` and `cross_framework_reconstruct`. `run_suite` raises `RuntimeError` if any `redact_terms` string from the fixtures or the `CANARY` string appears in the records. No model is called (`MODEL = "none"`).
 
 MobilityBench therefore measures the core handoff and fencing logic under scripted faults. It does not exercise the A2A adapter, peer authentication or checkpoint relocation, even though those modules exist.
 
@@ -336,7 +337,7 @@ Which file holds which tables:
 - `peer_demo`: `receiver.sqlite` holds the core and peer tables.
 - `a2a_demo`: `receiver.sqlite` holds the core tables and `a2a_correlations`.
 - `relocation_demo`: one `<scenario>.sqlite` per matrix row holds the core, relocation and LangGraph tables.
-- `mobilitybench` (20-case suite): one `suite.sqlite` shared by the ordered cases, holding the core tables.
+- `mobilitybench` (smoke suite): one `case.sqlite` per case, each in its own temporary directory, holding the core tables.
 - `mobilitybench_v01`: `effects.sqlite` per attempt (core tables used by `EffectGateway`), plus `receiver.sqlite` for `local_delegate` attempts and `neg.sqlite` for the security cases.
 
 All of these files are in temporary directories. The receipt verifier uses no database: its `ReplayGuard` is in memory and its inputs are JSONL files.
@@ -351,6 +352,7 @@ All of these files are in temporary directories. The receipt verifier uses no da
 | `PROFILE` | `am-checkpoint-relocation/0.1.0-draft` | `relocation.py` |
 | `PINNED_RUNTIME` | `langgraph` 1.2.15, `langgraph-checkpoint` 4.3.0, `langgraph-checkpoint-sqlite` 3.1.2 | `relocation.py` |
 | `RECEIPT_SCHEMA`, `TRUST_SCHEMA`, `REPORT_SCHEMA` | `agent-movement.receipt/0.1-draft`, `agent-movement.trust/0.1-draft`, `agent-movement.verification-report/0.1-draft` | `receipts.py` |
-| `SUITE_VERSION` | `mobilitybench-local-smoke-v0.1` (smoke), `mobilitybench-v0.1` (v0.1) | `mobilitybench.py`, `mobilitybench_v01.py` |
+| `SUITE_VERSION` | `mobilitybench-local-smoke-v0.2` (smoke), `mobilitybench-v0.1` (v0.1) | `mobilitybench.py`, `mobilitybench_v01.py` |
+| Canonical envelope `schema_version` | `0.2.0-draft` (`const` in the schema) | [`schemas/handoff-envelope.schema.json`](../schemas/handoff-envelope.schema.json) |
 
-None of these is a published standard. They are experimental profile identifiers.
+None of these is a published standard. They are experimental profile identifiers. Note that the canonical envelope schema (`0.2.0-draft`) and the implemented core contract (`SCHEMA_VERSION = "0.1.0-draft"`) differ: `core.validate_envelope` rejects any other version, so no `0.2.0-draft` envelope is accepted by the code at `3bf98bd`. The full list of differences is in [how it works: divergences](how-it-works.md#divergences-from-the-implemented-contract).

@@ -13,7 +13,7 @@ The repository also contains the experimental `agent_movement` Python package in
 
 - Python 3 (CI uses the current stable CPython, 3.15). No third-party packages are needed to build or check the corpora.
 - `make`.
-- Optional: `biber` for `make bib` (`sudo apt-get install biber`), and `pytest` for `make test` once a `tests/` directory exists.
+- Optional: `biber` for `make bib` (`sudo apt-get install biber`), and `pytest` for `make test` (the `tests/` directory covers the corpus tools and the `agent_movement` package).
 
 To use a different interpreter, override `PYTHON`, e.g. `make check PYTHON=python3.15`.
 
@@ -53,7 +53,7 @@ Biblatex cite keys are frozen in the same way. Both tools' `apply-audit` refuse 
 
 ## The `agent_movement` package
 
-`src/agent_movement/` is a research-stage, **synthetic, local** testbed. It is not production software, it calls no model, and it uses only throw-away test keys. Its design is described in the [as-built architecture](architecture.md). The commands in this section were last run against commit `b21da27` on 2026-10-16 (Python 3.15.0rc2 without extras; Python 3.11.16 and 3.13.15 with all extras), and every exit code quoted below is what they returned.
+`src/agent_movement/` is a research-stage, **synthetic, local** testbed. It is not production software, it calls no model, and it uses only throw-away test keys. Its design is described in the [as-built architecture](architecture.md). The commands in this section were last run against commit `3bf98bd` on 2026-10-16 (Python 3.15.0rc2 without extras; Python 3.11.16 and 3.13.15 with all extras), and every exit code quoted below is what they returned.
 
 ### Requirements
 
@@ -103,7 +103,7 @@ Without its extra, a feature fails closed instead of pretending to work. This is
 
 ### Tests
 
-`python -m pytest -q` runs all of `tests/`, which covers the corpus tools and the package. `make test PYTHON=python` runs the same command. Tests that need an extra are skipped, not failed, when it is missing. At `b21da27` the full run gave **276 passed, 76 skipped** without extras and **351 passed, 1 skipped** with all extras (the one skip is the test of the missing-extra path). Both exited 0.
+`python -m pytest -q` runs all of `tests/`, which covers the corpus tools and the package. `make test PYTHON=python` runs the same command. Tests that need an extra are skipped, not failed, when it is missing. At `3bf98bd` the full run gave **338 passed, 76 skipped** without extras and **413 passed, 1 skipped** with all extras (the one skip is the test of the missing-extra path). Both exited 0.
 
 Run one group with `python -m pytest -q <file>`:
 
@@ -116,9 +116,11 @@ Run one group with `python -m pytest -q <file>`:
 | `tests/test_a2a_adapter.py` | A2A server and client over the official SDK | `a2a` | 1 (11 skipped) / 11 (1 skipped) |
 | `tests/test_relocation.py` | Checkpoint relocation and the fault matrix | `relocation`, `os.fork` | 0 (14 skipped) / 14 |
 | `tests/test_movement_receipts.py` | Receipt schema, JCS, offline verifier, fixtures | `signing` for signature cases | 13 (13 skipped) / 26 |
-| `tests/test_mobilitybench.py` | 20-case smoke suite | core | 4 / 4 |
+| `tests/test_mobilitybench.py` | Smoke suite: fixture-declared verdicts, per-case isolation, order independence, byte-identical `--no-timing` output | core | 15 / 15 |
 | `tests/test_mobilitybench_v01.py` | MobilityBench v0.1 fixtures, runner, report | core | 25 / 25 |
 | `tests/test_review_regressions.py` | Regressions from the PR #6 and #14 review: JSON limits, lone surrogates, 400/500 answers, stalled bodies, SQLite start-up, pipe cleanup | core | 9 / 9 |
+| `tests/test_handoff_envelope_schema.py` | Marked envelope examples in `docs/` against `schemas/handoff-envelope.schema.json`, and core compatibility with the schema | core | 47 / 47 |
+| `tests/test_positioning.py` | The positioning statement is identical on every surface | core | 4 / 4 |
 | `tests/test_news_corpus.py`, `tests/test_paper_corpus.py`, `tests/test_cli_determinism_integration.py` | Corpus tools (see above) | core | 161 / 161 |
 
 Every group exited 0 in both environments.
@@ -134,7 +136,8 @@ Each demo runs locally on `127.0.0.1` (or in-process), keeps its SQLite files in
 | `python -m agent_movement.peer_demo --alg Ed25519` | `ed25519` | The same with Ed25519 keys | 0 |
 | `python -m agent_movement.a2a_demo` | `a2a` | A2A v1 delegation: server process plus five client processes | 0 |
 | `python -m agent_movement.relocation_demo --json "$OUT/relocation-results.json"` | `relocation` | Headline relocation plus the 30-row fault matrix (`rows: 30, matching expectation: 30`) | 0 |
-| `python -m agent_movement.mobilitybench --output "$OUT/mobilitybench-local.jsonl"` | core | 20-case smoke suite (17 pass, 3 `known_gap`) | 0 |
+| `python -m agent_movement.mobilitybench --output "$OUT/mobilitybench-local.jsonl"` | core | Smoke suite `mobilitybench-local-smoke-v0.2`: 20 cases, 17 `pass`, 3 `known_gap`, 0 `gap_closed`, 0 `fail` | 0 |
+| `python -m agent_movement.mobilitybench --no-timing --output "$OUT/smoke-1.jsonl"` (twice, then `cmp` the two files) | core | Timing-free output is byte-identical across runs | 0, and `cmp` exits 0 |
 
 Here `OUT=$(mktemp -d)`, so no output lands in the working tree.
 
@@ -165,14 +168,19 @@ The nine fixture bundles return the exit codes that CI expects: 0 for `01`, `05`
 | Workflow | Trigger | Jobs |
 |---|---|---|
 | [`corpus.yml`](../.github/workflows/corpus.yml) | push and pull request to `main` | `gates`: `make check verify-determinism verify-analysis`, then `make test` on Python 3.15. `bibliography`: `make bib BIB_STRICT=1`. |
-| [`python-smoke.yml`](../.github/workflows/python-smoke.yml) | push or pull request touching `src/`, `tests/`, `tools/`, `pyproject.toml` or the workflow | `core` (Python 3.11, 3.13, 3.15; no extras): pytest, `demo`, `peer_demo`, both MobilityBench suites, and the fail-closed checks above. `extras` (Python 3.11, 3.13; all extras): pytest, every demo, and the nine receipt fixtures with their expected exit codes. Both upload their result files as artifacts for 7 days. |
+| [`python-smoke.yml`](../.github/workflows/python-smoke.yml) | push or pull request touching `src/`, `tests/`, `tools/`, `pyproject.toml` or the workflow | `core` (Python 3.11, 3.13, 3.15; no extras): pytest, `demo`, `peer_demo`, the smoke suite (once with timing, then twice with `--no-timing`, compared with `cmp`), MobilityBench v0.1, and the fail-closed checks above. `extras` (Python 3.11, 3.13; all extras): pytest, every demo, and the nine receipt fixtures with their expected exit codes. Both upload their result files as artifacts for 7 days. |
 | [`docs-links.yml`](../.github/workflows/docs-links.yml) | push to `main` and every pull request | `relative-links`: lychee in offline mode over all Markdown files |
 
 ### Adding a MobilityBench case
 
 There are two suites, and they are extended differently.
 
-**20-case smoke suite (`mobilitybench.py`).** Each case is one `record(...)` call inside `mobilitybench.run_suite`, with a scenario name, question IDs, a baseline, the expected observation and an `evaluate` function that returns `(observed, evidence)`. Evidence values must be `str`, `int` or `bool`, and never task text. Use `known_gap=True` for a reproduced missing control. `tests/test_mobilitybench.py` asserts that there are exactly 20 unique scenarios, so update that count in the same change.
+**Smoke suite (`mobilitybench.py`, fixture-based).** A case has two parts, and both are needed:
+
+1. A declaration: one JSON line in `src/agent_movement/fixtures/mobilitybench-local-smoke/cases.jsonl` with the fields `scenario`, `question_ids`, `baseline`, `expected`, `expectation` and `description` (checked by `mobilitybench.validate_case`). `expectation` is `pass`, `known_gap` or `gap_closed`. A `known_gap` case must also give `expected_fix` and a `closed_observation` that differs from `expected`; a `gap_closed` case gives `expected_fix` only; a `pass` case gives neither.
+2. An evaluator: a function `case_<scenario>(workdir: Path) -> tuple[str, Evidence]` in `mobilitybench.py`, defined **above** the `EVALUATORS = {...}` line, because that dictionary is built from the module globals at import time. It must create everything it uses inside `workdir` and return `(observed, evidence)`; evidence values must be `str`, `int` or `bool`, and never task text.
+
+If only one part exists, the CLI exits 2 with `case_fixture_invalid`: a declaration without an evaluator is reported as `no evaluator for scenario <name>`, and an evaluator without a declaration as `packaged declarations do not cover every evaluator`. In a rehearsal on a scratch copy of the package with one added `pass` case, the declaration alone and the evaluator alone each exited 2, and both together gave 21 cases (18 `pass`, 3 `known_gap`) with exit 0. `tests/test_mobilitybench.py` derives its counts from the declarations and passed, but `tests/test_mobilitybench_v01.py` (`test_run_smoke_report_verify_and_legacy_entrypoint`) still asserts that the smoke output has exactly 20 lines and failed, so update that number in the same change.
 
 **MobilityBench v0.1 (`fixtures/mobilitybench-v0.1/`).** This release is frozen and must not be edited in place: a new task, rubric or ground truth needs a new suite version and a new fixture directory ([versioning rule](mobilitybench-v0.1.md#frozen-release)). At `b21da27` the harness knows one suite (`mobilitybench_v01.SUITES = {"v0.1": ...}`), and `verify_fixtures` requires the manifest's `suite_version` to equal `SUITE_VERSION`. A new release therefore also needs a change in `mobilitybench_v01.py` and in the `package-data` pattern in `pyproject.toml`. You can draft and test a case in a copy without touching the release:
 
