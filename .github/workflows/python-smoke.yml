@@ -38,6 +38,8 @@ jobs:
       - run: python -m pytest -q
       - run: python -m agent_movement.demo
       - run: python -m agent_movement.peer_demo
+      - name: Software-only device binding and cloned authority smoke
+        run: python -m agent_movement.device_binding_demo
       - name: MobilityBench 20-case smoke (plus two timing-free runs that must be byte-identical)
         run: |
           python -m agent_movement.mobilitybench --output mobilitybench-local.jsonl
