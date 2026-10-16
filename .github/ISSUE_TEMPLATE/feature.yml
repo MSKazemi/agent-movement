@@ -1,0 +1,46 @@
+name: Feature or experiment
+description: Propose a new experiment, prototype capability, benchmark case, tool or document.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Agent Movement is a research prototype on synthetic data. Proposals work best when they state a question that the change answers and how the result could be checked.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or research question
+      description: What is missing, and why does it matter for agent movement?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What would you add or change? Name the files, modules or documents involved.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Prior work and sources
+      description: Related specifications, papers or corpus items (AMN-NNN / AMP-NNN), with links.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: How would we know it works?
+      description: Tests, benchmark cases, falsifiable predictions or acceptance criteria.
+    validations:
+      required: true
+  - type: dropdown
+    id: dependencies
+    attributes:
+      label: New dependencies
+      description: The core is stdlib-only; third-party packages go in an optional extra.
+      options:
+        - None (stdlib only)
+        - New or changed optional extra
+        - Not sure
+    validations:
+      required: true
