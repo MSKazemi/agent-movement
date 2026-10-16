@@ -29,6 +29,13 @@ class AuthorityMachineTests(unittest.TestCase):
         self.assertGreater(result.transitions, 50000)
         self.assertFalse(explore(0).exhausted)
 
+    def test_entire_small_finite_universe_exhausted_at_depth_twenty(self):
+        result = explore(20)
+        self.assertIsNone(result.counterexample)
+        self.assertTrue(result.exhausted)
+        self.assertEqual(result.states, 59200)
+        self.assertEqual(result.transitions, 330294)
+
     def test_each_bypassed_invariant_has_a_short_counterexample(self):
         examples = {
             "skip_epoch": ("EffectRequiresCurrentFencingEpoch", "commit_A_publish-1"),
