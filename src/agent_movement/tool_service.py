@@ -221,6 +221,12 @@ class ToolAuthority:
             db.commit()
         return {"status": "updated", "task_id": p["task_id"]}
 
+    @staticmethod
+    def _require_epoch(row: dict[str, Any], request: dict[str, Any]) -> None:
+        if (request["owner_epoch"] != row["owner_epoch"] or
+                request["policy_epoch"] != row["policy_epoch"]):
+            raise Unauthorized("stale tool execution or policy epoch")
+
     def effect(self, signed: Any) -> dict[str, Any]:
         p = _fields(verify_tool("effect", signed, self.executor), _EFFECT, "tool effect")
         if p["type"] != "tool-effect":
@@ -238,9 +244,9 @@ class ToolAuthority:
             row = self._row(db, p["task_id"])
             if any(p[key] != row[key] for key in (
                 "movement_id", "destination_id", "kind", "classification", "resource",
-                "owner_epoch", "policy_epoch",
             )):
                 raise Unauthorized("tool scope or authority snapshot changed")
+            self._require_epoch(row, p)
             if row["destination_id"] != self.destination_id or row["revoked"]:
                 raise Unauthorized("revoked or wrong tool recipient")
             if self._now() >= row["expires_at"]:
