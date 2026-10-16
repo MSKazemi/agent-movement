@@ -229,10 +229,7 @@ The fake-receiver and unsupported-schema scenarios produce **no receiver trace a
   - A revocation that lands between admission and delivery still lets the text cross the wire. It is then refused and not persisted. In HPKE mode only ciphertext crosses, and the receiver decrypts it only after its admission checks pass. The grant recheck comes *after* decryption, so the receiver process does briefly hold the text in memory.
   - A revocation that arrives after commit does not undo the commit.
   - A real third-party tool would need the same check *on its own side* of the boundary.
-- **Retention.** The receiver keeps the following data **with no expiry or deletion API**:
-  - **`peer_admissions` rows:** the origin card and the full signed grant.
-  - **`peer_trace` and `authority_log` rows.**
-  - **Core `audit_events` and `deliveries` rows.** These pre-date this work. `audit_events.info_digest` is an *unsalted* SHA-256 over the full envelope, and the `sha256` task kind stores the hash of the text as its result. Both let an observer confirm guesses about low-entropy text. Only nonces are pruned.
+- **Retention.** Since [issue #39](data-retention.md), stored content digests (envelope, artifact, effect payload) are keyed commitments under a per-store secret, the stored receipt no longer carries the `sha256` task's result, and `agent-movement purge --older-than` deletes old `peer_trace`, `authority_log`, nonce and core history rows. Admissions and their grant uses go only once the grant itself expired; revocations and `authorized_effects` are kept. There is no automatic expiry, and the store secret sits in the same file, so the commitments protect exports and logs, not a copied file. See [data retention](data-retention.md).
 - **Other.**
   - No card revocation or key rotation.
   - Clock skew is assumed small.
