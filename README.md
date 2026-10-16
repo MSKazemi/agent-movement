@@ -6,6 +6,8 @@ Agent Movement is a research prototype: an open, evidence-first testbed built to
 
 **Status:** Research-stage. Alongside the research documents, the repository has an **experimental Python package of synthetic, local prototypes**: loopback task handoff with simulated-effect fencing, an optional A2A v1 adapter on the official SDK, authenticated peer handoff, same-runtime LangGraph checkpoint relocation, signed movement receipts and the MobilityBench harness. None of it is production software. It does **not** provide production security, broad A2A interoperability (one second SDK, a JavaScript client, and the official A2A TCK have been run on loopback, with documented deviations), cross-framework reconstruction or deployment to other devices. Current release: **v0.2.0** (2026-10-16); see the [CHANGELOG](CHANGELOG.md). Last reviewed: 2026-10-16.
 
+[Explicit envelope version compatibility (runtime 0.1 versus proposed 0.2)](docs/handoff-version-compatibility.md)
+
 ## Start here: research mission and current evidence
 
 **Central question:** When can AI-agent work continue on another authorized executor without silent task-state loss, unsafe effects or untraceable ownership changes—and when is staying or restarting better?
