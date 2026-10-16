@@ -19,8 +19,15 @@ def test_bare_ids_are_found_with_line_and_column():
 
 
 def test_prefixed_ids_and_other_words_are_not_bare():
-    text = "HQ-19, SQ-03, ST-0, FS-1, SH-2, [SRC-7], HX1, RQ1, Q&A, S3x, AQ1, SQL and E2.\n"
+    text = "HQ-19, SQ-03, ST-0, FS-1, SH-2, [SRC-7], HX1, RQ1, HB-S01, HB-S12, LOCAL-Q05, Q&A, S3x, AQ1, SQL and E2.\n"
     assert tokens(text) == []
+
+
+def test_hardware_binding_labels_do_not_match_bare_ids():
+    text = "- **HB-S01:** Restrict a capability.\n- **HB-S12:** Avoid tracking.\n"
+    assert tokens(text) == []
+    # Genuine unprefixed references must still be rejected.
+    assert tokens("Read S01; also [S12] and Q5.") == ["S01", "S12", "Q5"]
 
 
 def test_code_urls_comments_and_ignore_marker_are_skipped():
