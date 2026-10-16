@@ -305,18 +305,18 @@ def test_separate_process_peer_gateway_bypass_attempt_is_fenced(lane):
     env = os.environ.copy()
     env["PYTHONPATH"] = str(root / "src") + os.pathsep + env.get("PYTHONPATH", "")
     code = (
-        "import json, sys\\n"
-        "from agent_movement.core import SQLiteStore\\n"
-        "from agent_movement.peer import AuthorizedEffectGateway, PeerLedger\\n"
-        "from agent_movement.trust import Unauthorized\\n"
-        "ledger=PeerLedger(SQLiteStore(sys.argv[1]))\\n"
-        "grant=json.loads(sys.argv[2])\\n"
-        "gateway=AuthorizedEffectGateway(ledger,clock=lambda: 1800000000)\\n"
-        "try:\\n"
-        " gateway.commit(grant,'agent-b','task-1','peer-bypass','synthetic',movement_id='movement-1')\\n"
-        " print('UNGUARDED_EFFECT')\\n"
-        "except Unauthorized as exc:\\n"
-        " print('DENIED:'+exc.reason)\\n"
+        "import json, sys\n"
+        "from agent_movement.core import SQLiteStore\n"
+        "from agent_movement.peer import AuthorizedEffectGateway, PeerLedger\n"
+        "from agent_movement.trust import Unauthorized\n"
+        "ledger=PeerLedger(SQLiteStore(sys.argv[1]))\n"
+        "grant=json.loads(sys.argv[2])\n"
+        "gateway=AuthorizedEffectGateway(ledger,clock=lambda: 1800000000)\n"
+        "try:\n"
+        " gateway.commit(grant,'agent-b','task-1','peer-bypass','synthetic',movement_id='movement-1')\n"
+        " print('UNGUARDED_EFFECT')\n"
+        "except Unauthorized as exc:\n"
+        " print('DENIED:'+exc.reason)\n"
     )
     output = subprocess.run(
         [sys.executable, "-c", code, str(rig.store.path), json.dumps(rig.grant["payload"])],
