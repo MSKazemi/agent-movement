@@ -3,10 +3,13 @@
     python -m pip install -e '.[relocation]'
     python -m agent_movement.relocation_demo [--json results.json]
     python -m agent_movement.relocation_demo --two-store [--json results.json]
+    python -m agent_movement.relocation_demo reconcile --help   # operator CLI (issue #30)
 
 The default mode shares one SQLite file between coordinator and workers. ``--two-store``
 gives each worker its own store and copies the checkpoint as a digest-verified bundle
-(scenarios in :mod:`agent_movement.relocation_demo_two_store`).
+(scenarios in :mod:`agent_movement.relocation_demo_two_store`). Both modes end with the
+operator-reconciliation rows that resolve the effects parked by C13/C14
+(:mod:`agent_movement.relocation_demo_reconcile`).
 
 Every actor action (origin worker, coordinator, receiver worker) runs in a
 freshly forked OS process that shares nothing with the next action except the
@@ -105,6 +108,9 @@ class Run:
     def observe(self) -> dict[str, Any]:
         return observe(self.path, TASK, EFFECT_ID)
 
+    def worker(self, worker: str, incarnation: int = 1, crash: str | None = None) -> Worker:
+        return Worker(self.path, worker, incarnation, faults=Faults(crash))
+
     # --- actor actions -------------------------------------------------
     def start_a(self, supersteps: int = 3) -> dict[str, Any]:
         path, tool = self.path, self.tool
@@ -162,7 +168,8 @@ def completed(obs: dict[str, Any]) -> bool:
 
 
 def unchanged(before: dict[str, Any], after: dict[str, Any]) -> bool:
-    keys = ("owner", "head_checkpoint_id", "gateway_commits", "opaque_invocations", "relocations")
+    keys = ("owner", "head_checkpoint_id", "gateway_commits", "opaque_invocations", "relocations",
+            "reconciliations")
     # Two-store observations also summarize every worker store (absent = single store).
     return all(before[k] == after[k] for k in keys) and before.get("stores") == after.get("stores")
 
@@ -602,17 +609,25 @@ def markdown(rows: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def experiment(root: str, two_store: bool = False) -> dict[str, Any]:
+def experiment(root: str, two_store: bool = False, reconciliation: bool = True) -> dict[str, Any]:
+    """Headline + fault matrix; ``reconciliation`` adds the operator rows that resolve C13/C14."""
     if two_store:
         from . import relocation_demo_two_store as two
-        return two.experiment(root)
-    h = headline(root)
-    rows = run_matrix(root)
-    return {"mode": "single-store", "runtime": runtime_versions(), "pinned": PINNED_RUNTIME,
-            "python": sys.version.split()[0],
-            "exported_state": EXPORTED_STATE, "unsupported_state": UNSUPPORTED_STATE,
-            "headline": h, "headline_ok": headline_ok(h), "matrix": rows,
-            "all_rows_match": all(r["match"] for r in rows)}
+        results = two.experiment(root)
+    else:
+        h = headline(root)
+        rows = run_matrix(root)
+        results = {"mode": "single-store", "runtime": runtime_versions(), "pinned": PINNED_RUNTIME,
+                   "python": sys.version.split()[0],
+                   "exported_state": EXPORTED_STATE, "unsupported_state": UNSUPPORTED_STATE,
+                   "headline": h, "headline_ok": headline_ok(h), "matrix": rows,
+                   "all_rows_match": all(r["match"] for r in rows)}
+    if reconciliation:
+        from . import relocation_demo_reconcile as rec
+        rows = rec.run_matrix(root, two_store)
+        results["reconciliation"] = rows
+        results["all_reconciliation_rows_match"] = all(r["match"] for r in rows)
+    return results
 
 
 HEADLINE_KEYS = ("items_by_execution", "process_item_runs", "fenced_a_step", "fenced_a_commit",
@@ -622,11 +637,23 @@ HEADLINE_KEYS = ("items_by_execution", "process_item_runs", "fenced_a_step", "fe
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Synthetic same-runtime checkpoint relocation experiment")
+    argv = sys.argv[1:] if argv is None else list(argv)
+    # Under the unified CLI sys.argv[0] is "agent-movement relocate"; keep that name in usage.
+    invoked = os.path.basename(sys.argv[0]) if sys.argv and sys.argv[0] else ""
+    prog = invoked if invoked.startswith("agent-movement") else "python -m agent_movement.relocation_demo"
+    if argv[:1] == ["reconcile"]:  # the operator CLI owns everything after the subcommand
+        from .relocation_reconcile import main as reconcile_main
+        return reconcile_main(argv[1:], prog=f"{prog} reconcile")
+    parser = argparse.ArgumentParser(prog=prog,
+                                     description="Synthetic same-runtime checkpoint relocation experiment")
     parser.add_argument("--json", type=Path, help="also write full results as JSON")
     parser.add_argument("--two-store", action="store_true",
                         help="give each worker its own SQLite store and copy the checkpoint as a "
                              "digest-verified bundle (copy-specific fault matrix)")
+    # Listed for --help only: "reconcile" is dispatched above, before this parser runs.
+    commands = parser.add_subparsers(dest="command")
+    commands.add_parser("reconcile", add_help=False,
+                        help="operator reconciliation of parked unknown-outcome effects (see 'reconcile --help')")
     options = parser.parse_args(argv)
     if not hasattr(os, "fork"):
         print("This experiment needs os.fork (Linux/macOS).", file=sys.stderr)
@@ -649,9 +676,15 @@ def main(argv: list[str] | None = None) -> int:
     print(markdown(results["matrix"]))
     print(f"\nrows: {len(results['matrix'])}, matching expectation: "
           f"{sum(r['match'] for r in results['matrix'])}")
+    from . import relocation_demo_reconcile as rec
+    print("\n== Operator reconciliation of the parked C13/C14 effects (issue #30) ==")
+    print(rec.markdown(results["reconciliation"]))
+    print(f"\nreconciliation rows: {len(results['reconciliation'])}, matching expectation: "
+          f"{sum(r['match'] for r in results['reconciliation'])}")
     if options.json:
         options.json.write_text(json.dumps(results, indent=2, default=str) + "\n", encoding="utf-8")
-    return 0 if results["headline_ok"] and results["all_rows_match"] else 1
+    return 0 if results["headline_ok"] and results["all_rows_match"] and \
+        results["all_reconciliation_rows_match"] else 1
 
 
 if __name__ == "__main__":

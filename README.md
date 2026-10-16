@@ -1,7 +1,7 @@
 # Agent Movement
 
 <!-- positioning:start -->
-Agent Movement is a research prototype: an open, evidence-first testbed built to make claims about safely moving AI-agent work between executors falsifiable. It currently pairs ranked research questions with synthetic, localhost-only Python prototypes and MobilityBench v0.1, a frozen, deterministic, LLM-free benchmark of 18 synthetic tasks that scores keeping, restarting and locally delegating work under injected faults and reports refusals and unavailable baselines instead of hiding them. It is not production software, a new agent protocol or a rival to A2A or MCP.
+Agent Movement is a research prototype: an open, evidence-first testbed built to make claims about safely moving AI-agent work between executors falsifiable. It currently pairs ranked research questions with synthetic, localhost-only Python prototypes and MobilityBench v0.1, a frozen, deterministic, LLM-free benchmark of 18 synthetic tasks that scores keeping, restarting, delegating (locally or over A2A) and checkpoint-relocating work under injected faults, with the A2A and relocation modes enabled by optional extras, and reports refusals and unavailable baselines instead of hiding them. It is not production software, a new agent protocol or a rival to A2A or MCP.
 <!-- positioning:end -->
 
 **Status:** Research-stage. Alongside the research documents, the repository has an **experimental Python package of synthetic, local prototypes**: loopback task handoff with simulated-effect fencing, an optional A2A v1 adapter on the official SDK, authenticated peer handoff, same-runtime LangGraph checkpoint relocation, signed movement receipts and the MobilityBench harness. None of it is production software. It does **not** provide production security, broad A2A interoperability (one second SDK, a JavaScript client, and the official A2A TCK have been run on loopback, with documented deviations), cross-framework reconstruction or deployment to other devices. Last reviewed: 2026-10-16.
@@ -72,6 +72,7 @@ agent-movement a2a-demo                               # A2A v1 delegation via th
 agent-movement peer-demo --alg Ed25519                # asymmetric peer keys, HPKE-sealed delivery
 agent-movement relocate                               # LangGraph checkpoint relocation fault matrix
 agent-movement relocate --two-store                   # same, checkpoint copied into Worker B's own store
+agent-movement relocate reconcile --help             # operator reconciliation of parked unknown-outcome effects
 agent-movement receipts verify tests/fixtures/movement-receipts/01-valid-delegation \
     --trust tests/fixtures/movement-receipts/trust.json --now 2026-10-16T00:00:00Z
 agent-movement demo --receipts /tmp/am-receipts       # same demo, plus signed receipts verified offline
@@ -121,7 +122,7 @@ Experimental code (synthetic, local, not production):
 - [Optional A2A v1 adapter on the official SDK: delegation, not migration; experimental, unauthenticated](docs/a2a-adapter.md)
 - [A2A profile extension spec: the resolvable extension URI, envelope ↔ A2A field mapping, error codes and the server-generated contextId policy](docs/a2a-profile-extension.md)
 - [Peer authentication and pre-disclosure authorization (synthetic, local; `python -m agent_movement.peer_demo`), with optional HPKE-sealed delivery](docs/peer-authentication.md)
-- [Same-runtime checkpoint relocation (pinned LangGraph) with a 30-row crash/duplicate fault matrix, plus a two-store mode that copies the checkpoint as a digest-verified bundle (11 copy fault rows)](docs/checkpoint-relocation.md) (optional extra: `pip install -e '.[relocation]'`)
+- [Same-runtime checkpoint relocation (pinned LangGraph) with a 30-row crash/duplicate fault matrix, plus a two-store mode that copies the checkpoint as a digest-verified bundle (11 copy fault rows) and operator reconciliation of parked unknown-outcome effects (9 rows)](docs/checkpoint-relocation.md) (optional extra: `pip install -e '.[relocation]'`)
 - [Signed movement receipts and offline forensic verifier (experimental, synthetic fixtures)](docs/movement-receipts.md)
 
 ## Executable human-impact research pilot
@@ -136,7 +137,7 @@ python -m pytest -q          # all tests: agent_movement + corpus tooling
 
 The local smoke suite models 20 cases. Each case declares its expected verdict in a packaged fixture and runs in its own temporary database, and `--no-timing` makes two runs byte-identical. On 2026-10-16, **17 cases reproduced their expected narrow behavior and 3 reproduced known gaps, which are not security successes.** The three gap cases attack the core path: a forged origin claim, an effect commit after revocation, and a forged unsigned receipt. The peer-authentication and signed-receipt modules close them on separate paths only. This is not A2A, trusted peer identity, portable live state or a production system. See the experiment protocol for limits and next steps.
 
-[MobilityBench v0.1](docs/mobilitybench-v0.1.md) extends this with 18 frozen, digest-verified synthetic tasks across three workload families: document work, constrained coding and simulated tools. It compares keep-on-origin, restart-on-destination and the PR #6 local delegate under seeded faults. The A2A, checkpoint-relocation and cross-framework baselines are reported as **unavailable**. Run it with `agent-movement bench run --suite v0.1 --out results.jsonl`, then `agent-movement bench report --in results.jsonl` (or the same subcommands of `python -m agent_movement.mobilitybench`). The suite is deterministic and LLM-free, so it supports no general statistical claims.
+[MobilityBench v0.1](docs/mobilitybench-v0.1.md) extends this with 18 frozen, digest-verified synthetic tasks across three workload families: document work, constrained coding and simulated tools. It compares keep-on-origin, restart-on-destination and the PR #6 local delegate under seeded faults. With the optional extras installed (`pip install -e '.[a2a,relocation]'`) it also scores delegation over the official A2A v1 SDK and same-runtime checkpoint relocation; without them those two modes are explicit **unavailable** records. Cross-framework reconstruction is always reported as unavailable. Run it with `agent-movement bench run --suite v0.1 --out results.jsonl`, then `agent-movement bench report --in results.jsonl` (or the same subcommands of `python -m agent_movement.mobilitybench`). The suite is deterministic and LLM-free, so it supports no general statistical claims.
 
 ## Recommended initial experiment
 

@@ -153,7 +153,7 @@ Report the denominator, fault model, model/version, environment, uncertainty, kn
 **Positioning** (one statement, used verbatim in the [README](../README.md), the [strategic agenda](strategic-target-and-scientific-agenda.md) and `CITATION.cff`):
 
 <!-- positioning:start -->
-Agent Movement is a research prototype: an open, evidence-first testbed built to make claims about safely moving AI-agent work between executors falsifiable. It currently pairs ranked research questions with synthetic, localhost-only Python prototypes and MobilityBench v0.1, a frozen, deterministic, LLM-free benchmark of 18 synthetic tasks that scores keeping, restarting and locally delegating work under injected faults and reports refusals and unavailable baselines instead of hiding them. It is not production software, a new agent protocol or a rival to A2A or MCP.
+Agent Movement is a research prototype: an open, evidence-first testbed built to make claims about safely moving AI-agent work between executors falsifiable. It currently pairs ranked research questions with synthetic, localhost-only Python prototypes and MobilityBench v0.1, a frozen, deterministic, LLM-free benchmark of 18 synthetic tasks that scores keeping, restarting, delegating (locally or over A2A) and checkpoint-relocating work under injected faults, with the A2A and relocation modes enabled by optional extras, and reports refusals and unavailable baselines instead of hiding them. It is not production software, a new agent protocol or a rival to A2A or MCP.
 <!-- positioning:end -->
 
 It is also not an engine for unapproved autonomous spreading (see §6).
