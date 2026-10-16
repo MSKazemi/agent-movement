@@ -54,6 +54,7 @@ from .core import (
     parse_json,
     validate_envelope,
 )
+from .sender_gate import OutboundGate
 from .trust import (
     CLASSIFICATIONS,
     HPKE_SUITE,
@@ -710,10 +711,16 @@ class PeerClient:
 
     def __init__(self, card: dict[str, Any], key: Any, trust: TrustStore, transport: Transport, *,
                  never_send: Iterable[str | bytes] = (), clock: Callable[[], float] = time.time,
-                 schema_version: str = PEER_SCHEMA_VERSION, require_confidentiality: bool = False):
+                 schema_version: str = PEER_SCHEMA_VERSION, require_confidentiality: bool = False,
+                 outbound_gate: OutboundGate | None = None, secure_test_mode: bool = False):
         self.card, self.key, self.trust, self.transport = card, key, trust, transport
         self.clock, self.schema_version = clock, schema_version
-        self.require_confidentiality = require_confidentiality
+        if secure_test_mode and outbound_gate is None:
+            raise ContractError("secure sender mode requires an outbound gate")
+        self.outbound_gate = outbound_gate
+        self.require_confidentiality = require_confidentiality or (
+            outbound_gate.require_confidentiality if outbound_gate is not None else False
+        )
         forms = [s.encode("utf-8") if isinstance(s, str) else s for s in never_send]
         self._never_send = tuple(x for x in [*forms, *key.secret_forms()] if x)
         self.trace: list[dict[str, Any]] = []
@@ -802,9 +809,29 @@ class PeerClient:
             payload["enc"] = sealed_to.seal(canonical(inner).encode("utf-8"))
         return canonical(seal("delivery", payload, self.key)).encode("utf-8")
 
+    def _require_outbound(self, *, url: str, destination_id: str, task_id: str,
+                          kind: str, classification: str, grant: dict[str, Any],
+                          phase: str) -> None:
+        if self.outbound_gate is None:
+            return
+        try:
+            self.outbound_gate.check(
+                trust=self.trust, origin_card=self.card, origin_key=self.key,
+                destination_id=destination_id, url=url, task_id=task_id,
+                kind=kind, classification=classification, grant=grant, now=_now(self.clock),
+            )
+        except (TrustDenied, ContractError) as exc:
+            reason = exc.reason if isinstance(exc, TrustDenied) else "invalid_outbound_request"
+            raise self._abort("outbound_gate", reason, False) from exc
+        self._event("outbound_gate", "allowed", "verified_before_" + phase, False)
+
     def handoff(self, *, url: str, destination_id: str, movement_id: str, task_id: str, kind: str,
                 text: str, grant: dict[str, Any], idempotency_key: str, trace_id: str,
                 classification: str = "synthetic") -> dict[str, Any]:
+        self._require_outbound(
+            url=url, destination_id=destination_id, task_id=task_id, kind=kind,
+            classification=classification, grant=grant, phase="discovery",
+        )
         card = self.discover(url, destination_id, kind)
         body, secret = self.build_preflight(
             url=url, destination_id=destination_id, movement_id=movement_id, task_id=task_id,
@@ -835,6 +862,13 @@ class PeerClient:
             body = self.build_delivery(admission["admission_id"], secret["task"], secret["salt"], sealed_to)
         except (ContractError, ValueError, TypeError) as exc:
             raise self._abort("delivery", "encryption_failed", False) from exc
+        # Revalidate the trusted revocation source at the last available
+        # sender boundary. This narrows but cannot eliminate the TOCTOU gap;
+        # independent receiver/effect enforcement still decides safely.
+        self._require_outbound(
+            url=url, destination_id=destination_id, task_id=task_id, kind=kind,
+            classification=classification, grant=grant, phase="delivery",
+        )
         self._event("delivery", "sending", "hpke_sealed" if sealed_to else "plaintext_no_confidentiality",
                     False)
         status, raw = self._send(url, DELIVERY_PATH, body)
