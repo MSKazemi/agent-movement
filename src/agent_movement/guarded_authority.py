@@ -19,8 +19,13 @@ from .continuity_runtime import ContinuityRuntime
 from .core import Conflict, ContractError, PolicyDenied, SQLiteStore, _id, canonical, digest
 from .peer import PeerLedger
 from .trust import (
-    TrustStore, Unauthorized, check_grant_live, check_grant_scope,
-    sealed_parts, unseal, verify_grant,
+    TrustStore,
+    Unauthorized,
+    check_grant_live,
+    check_grant_scope,
+    sealed_parts,
+    unseal,
+    verify_grant,
 )
 
 _INTENT_FIELDS = frozenset({
@@ -126,7 +131,9 @@ class GuardedAuthority:
                  "classification", "grant_json", "policy_epoch", "status",
                  "budget_limit", "budget_used", "cancelled", "unknown_effect")
         r = db.execute(
-            "SELECT " + ",".join(names) + " FROM guarded_tasks WHERE task_id=?", (task_id,)
+            "SELECT task_id,movement_id,origin_id,origin_epoch,destination_id,kind,"
+            "classification,grant_json,policy_epoch,status,budget_limit,budget_used,"
+            "cancelled,unknown_effect FROM guarded_tasks WHERE task_id=?", (task_id,)
         ).fetchone()
         if r is None:
             raise PolicyDenied("task not enrolled in guarded authority")
@@ -240,7 +247,8 @@ class GuardedAuthority:
                 raise PolicyDenied("movement not yet authorized to execute")
             if agent_id != row["destination_id"]:
                 raise PolicyDenied("effect caller is not destination")
-            if db.execute("SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)).fetchone() != (agent_id, epoch):
+            owner = db.execute("SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)).fetchone()
+            if owner != (agent_id, epoch):
                 raise PolicyDenied("stale or unauthorized effect owner")
             self._check(db, row, self._now())
             prior = db.execute(
