@@ -1,6 +1,6 @@
 # Local mobility proof of concept (2026-10-15)
 
-**Status:** Tested experimental software. **Not A2A-compatible; not cross-framework migration; not production-secure.** This first executable slice implements only a small, synthetic, local, out-of-process delegation and a separate simulated fenced-effect experiment. Later slices build on it as optional experiments: the [A2A v1 adapter](a2a-adapter.md), [peer authentication](peer-authentication.md), [checkpoint relocation](checkpoint-relocation.md), [signed movement receipts](movement-receipts.md) and [MobilityBench v0.1](mobilitybench-v0.1.md).
+**Status:** Tested experimental software. **Not A2A-compatible; not cross-framework reconstruction; not production-secure.** This first executable slice implements only a small, synthetic, local, out-of-process delegation and a separate simulated fenced-effect experiment. Later slices build on it as optional experiments: the [A2A v1 adapter](a2a-adapter.md), [peer authentication](peer-authentication.md), [checkpoint relocation](checkpoint-relocation.md), [signed movement receipts](movement-receipts.md) and [MobilityBench v0.1](mobilitybench-v0.1.md).
 
 ## Why start here?
 
