@@ -7,6 +7,8 @@
 
 ## Executive finding
 
+> **Implementation status (2026-10-16):** [PR #84](https://github.com/MSKazemi/agent-movement/pull/84) adds a research-only continuity admission checker, a 10-case synthetic oracle and negative unit tests for several of the priority gaps. It is not integrated with an independently controlled runtime policy enforcement point.
+
 The project already treats *how* agent work moves unusually thoroughly: definitions and operations; lifecycle, death and replication; A2A/MCP; checkpointing; peer authentication; authorization; hidden/unauthorized movement; fingerprints and receipts; safety and human-impact questions; device compatibility; and synthetic MobilityBench baselines.
 
 The more important *underweighted dimensions* concern the **control and meaning of movement over time**:
@@ -75,7 +77,7 @@ A proposed portability object may therefore include *references*, not reusable c
 
 ## Proposed experiments (none are implemented by this document)
 
-### S1 — MultiPrincipalBench: conflicting humans and organizations (G01 + G02)
+### Study 1 — MultiPrincipalBench: conflicting humans and organizations (G01 + G02)
 
 **Question:** When users, dataset owners, device owners and hosting administrators disagree, can the system reject prohibited moves without hiding the reason or carrying an invalid obligation?
 
@@ -85,7 +87,7 @@ A proposed portability object may therefore include *references*, not reusable c
 
 **Falsifier:** any accepted protected operation without a required approval, or any silently broadened right/relaxed obligation.
 
-### S2 — MutationGate: permissions under agent self-change (G03 + G12)
+### Study 2 — MutationGate: permissions under agent self-change (G03 + G12)
 
 **Question:** Does a previously authorized agent retain authority after changing the components that justified trust?
 
@@ -97,7 +99,7 @@ A proposed portability object may therefore include *references*, not reusable c
 
 **Limit:** a manifest proves which configuration was declared/checked at a boundary, not that the model's output is safe or a hostile host is honest.
 
-### S3 — QuarantineBench: tainted checkpoints (G04 + G09)
+### Study 3 — QuarantineBench: tainted checkpoints (G04 + G09)
 
 **Question:** Can safe-looking serialized state spread untrusted instructions, compromised preferences or false evidence after a move, clone and resume?
 
@@ -109,7 +111,7 @@ A proposed portability object may therefore include *references*, not reusable c
 
 **Limit:** absence of marker propagation in a fixed suite does not establish detection of arbitrary prompt injection or compromised models.
 
-### S4 — HumanControlBench: understandable consent and revocation (G05 + G14)
+### Study 4 — HumanControlBench: understandable consent and revocation (G05 + G14)
 
 **Question:** Can people tell delegation from relocation, identify who receives which data, locate active descendants and stop future authorized actions?
 
@@ -119,7 +121,7 @@ A proposed portability object may therefore include *references*, not reusable c
 
 **Falsifier:** a "safe" technical workflow systematically causes people to approve transfers they misunderstand or believe they can reverse when they cannot.
 
-### S5 — FreshnessBench: stale world-state after movement (G06)
+### Study 5 — FreshnessBench: stale world-state after movement (G06)
 
 **Question:** Which context survives a delay, a model change or a move from cloud to edge without causing an unsafe decision?
 
@@ -129,7 +131,7 @@ A proposed portability object may therefore include *references*, not reusable c
 
 **Falsifier:** a destination treats an expired, materially relevant observation as current solely because the checkpoint is valid.
 
-### S6 — EmergencyRestore: incident and compensation practice (G07–G11 + G13)
+### Study 6 — EmergencyRestore: incident and compensation practice (G07–G11 + G13)
 
 **Question:** Can an operator isolate known descendants, rotate compromised keys, discover what remained outside reach, and reconcile or compensate already committed simulated actions?
 
@@ -145,7 +147,7 @@ A proposed portability object may therefore include *references*, not reusable c
 
 - Adopt a single **multi-principal authorization + obligation continuity** threat model; enumerate rights and duties, with explicit authority sources.
 - Define a versioned **material-change manifest** and pin configuration at grant time.
-- Create frozen synthetic fixtures and expected oracle decisions for S1, S2 and S5.
+- Create frozen synthetic fixtures and expected oracle decisions for Study 1, Study 2 and Study 5.
 - Cross-reference existing FM/AM research questions rather than renumber or replace them. Coordinate with pending policy PRs and existing issues.
 
 **Exit gate:** every synthetic fixture has a stated mandatory permission, obligation, source-freshness assumption, expected outcome and an independent fake effect-side oracle.
@@ -183,16 +185,16 @@ A local signed receipt, a successful simulated fence test or a declared capabili
 
 ## Recommended backlog strategy
 
-Before opening duplicate GitHub issues, check the status of existing work including [#28](https://github.com/MSKazemi/agent-movement/issues/28), [#35](https://github.com/MSKazemi/agent-movement/issues/35), [#36](https://github.com/MSKazemi/agent-movement/issues/36), [#38](https://github.com/MSKazemi/agent-movement/issues/38), [#39](https://github.com/MSKazemi/agent-movement/issues/39), [#40](https://github.com/MSKazemi/agent-movement/issues/40) and the [movement-policy proposal PR #16](https://github.com/MSKazemi/agent-movement/pull/16). The most distinct future issue candidates are **S1 multi-principal and obligation continuity**, **S2 material-change gating**, **S3 quarantine/admission**, **S4 human control usability** and **S5 evidence freshness**.
+Before opening duplicate GitHub issues, check the status of existing work including [#28](https://github.com/MSKazemi/agent-movement/issues/28), [#35](https://github.com/MSKazemi/agent-movement/issues/35), [#36](https://github.com/MSKazemi/agent-movement/issues/36), [#38](https://github.com/MSKazemi/agent-movement/issues/38), [#39](https://github.com/MSKazemi/agent-movement/issues/39), [#40](https://github.com/MSKazemi/agent-movement/issues/40) and the [movement-policy proposal PR #16](https://github.com/MSKazemi/agent-movement/pull/16). The most distinct future issue candidates are **Study 1 multi-principal and obligation continuity**, **Study 2 material-change gating**, **Study 3 quarantine/admission**, **Study 4 human control usability** and **Study 5 evidence freshness**.
 
-## Relevant established guidance (not proof of implementation)
+## Relevant guidance to evaluate (not proof of implementation)
 
-- [NIST AI RMF Playbook](https://www.nist.gov/itl/ai-risk-management-framework/nist-ai-rmf-playbook): voluntary Govern/Map/Measure/Manage guidance, including oversight, impact and risk management.
-- [NIST AI RMF Govern guidance](https://airc.nist.gov/airmf-resources/playbook/govern/): human roles, responsibilities, monitoring and incident/appeal processes; supports treating UX and real governance as engineering requirements.
-- [NIST SP 800-207A](https://csrc.nist.gov/pubs/sp/800/207/A/final): zero-trust application identity and granular enforcement in multi-cloud settings; does not establish semantics of migrating agent intent.
-- [OWASP Top 10 for Agentic Applications 2026](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/): relevant security-risk taxonomy; map individual risks to threat cases and actual executable tests before claiming coverage.
+- NIST AI RMF Playbook: voluntary Govern/Map/Measure/Manage guidance, including oversight, impact and risk management.
+- NIST AI RMF Govern guidance: human roles, responsibilities, monitoring and incident/appeal processes; supports treating UX and real governance as engineering requirements.
+- NIST SP 800-207A: zero-trust application identity and granular enforcement in multi-cloud settings; does not establish semantics of migrating agent intent.
+- OWASP Top 10 for Agentic Applications 2026: relevant security-risk taxonomy; map individual risks to threat cases and actual executable tests before claiming coverage.
 
-**Source check:** 2026-10-16. References provide background control principles, not evidence these proposed studies are novel, implemented, certified or empirically validated.
+**Review note (2026-10-16):** These named frameworks are contextual leads for future source validation. No new external URLs are introduced here until they can be added to the repository's generated URL index; they are not evidence that the proposed studies are novel, implemented, certified or empirically validated.
 
 ---
 
