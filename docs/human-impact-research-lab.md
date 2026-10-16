@@ -2,7 +2,8 @@
 
 **Reviewed:** 2026-10-16  
 **Status:** Research protocol + a small executable local smoke study. Neither successful synthetic tests nor a protocol design establish production safety.  
-**Scope:** Software agents moving tasks and authority, not physical robot motion. Synthetic/public data and mock side effects only.
+**Scope:** Software agents moving tasks and authority, not physical robot motion. Synthetic/public data and mock side effects only.  
+**IDs:** HQ-xx are the [top-20 human-impact questions](top-20-human-impact-questions-for-agentic-ai.md); HL1–HL5 are this document's next experiments; see the [question ID crosswalk](question-id-crosswalk.md).
 
 ## Research method: one question, one testable claim, one limitation
 
@@ -21,12 +22,12 @@ A zero-violation count over a small set of scripted synthetic cases does **not**
 
 | Human-impact question | Testable hypothesis in this repo | Baseline and observation | What falsifies or limits the claim | Tracking |
 | --- | --- | --- | --- | --- |
-| **Q1 Human control** | A revoked/expired receiver-local grant blocks a **new** handoff | Approved task vs revoked and expired synthetic deliveries | Unapproved new task accepted; *existing* downstream work is separate | PR #6, issue #8 |
-| **Q3 Verified identity** | Allowed task IDs/origin/destination **claims** are scoped, but must not be confused with authenticated principals | Wrong string claims denied; deliberately show expected-ID impersonation is unverified | No caller/workload authentication in current prototype | Issue #8 |
-| **Q5 Context privacy** | Strict envelope rejects unsupported classification and unknown fields; synthetic payload canary absent from stored audit events | Compare canary-bearing task to redacted local audit | This does not protect data **before it reaches** receiver or guarantee remote deletion | Issue #8 and future retention research |
-| **Q6 Accountability** | Local receipt/artifact hashes and database logs support limited debugging | Repeat and reopen SQLite, verify artifact digest; forge a receipt and show the offline digest check accepts it | No authenticated principal, independently signed receipt or complete event chain | Issue #11 |
-| **Q18 Safe replication** | Cooperative simulated gateway rejects duplicate effects and stale epochs | Multiple attempts, 12 concurrent calls, ownership transfer A -> B | Any stale-epoch commit or duplicated synthetic effect, within modeled gateway | Issue #9 |
-| **Q19 Safe task continuation** | A pure approved task gives the expected artifact and exact retry returns persisted receipt | Direct local computation B0 vs Python-call delegated-like B2 | Receipt replay is **not** checkpoint relocation or cross-model continuity | Issues #7, #9, #10 |
+| **HQ-01 Human control** | A revoked/expired receiver-local grant blocks a **new** handoff | Approved task vs revoked and expired synthetic deliveries | Unapproved new task accepted; *existing* downstream work is separate | PR #6, issue #8 |
+| **HQ-03 Verified identity** | Allowed task IDs/origin/destination **claims** are scoped, but must not be confused with authenticated principals | Wrong string claims denied; deliberately show expected-ID impersonation is unverified | No caller/workload authentication in current prototype | Issue #8 |
+| **HQ-05 Context privacy** | Strict envelope rejects unsupported classification and unknown fields; synthetic payload canary absent from stored audit events | Compare canary-bearing task to redacted local audit | This does not protect data **before it reaches** receiver or guarantee remote deletion | Issue #8 and future retention research |
+| **HQ-06 Accountability** | Local receipt/artifact hashes and database logs support limited debugging | Repeat and reopen SQLite, verify artifact digest; forge a receipt and show the offline digest check accepts it | No authenticated principal, independently signed receipt or complete event chain | Issue #11 |
+| **HQ-18 Safe replication** | Cooperative simulated gateway rejects duplicate effects and stale epochs | Multiple attempts, 12 concurrent calls, ownership transfer A -> B | Any stale-epoch commit or duplicated synthetic effect, within modeled gateway | Issue #9 |
+| **HQ-19 Safe task continuation** | A pure approved task gives the expected artifact and exact retry returns persisted receipt | Direct local computation B0 vs Python-call delegated-like B2 | Receipt replay is **not** checkpoint relocation or cross-model continuity | Issues #7, #9, #10 |
 
 This lab cannot resolve human-outcome questions such as healthcare efficacy, employment, discrimination or education on its own. It can develop technical safeguards and evidence useful to domain experts.
 
@@ -41,7 +42,7 @@ python -m agent_movement.mobilitybench --no-timing --output a.jsonl   # byte-ide
 python -m pytest -q          # all tests: agent_movement + corpus tooling
 ~~~
 
-The runner directly invokes local Python receiver/gateway classes, not a native A2A client. It emits one **sanitized JSONL** record per scenario: scenario ID, human-impact question IDs, mode, declared expectation, expected/observed behavior, verdict, monotonic local duration, allowlisted evidence and (for gaps) the expected fix. The summary line on stderr adds the counts per verdict and an `outcome_digest`. There are no model calls, network requests, production tokens, private user records, physical devices or external effects. CLI exits `1` if an observed behavior matches neither the declaration nor a declared gap's closed state, and `2` if the case declarations are invalid.
+The runner directly invokes local Python receiver/gateway classes, not a native A2A client. It emits one **sanitized JSONL** record per scenario: scenario ID, human-impact question IDs (stored as the legacy strings `"Q1"`…`"Q19"`, meaning HQ-01…HQ-19; see the [crosswalk](question-id-crosswalk.md)), mode, declared expectation, expected/observed behavior, verdict, monotonic local duration, allowlisted evidence and (for gaps) the expected fix. The summary line on stderr adds the counts per verdict and an `outcome_digest`. There are no model calls, network requests, production tokens, private user records, physical devices or external effects. CLI exits `1` if an observed behavior matches neither the declaration nor a declared gap's closed state, and `2` if the case declarations are invalid.
 
 **Declared expectations.** Every case declares its expectation in the packaged fixture [`cases.jsonl`](../src/agent_movement/fixtures/mobilitybench-local-smoke/cases.jsonl), the same approach as the [v0.1 negative fixtures](mobilitybench-v0.1.md). The expectation is `pass`, `known_gap` (with the expected fix and the observation that would show the control exists), or `gap_closed`. The tests derive every count from these declarations, so no count is hard-coded.
 
@@ -68,9 +69,9 @@ Issues #8 (peer authentication, commit-time grant recheck) and #11 (signed movem
 
 | Case | Attack exercised | Observed on the core path | Closed elsewhere by |
 | --- | --- | --- | --- |
-| `claimed_identity_is_not_authenticated` (Q3) | A party other than agent-a builds an envelope from non-secret identifiers, claims origin agent-a and supplies its own text | Executed; the receipt attributes it to agent-a | `agent_movement.peer.PeerReceiver`: signed agent cards and scoped grants, checked before delivery ([peer authentication](peer-authentication.md), issue #8) |
-| `grant_revocation_not_bound_to_effect_gateway` (Q1, Q3) | Approved work starts, the grant is revoked, then the executor commits its next simulated effect | The receiver denies a new handoff, but the effect still commits | `agent_movement.peer.AuthorizedEffectGateway`: grant recheck inside the commit transaction (issue #8) |
-| `receipt_is_not_independently_authenticated` (Q6) | Anyone holding a core receipt rewrites the artifact value and recomputes the unkeyed digest | The forgery passes the only offline check a third party can run | `agent_movement.receipts`: Ed25519-signed receipts and an offline verifier ([signed movement receipts](movement-receipts.md), issue #11, optional `signing` extra) |
+| `claimed_identity_is_not_authenticated` (HQ-03) | A party other than agent-a builds an envelope from non-secret identifiers, claims origin agent-a and supplies its own text | Executed; the receipt attributes it to agent-a | `agent_movement.peer.PeerReceiver`: signed agent cards and scoped grants, checked before delivery ([peer authentication](peer-authentication.md), issue #8) |
+| `grant_revocation_not_bound_to_effect_gateway` (HQ-01, HQ-03) | Approved work starts, the grant is revoked, then the executor commits its next simulated effect | The receiver denies a new handoff, but the effect still commits | `agent_movement.peer.AuthorizedEffectGateway`: grant recheck inside the commit transaction (issue #8) |
+| `receipt_is_not_independently_authenticated` (HQ-06) | Anyone holding a core receipt rewrites the artifact value and recomputes the unkeyed digest | The forgery passes the only offline check a third party can run | `agent_movement.receipts`: Ed25519-signed receipts and an offline verifier ([signed movement receipts](movement-receipts.md), issue #11, optional `signing` extra) |
 
 The first case has an inherent limit: the direct Python API has no notion of the actual caller, so the harness can only state that the forger is not agent-a. The receiver's inability to tell the two apart is exactly the gap.
 
@@ -86,15 +87,15 @@ The first case has an inherent limit: the direct Python API has no notion of the
 
 ## Next experiments with explicit falsification conditions
 
-**E1 — Identity and consent before disclosure (issue #8):** Build an authenticated preflight gate that checks the intended recipient, user grant and allowed data class *before sending task content*. Negative control: a forged destination obtains any synthetic secret-canary byte. The current receiver must remain labeled insecure until this test passes under a declared trust model.
+**HL1 — Identity and consent before disclosure (issue #8):** Build an authenticated preflight gate that checks the intended recipient, user grant and allowed data class *before sending task content*. Negative control: a forged destination obtains any synthetic secret-canary byte. The current receiver must remain labeled insecure until this test passes under a declared trust model.
 
-**E2 — Real protocol interoperability (issue #7):** Use the official pinned A2A Python SDK between two independently running processes; compare the correct artifact and contract checks against the local baseline. Reject missing capabilities, unsupported schema and mismatched destination. Do not rename direct Python-call evidence as A2A.
+**HL2 — Real protocol interoperability (issue #7):** Use the official pinned A2A Python SDK between two independently running processes; compare the correct artifact and contract checks against the local baseline. Reject missing capabilities, unsupported schema and mismatched destination. Do not rename direct Python-call evidence as A2A.
 
-**E3 — Crash-safe same-runtime checkpoint relocation (issue #9):** Stop an unfinished task at a documented safe checkpoint, persist it, transfer ownership A -> B, and show B resumes rather than repeats from the beginning. Inject crashes before/after each state transition. A stale executor committing a simulated effect falsifies the safety claim. Uncertain external acknowledgements must be represented as **unknown/reconcile**.
+**HL3 — Crash-safe same-runtime checkpoint relocation (issue #9):** Stop an unfinished task at a documented safe checkpoint, persist it, transfer ownership A -> B, and show B resumes rather than repeats from the beginning. Inject crashes before/after each state transition. A stale executor committing a simulated effect falsifies the safety claim. Uncertain external acknowledgements must be represented as **unknown/reconcile**.
 
-**E4 — Independent forensic verifier (issue #11):** Have a separate verifier validate a canonical signed receipt, simulated independent tool records, issuer identities and conflicting/missing evidence. A signature makes a particular statement attributable, not necessarily true; explicitly report uncertainty.
+**HL4 — Independent forensic verifier (issue #11):** Have a separate verifier validate a canonical signed receipt, simulated independent tool records, issuer identities and conflicting/missing evidence. A signature makes a particular statement attributable, not necessarily true; explicitly report uncertainty.
 
-**E5 — Meaningful task and model comparisons (issue #10, [PR #4](https://github.com/MSKazemi/agent-movement/pull/4)):** Freeze input digests and rubrics for document analysis, code editing and multi-step workflows. Include B0 keep, B1 restart, real B2 A2A delegate, B3 same-runtime resume, and later B4 reconstruct. Report task correctness, lost constraints, unauthorized simulated effects, partial outcomes, cost and latency across repeated runs. Publish failures and unavailable baselines.
+**HL5 — Meaningful task and model comparisons (issue #10, [PR #4](https://github.com/MSKazemi/agent-movement/pull/4)):** Freeze input digests and rubrics for document analysis, code editing and multi-step workflows. Include B0 keep, B1 restart, real B2 A2A delegate, B3 same-runtime resume, and later B4 reconstruct. Report task correctness, lost constraints, unauthorized simulated effects, partial outcomes, cost and latency across repeated runs. Publish failures and unavailable baselines.
 
 *Status (2026-10-16):* a deterministic, LLM-free first slice is [MobilityBench v0.1](mobilitybench-v0.1.md). It has 18 frozen synthetic tasks with a SHA-256 release manifest. B0 keep, B1 restart and the PR #6 local delegate are scored under seeded faults. B2 A2A, B3 relocate and B4 reconstruct are reported as unavailable. The suite also includes 12 negative/security fixtures and a report with denominators. Model-based tasks, real A2A and checkpoint relocation remain open.
 
