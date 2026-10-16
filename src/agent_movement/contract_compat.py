@@ -16,7 +16,7 @@ import copy
 from collections.abc import Sequence
 from typing import Any
 
-from .core import ContractError, SCHEMA_VERSION, validate_envelope
+from .core import SCHEMA_VERSION, ContractError, validate_envelope
 
 DRAFT_VERSION = "0.2.0-draft"
 LIVE_VERSIONS = (SCHEMA_VERSION,)
