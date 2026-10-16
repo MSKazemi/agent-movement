@@ -44,10 +44,10 @@ class _Static:
         return (200, self.card) if method == "GET" else (403, {"error": "forbidden"})
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Authenticated pre-disclosure handoff demo (NOT A2A)")
     parser.add_argument("--alg", choices=[HS256, ED25519], default=HS256)
-    alg = parser.parse_args().alg
+    alg = parser.parse_args(argv).alg
     if alg == ED25519 and not ed25519_available():
         raise SystemExit("Ed25519 needs the optional extra: pip install -e '.[ed25519]'")
     now = int(time.time())

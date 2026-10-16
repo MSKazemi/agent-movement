@@ -18,6 +18,7 @@ This orchestrator itself uses only the standard library.
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 import sqlite3
@@ -26,7 +27,7 @@ import sys
 import tempfile
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from .core import SCHEMA_VERSION
 
@@ -112,7 +113,9 @@ def check(results: dict[str, dict[str, Any]], tables: dict[str, list[dict[str, A
     return failures
 
 
-def main() -> None:
+def main(argv: Sequence[str] = ()) -> None:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+                            ).parse_args(list(argv))  # no options; gives the demo a --help
     if importlib.util.find_spec("a2a") is None or importlib.util.find_spec("uvicorn") is None:
         print(EXTRA_HINT, file=sys.stderr)
         raise SystemExit(2)
@@ -169,4 +172,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
