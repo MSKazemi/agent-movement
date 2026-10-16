@@ -1,6 +1,6 @@
 # Same-runtime checkpoint relocation and crash-fault matrix (2026-10-16)
 
-**Status:** tested experimental software, synthetic data only. This adds **same-runtime checkpoint relocation** to the [local proof of concept](local-implementation.md). An unfinished task moves from Worker A to Worker B at a persisted LangGraph checkpoint, and B continues it. It is **not** cross-framework migration, cross-host transfer, live process migration, A2A, or production-secure. It makes **no exactly-once claim for arbitrary tools.** It addresses open questions [AM-03, AM-04 and AM-07](open-questions.md) for one runtime only.
+**Status:** tested experimental software, synthetic data only. This adds **same-runtime checkpoint relocation** to the [local proof of concept](local-implementation.md). An unfinished task moves from Worker A to Worker B at a persisted LangGraph checkpoint, and B continues it. By default both workers share one store; in [two-store mode](#two-store-mode-copy-the-checkpoint-into-worker-bs-own-store-issue-20) the checkpoint is copied into B's own store as a digest-verified bundle, and only the coordinator stays shared. It is **not** cross-framework migration, cross-host transfer, live process migration, A2A, or production-secure. It makes **no exactly-once claim for arbitrary tools.** It addresses open questions [AM-03, AM-04 and AM-07](open-questions.md) for one runtime only.
 
 ## Run it
 
@@ -8,10 +8,13 @@
 python -m pip install -e '.[relocation]'          # optional extra; core stays dependency-free
 python -m agent_movement.relocation_demo           # headline + 30-row fault matrix, exit 0 if all rows match
 python -m agent_movement.relocation_demo --json results.json
-python -m pytest -q tests/test_relocation.py      # skipped cleanly when the extra is absent
+python -m agent_movement.relocation_demo --two-store   # own store per worker, bundle copy, 11-row copy fault matrix
+python -m pytest -q tests/test_relocation.py tests/test_relocation_two_store.py   # skipped cleanly without the extra
 ~~~
 
-The experiment needs `os.fork` (Linux/macOS). It completes in roughly 15–20 s. It makes no model calls, needs no network, and uses no credentials. Each scenario uses a fresh SQLite file in a temporary directory, and the directory is deleted afterwards. CI runs it in the `extras` job of [`python-smoke.yml`](../.github/workflows/python-smoke.yml) on Python 3.11 and 3.13 and uploads the JSON results as an artifact.
+The default mode shares one SQLite file between coordinator and workers and exports the checkpoint *by reference*. `--two-store` gives each worker its own SQLite file and *copies* the checkpoint into Worker B's store as a digest-verified bundle; see [Two-store mode](#two-store-mode-copy-the-checkpoint-into-worker-bs-own-store-issue-20).
+
+The experiment needs `os.fork` (Linux/macOS). The default mode completes in roughly 15–20 s, `--two-store` in under 10 s. It makes no model calls, needs no network, and uses no credentials. Each scenario uses fresh SQLite files in a temporary directory, and the directory is deleted afterwards. CI runs both modes in the `extras` job of [`python-smoke.yml`](../.github/workflows/python-smoke.yml) on Python 3.11 and 3.13 and uploads the JSON results as artifacts.
 
 ## Pinned runtime (one durable runtime, exact pins)
 
@@ -168,8 +171,80 @@ Notes on specific rows:
 - **V1–V3**: refusal happens **before** any epoch change, so A keeps epoch 1 and finishes the task. Fail closed does not lose the task. The report lists `unavailable_state` (all 8 channels for a structural mismatch), `lost_state` (`["step_log"]` for V3) and the always-unsupported list.
 - **V4**: the epoch has already moved when B detects corruption, so B refuses to resume. The coordinator then fails over to a new execution (`worker-a.2`, epoch 3), which verifies a fresh manifest and completes.
 
+## Two-store mode: copy the checkpoint into Worker B's own store (issue #20)
+
+`python -m agent_movement.relocation_demo --two-store` repeats the headline with **separate stores** and runs a copy-specific fault matrix. Code: `Worker(..., store=...)`, `Worker.export_bundle`, `Worker.accept(movement, bundle)`, `Coordinator.request_bundle` and `Coordinator.failover(..., source_store=, outbox=)` in [`relocation.py`](../src/agent_movement/relocation.py); the bundle format in [`relocation_bundle.py`](../src/agent_movement/relocation_bundle.py); the scenarios in [`relocation_demo_two_store.py`](../src/agent_movement/relocation_demo_two_store.py).
+
+### What lives where
+
+| File | Holds | Shared? |
+| --- | --- | --- |
+| `worker-a.sqlite` | A's LangGraph checkpoints and writes, A's effect ledger, A's node journal | No, A only |
+| `worker-b.sqlite` | B's copy of the head checkpoint, then B's own checkpoints, ledger, journal and `bundle_imports` records | No, B only |
+| `coordinator.sqlite` | `owners` (task → execution, epoch), `relocations`, and the simulated external systems (gateway `effects`, opaque-tool ground truth) | **Yes**: every worker reaches it |
+
+The coordinator file has **no** `checkpoints`, `writes` or `effect_intents` table (checked in the headline). The ownership epoch stays authoritative there. Every fenced write in a worker store (checkpoint `put`/`put_writes`, effect intents, the bundle import) runs on a connection that `ATTACH`es the coordinator file. `BEGIN IMMEDIATE` then holds the write locks of **both** files while the epoch check and the write run, so a fenced write and the coordinator's epoch transfer still serialize. A unit test shows the coordinator file cannot be write-locked while a worker's fenced transaction is open. This is a same-host file lock, not a network fencing token.
+
+### Protocol differences from the single-store mode
+
+1. **Export (A).** A builds the manifest from its own head checkpoint, reads the raw `SqliteSaver` rows (checkpoint, its pending writes, the task's effect-ledger rows) and writes one bundle atomically (write, fsync, rename) to its outbox. Only then does it record the request. `request_bundle` checks, in one transaction over A's store and the attached coordinator file, that the bundled checkpoint is **still A's head**.
+2. **Export freeze.** From that moment A is *frozen*: its fenced writes are denied until the coordinator transfers or refuses the movement. The coordinator cannot read A's store, so the single-store "is it still the head?" check at transfer time is replaced by "the head was checked under lock at request time and could not move since". A refused transfer (V1–V3 equivalent) releases the freeze and A continues. Failover requests may still be recorded for a frozen owner.
+3. **Transfer.** Compatibility check and epoch bump, as before, without reading any worker store.
+4. **Copy.** The harness "transport" copies the bytes from A's outbox into B's inbox. That copy is where B4–B6 inject faults.
+5. **Import (B), fail closed, in this order.** (a) size limit 8 MiB, strict UTF-8 JSON without duplicate keys, canonical form; (b) the embedded manifest's SHA-256 must equal the digest the **coordinator recorded** at request time, which is the trust anchor (bundles are not signed); (c) the same `compatibility()` check as before; (d) per-section SHA-256 digests (`checkpoint`, `writes`, `effect_ledger`), **before** anything is deserialized; (e) only the `msgpack`/`null` serializer types are decoded (never `pickle`); the decoded checkpoint must match the manifest's semantic digest and **one SHA-256 per channel value**; (f) the effect records must agree with the manifest's `uncertain_effects`. Any failure raises `Incompatible` with a report: `reason`, `corrupt_sections`, `corrupt_channels`, `unavailable_state` (every channel plus the effect ledger) and the always-unsupported list. Nothing is written.
+6. **Atomic, idempotent import.** One fenced transaction inserts the rows and a `bundle_imports` record, or nothing. Rows are copied byte for byte, never re-serialized. An existing identical row is accepted (re-import after a crash). A *different* row with the same key, rows the bundle does not describe, or a receiver store whose head is newer than the bundle are refused, so an import never overwrites, deletes or rewinds. After commit B re-reads its head through `SqliteSaver` and checks the digest again, then acknowledges.
+7. **Failover** names the store that holds the durable head (the last acknowledged receiver's, else the origin's). The coordinator, acting as recovery operator, exports a bundle from it to its own outbox. This needs read access to that store; if it is lost, the task cannot be relocated.
+
+The self-describing manifest adds `transport: "bundle"` and a `bundle` section to the single-store manifest: format `am-checkpoint-bundle/0.1.0-draft`, the section digests, a payload digest, `channel_digests`, and the number of pending writes and effect records. It keeps the graph ID and version, the pinned LangGraph versions, the channel list, the checkpoint ID, step, format and semantic digest. Its `exported_state` adds `pending_writes` and the copied `effect_ledger`. Its `unsupported_state` adds `checkpoint_history` (only the head checkpoint is copied; its ancestors stay in A's store), `shared_authority`, and a two-store meaning of `cross_host_byte_transfer` (local directories, no network).
+
+### Headline with two stores (observed)
+
+Same task and checks as the single-store headline; all hold (`headline_ok: True`):
+
+| Evidence | Observed |
+| --- | --- |
+| Items processed by execution | `worker-a.1`: [0, 1, 2]; `worker-b.1`: [3, 4, 5] |
+| `process_item` executions | A: 3, B: 3; restart baseline: 6 |
+| B's first checkpoint parent | = the exported checkpoint ID (`true`) |
+| Partitioned A runs one more superstep in **its own store** after transfer | checkpoint write **`PolicyDenied`** (fence through the attached coordinator file); A's store head unchanged |
+| A attempts the gated commit at epoch 1 | **`PolicyDenied`** |
+| Gated commits | exactly 1, at epoch 2 |
+| B's store before import / rows imported | 0 checkpoint rows / 1 checkpoint, 0 pending writes, 0 effect records |
+| Checkpoints in B's store written by `worker-a.1` | 1 (the copied head only) |
+| Coordinator file tables | `audit_events`, `deliveries`, `effects`, `opaque_effects`, `owners`, `relocations` (no checkpoint or ledger tables) |
+| Bundle bytes B verified = bundle bytes A wrote (SHA-256) | `true` |
+
+### Copy fault matrix (observed)
+
+Same vocabulary and columns as the single-store matrix. *Final* is read from the current owner's store. For **denied** rows "unchanged" additionally covers every worker store (checkpoint count, head, effect records and import records).
+
+| ID | Transition | Injected fault | Expected | Observed | Recovery / handling | Gated commits | Opaque calls | Item re-exec | Final |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| B1 | export | crash after bundle written, before request | allowed | allowed | failover: coordinator re-exports from A's store; B imports | 1 | 0 | 0 | done @ worker-b.1@2 |
+| B2 | export | crash after request recorded | allowed | allowed | coordinator continues recorded request; B imports A's bundle | 1 | 0 | 0 | done @ worker-b.1@2 |
+| B3 | export | A checkpoints after its export request | denied | denied | A steps after its export request -> PolicyDenied | 1 | 0 | 1 | done @ worker-b.1@2 |
+| B4 | copy | truncated bundle (half the bytes) | denied | denied | refused (bundle_unreadable); corrupt=[]; unavailable=9 items; re-copy -> completes | 1 | 0 | 0 | done @ worker-b.1@2 |
+| B5 | copy | one byte changed in a channel (digest mismatch) | denied | denied | refused (digest_mismatch); corrupt=['checkpoint']; unavailable=9 items; re-copy -> completes | 1 | 0 | 0 | done @ worker-b.1@2 |
+| B6 | copy | valid but ungranted (stale) bundle substituted | denied | denied | refused (manifest_not_granted); corrupt=[]; unavailable=9 items; re-copy -> completes | 1 | 0 | 0 | done @ worker-b.1@2 |
+| B7 | import | crash inside import txn (partial import) | allowed | allowed | import rolled back (B store: 0 checkpoint rows); failover worker-b.2 (epoch 3) re-imports | 1 | 0 | 0 | done @ worker-b.2@3 |
+| B8 | import | crash after import commit, before ack | allowed | allowed | import durable, not acked (B store: 1 checkpoint row); worker-b.2 re-import is idempotent | 1 | 0 | 0 | done @ worker-b.2@3 |
+| B9 | import | duplicate import after B progressed | deduplicated | deduplicated | duplicate import of move-1 after B progressed -> ok | 1 | 0 | 0 | done @ worker-b.1@2 |
+| B10 | import | delayed import by superseded worker-b.1 | denied | denied | delayed import of move-1 by worker-b.1 -> PolicyDenied | 1 | 0 | 0 | done @ worker-b.2@3 |
+| B11 | checkpoint | partitioned A keeps stepping in its own store | denied | denied | partitioned A steps in its own store -> PolicyDenied | 1 | 0 | 1 | done @ worker-b.1@2 |
+
+`rows: 11, matching expectation: 11`. The complete stdout, matrix included, was byte-identical on three consecutive runs (CPython 3.14.7). The single-store 30-row table above is unchanged by this mode, byte for byte.
+
+Notes on specific rows:
+
+- **B3** is the reason for the export freeze. Without it, an origin step between request and transfer would land only in A's store, and B would resume from an older checkpoint. A gated or opaque effect taken in that window could then run twice.
+- **B4–B6** are refused **after** the epoch moved to `worker-b.1`, so B owns the task but holds no state for it (fail closed). Recovery re-copies the same, digest-addressed bundle from A's outbox. "unavailable=9 items" is the 8 state channels plus the effect ledger. **B5** changes one byte inside the `items` channel of the serialized checkpoint and keeps the length. The `checkpoint` section digest catches it **before** deserialization, so `corrupt_channels` stays empty by design: unverified bytes are never decoded. The per-channel digests are a second check after decoding. **B6** is a fully self-consistent bundle for the same movement, taken one superstep earlier and never recorded. Only the coordinator-recorded manifest digest tells it apart.
+- **B7/B8** are the partial-import crashes. Before commit the import leaves 0 rows. After commit, the replacement execution's import finds the identical rows and accepts them without duplicating anything. As in the single-store matrix, a crashed execution is never revived. Recovery fails over to `worker-b.2` (epoch 3) from A's store, because no receiver acknowledged.
+- **B9**: after the acknowledgement, a re-import is answered as a replay without reading the bundle, so B is never rewound. A store-level import record also makes a re-import before the acknowledgement idempotent (unit test).
+- **B10/B11**: the import itself and A's writes to its *own* store are fenced through the coordinator epoch.
+
 ## Limits and threats to validity
 
+- **What is still shared in two-store mode: the coordinator.** Owners/epochs, relocation records, the export freeze and the simulated external systems live in one coordinator SQLite file that every worker attaches. Fencing a worker's own store relies on SQLite's file locks on that shared file, so it holds only on one host (or on a filesystem with correct POSIX locking). A cross-host deployment would need a fencing token checked by each store, or a consensus service; neither is implemented. Failover needs read access to the store holding the durable head. Bundles are unsigned: integrity comes from the coordinator-recorded manifest digest, not from a signature, and nothing is encrypted. Only the head checkpoint is copied, so lineage history before it stays in the origin store. Importing into a store that holds divergent rows for the task is refused and needs an operator to clear it. An export freeze is released only by a transfer, a refusal or a superseding failover; there is no cancel API.
 - **One host, one SQLite file, one coordinator.** There is no consensus, no coordinator high availability and no real network partition: "partition" means a worker that does not check ownership. Fencing holds because every write path re-checks the epoch inside the store. Any client with direct write access to the SQLite file could bypass it.
 - **Crash model.** Process death via `os._exit` is tested. Power loss, disk corruption, torn writes and fsync behaviour are not.
 - **Cooperative actors.** Agent and execution IDs are unauthenticated strings, as in the core profile. There is no signed manifest, no signed receipt and no attestation.
@@ -187,6 +262,16 @@ Notes on specific rows:
 | Crash, restart, duplicate and partition outcomes documented as allowed, unknown or denied | Matrix C1–C15, D1–D11 (crash and duplicate for all 7 transitions) |
 | Version mismatch fails closed and reports lost or unavailable state | V1–V4 and the `compatibility()` report |
 | Synthetic-only, reproducible one-command experiment plus a CI subset | `python -m agent_movement.relocation_demo`, the `extras` job in `python-smoke.yml` |
+
+## Mapping to issue #20 acceptance criteria
+
+| Criterion | Evidence |
+| --- | --- |
+| The demo has a `--two-store` mode and the headline checks (no restart, A fenced, one commit) hold | [Headline with two stores](#headline-with-two-stores-observed): 3 vs 6 executions, lineage parent, A's step and commit `PolicyDenied`, one commit at epoch 2; `headline_ok: True` |
+| Self-describing bundle, digest-verified, fail-closed import reporting lost or unavailable state | Manifest `bundle` section; import order (a)–(f) above; B4–B6 reports |
+| Ownership epoch stays in the coordinator; A cannot commit after transfer | [What lives where](#what-lives-where); headline; B3, B10, B11 |
+| New copy fault rows (truncated bundle, digest mismatch, partial import crash, duplicate import) with observed outcomes; matrix byte-identical across runs | B4, B5, B7/B8, B9 (plus B1–B3, B6, B10, B11); three identical runs |
+| The limits state what is still shared | First bullet of [Limits](#limits-and-threats-to-validity) |
 
 ## References
 
