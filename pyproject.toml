@@ -46,6 +46,84 @@ agent_movement = ["fixtures/mobilitybench-v0.1/*", "fixtures/mobilitybench-v0.2/
 
 [dependency-groups]
 dev = ["pytest>=9.1"]
+# Static checks (`make lint typecheck`); exact pins at the latest stable releases on PyPI
+# (2026-10-16): ruff 0.17.1, mypy 2.4.0. types-protobuf is the only stub package the extras
+# need (a2a-sdk exposes google.protobuf); a2a-sdk, langgraph and cryptography ship their own
+# inline types. Install with `pip install --group lint` (pip >= 25.1).
+lint = [
+    "ruff==0.17.1",
+    "mypy==2.4.0",
+    "types-protobuf==7.35.1.20260906",
+]
+
+# ruff: lint only (no formatter gate). `make lint` checks src/agent_movement plus the
+# MobilityBench freeze tool and the v0.2 tests (STATIC_PATHS in the Makefile).
+[tool.ruff]
+target-version = "py311"
+# The package is written to a 120-column limit; only four lines exceeded it.
+line-length = 120
+src = ["src", "tools"]
+force-exclude = true
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "B",        # flake8-bugbear
+    "I",        # isort
+    "UP",       # pyupgrade (py311)
+    "SIM",      # flake8-simplify
+    "RUF",      # ruff-specific
+    "C4",       # comprehensions
+    "PIE",      # misc. lints
+    "PERF",     # perflint
+    "PL",       # pylint (subset, see ignores)
+    "S",        # flake8-bandit (security)
+    "BLE",      # blind except
+    "ISC",      # implicit string concatenation
+    "DTZ",      # naive datetimes
+    "LOG", "G", # logging
+]
+ignore = [
+    # Optional extras (a2a-sdk, cryptography, langgraph) are imported lazily inside the
+    # function that needs them so the stdlib-only core imports without them.
+    "PLC0415",
+    # Size/complexity heuristics. The demos and verifiers are deliberately linear,
+    # step-by-step scripts; splitting them, or regrouping keyword arguments of public
+    # functions, would change APIs or obscure the protocol steps without fixing a defect.
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917",
+    # Protocol constants (exit codes, HTTP statuses, field counts) read clearer inline.
+    "PLR2004",
+    # Every assert narrows an Optional for the type checker (Popen pipes opened with PIPE,
+    # the worker of the read-only inspection graph); no check relies on one.
+    "S101",
+    # Informational only: every subprocess call passes an argv list starting with
+    # sys.executable and never a shell (S602/S604/S605 stay enabled).
+    "S603",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# SQLite cannot bind identifiers, so these modules interpolate column lists, table names
+# and authority-schema names into SQL. Every interpolated identifier is a module constant
+# or is checked against an allowlist first (`_authority_schema`, PURGEABLE); values are
+# always bound with `?` placeholders.
+"src/agent_movement/{a2a_profile,core,peer,peer_demo,relocation,retention}.py" = ["S608"]
+# The MobilityBench report text deliberately uses typographic characters ("–" ranges,
+# "×" products). Reports are byte-compared against committed results, so they stay.
+"src/agent_movement/mobilitybench_v01.py" = ["RUF001"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agent_movement"]
+
+# mypy: strict, no per-module relaxations (a2a-sdk, cryptography and langgraph ship inline types).
+[tool.mypy]
+python_version = "3.11"
+files = ["src/agent_movement", "tools/mobilitybench_freeze.py", "tests/test_mobilitybench_v02.py"]
+strict = true
+warn_unreachable = true
+# The other tools/ scripts and tests/ are not type-checked yet.
+mypy_path = ["src", "tools"]
+explicit_package_bases = true
 
 [tool.pytest.ini_options]
 minversion = "9.1"

@@ -116,7 +116,7 @@ Related documents: [landscape](research-landscape.md), [questions](open-question
 
 Every external URL cited in the README and in `docs/`, grouped by the citing document. Corpus records and generated files are excluded; see `EXCLUDE_GLOBS` in [`tools/sources_index.py`](../tools/sources_index.py). *Cited in* lists every document that cites the URL. *Accessed* is the date stated next to the citation (basis `citation`), else in its section heading (`section`), else in the document header (`document`), else the default 2026-10-15 (`default`). A date stated in a document is the date the source was reviewed for that document. It is not a fresh link check. `make sources` fails when a cited URL is missing here.
 
-**Documents:** 34 · **Citations (document, URL):** 450 · **Unique URLs:** 268
+**Documents:** 35 · **Citations (document, URL):** 452 · **Unique URLs:** 270
 
 ### [README](../README.md)
 
@@ -259,6 +259,13 @@ Every external URL cited in the README and in `docs/`, grouped by the citing doc
 |---|---|---|---|
 | <https://www.rfc-editor.org/rfc/rfc2104> | data-retention | 2026-10-16 | section |
 | <https://www.sqlite.org/pragma.html> | data-retention | 2026-10-16 | section |
+
+### [development](development.md)
+
+| URL | Cited in | Accessed | Date basis |
+|---|---|---|---|
+| <https://docs.astral.sh/ruff/> | development | 2026-10-16 | manual |
+| <https://mypy.readthedocs.io/> | development | 2026-10-16 | manual |
 
 ### [device-compatibility-and-capability-matrix](device-compatibility-and-capability-matrix.md)
 
