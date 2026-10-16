@@ -300,6 +300,16 @@ class AuthorizedEffectGateway:
         fingerprint = self.ledger.store.keyed_digest(hashlib.sha256(payload.encode("utf-8")).hexdigest())
         with self.ledger.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            # Guarded tasks cannot fall back to the peer effect ledger, even if a
+            # caller instantiates a bare gateway without ContinuityRuntime.
+            # This check shares the SQLite write lock with guarded enrollment.
+            guard_table = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='guarded_tasks'"
+            ).fetchone()
+            if guard_table and db.execute(
+                "SELECT 1 FROM guarded_tasks WHERE task_id=?", (task_id,)
+            ).fetchone():
+                raise Unauthorized("guarded_task_requires_guarded_authority")
             check_grant_live(grant, now=_now(self.clock),
                              revoked=self.ledger.is_revoked(db, grant["grant_id"]))
             if grant["audience"] != agent_id:
