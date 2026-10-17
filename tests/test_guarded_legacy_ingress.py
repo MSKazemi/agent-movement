@@ -137,3 +137,20 @@ def test_guarded_legacy_denial_linearizes_against_revocation_and_owner_state(tmp
     assert accepted(rig) == []
     assert guarded.inspect("task-1")["owner"] == "agent-a"
     assert rig.receiver.ledger.effects() == []
+
+
+def test_cannot_retroactively_enroll_after_untrusted_legacy_acceptance(tmp_path):
+    rig = Rig(tmp_path)
+    rig.install()
+    EffectGateway(rig.store).claim("task-1", "agent-a")
+    legacy = HandoffReceiver(
+        "agent-b", rig.store,
+        [Approval("approval-1", "task-1", "agent-a", "agent-b", "word_count")],
+    )
+    # Unprotected historical admission is genuine evidence of prior work,
+    # even though the simulated effect ledger is still empty.
+    assert legacy.receive(fixture())["status"] == "completed"
+    with pytest.raises(PolicyDenied, match="prior legacy handoff"):
+        service(rig).enroll(intent(rig), rig.grant)
+    assert any(x["event_type"] == "handoff.completed" for x in rig.store.audit())
+    assert rig.receiver.ledger.effects() == []
