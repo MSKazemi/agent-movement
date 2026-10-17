@@ -130,6 +130,7 @@ def score_case(
         "status": status,
         "correct": is_correct,
         "policy_violation": security_violation,
+        "committed_effects": committed_effects,
         "work_units_proxy": work_units,
         "human_interventions": human_interventions,
         "unknown_or_reconcile": int(status == "unknown"),
