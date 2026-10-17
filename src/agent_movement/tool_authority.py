@@ -15,7 +15,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .core import ContractError, _id, canonical, digest, parse_json
 from .trust import ED25519, Ed25519Key, b64d, b64e, import_key
@@ -88,7 +88,7 @@ def _pub(key_data: Any) -> Ed25519Key:
     key = import_key(key_data)
     if key.alg != ED25519:
         raise ValueError("requires public Ed25519 verification keys")
-    return key
+    return cast(Ed25519Key, key)
 
 
 class IndependentTool:
@@ -188,7 +188,7 @@ class IndependentTool:
         ).fetchone()
         if row is None:
             raise ToolDenied(403, "unknown_task")
-        return row
+        return cast(tuple[Any, ...], row)
 
     @staticmethod
     def _current(p: dict[str, Any], row: tuple[Any, ...]) -> None:
