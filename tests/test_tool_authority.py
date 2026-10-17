@@ -350,6 +350,22 @@ def test_real_tool_server_process_and_hostile_raw_client(rig, tmp_path):
         _, reply = post(port, "reconcile", sign("reconcile", query, keys["b"]))
         assert verified("receipt", reply["receipt"], keys["tool"].verifier())["decision"] == "unknown"
 
+        # Simulate a hard tool-process crash AFTER committing a local synthetic
+        # effect and discard the first acknowledgement. The restarted tool has
+        # the same *tool-owned* durable SQLite effect ledger.
+        proc.kill()
+        proc.wait(timeout=5)
+        proc = subprocess.Popen([sys.executable, "-m", "agent_movement.tool_authority",
+                                 "--config", str(config)], stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, env=env)
+        assert proc.stdout is not None
+        assert select.select([proc.stdout], [], [], 10)[0], "tool restart failed"
+        port = json.loads(proc.stdout.readline())["port"]
+        code, response = post(port, "effect", signed)
+        assert code == 200
+        assert verified("receipt", response["receipt"], keys["tool"].verifier())["decision"] == "replayed"
+        assert independent_effects(path) == [("task-1", "http-effect", "agent-b", 2, 1)]
+
         revocation = {"version": VERSION, "type": "revoke", "event_id": "http-revocation",
                       "grant_id": "grant-1"}
         status, reply = post(port, "control", sign("revoke", revocation, keys["issuer"]))
@@ -367,3 +383,12 @@ def test_real_tool_server_process_and_hostile_raw_client(rig, tmp_path):
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+
+
+def test_distinct_trust_roles_are_required(rig, tmp_path):
+    _, keys, _, _ = rig
+    with pytest.raises(ValueError, match="distinct"):
+        IndependentTool(tmp_path / "misconfigured.sqlite",
+                        operator=keys["a"], issuer=keys["issuer"],
+                        workers={"agent-a": keys["a"], "agent-b": keys["b"]},
+                        signer=keys["tool"], clock=lambda: NOW)
