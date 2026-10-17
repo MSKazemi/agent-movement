@@ -37,6 +37,7 @@ UNMAPPED = (
     "OS crash/restart, gateway partition/reheal: no equivalent fault injection in this runner",
     "operator_claim_done/absent: a claim cannot resolve an actual unknown effect",
     "physical process liveness and independently attested runtime identity",
+    "abstract resume after revoked/stale grant, policy or unknown hold: concrete runtime rejects it",
     "external effects, peer/A2A/relocation transports, consensus and independent data stores",
 )
 Predicate = Callable[[State], bool]
@@ -104,6 +105,16 @@ def witnesses(max_depth: int = 9, max_states: int = 20_000) -> dict[str, tuple[s
                 continue
             if edge.name in {"cancel_task", "dispatch_opaque_effect_unknown"} and not state.destination_granted:
                 # Runtime cancel/unknown requires enrollment, unlike abstract MASM.
+                continue
+            if edge.name == "resume_destination" and (
+                not state.user_approved or not state.data_owner_approved
+                or state.policy_epoch != state.child_policy_epoch
+                or state.clock >= 2 or state.opaque == "unknown"
+            ):
+                # The abstract model allows B to resume with stale approvals/policy.
+                # The concrete signed-activation API deliberately refuses to do so.
+                # Explore only traces whose resume step is implemented by the
+                # stricter trusted runtime, not an unsound no-op projection.
                 continue
             if edge.state not in seen:
                 seen.add(edge.state)
