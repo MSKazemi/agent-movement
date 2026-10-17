@@ -212,6 +212,21 @@ class GuardedAuthority:
             if db.execute("SELECT 1 FROM audit_events WHERE task_id=? AND event_type='handoff.completed' "
                           "LIMIT 1", (p["task_id"],)).fetchone():
                 raise PolicyDenied("prior legacy handoff requires reconciliation")
+            # Peer preflight/admission and the independent peer effect ledger
+            # are separate from the core handoff receipts. Enrollment must
+            # not reset or conceal ANY admitted same-store peer task history.
+            if db.execute("SELECT 1 FROM authorized_effects WHERE task_id=? LIMIT 1",
+                          (p["task_id"],)).fetchone():
+                raise PolicyDenied("prior peer effects require reconciliation")
+            for (admitted_json,) in db.execute("SELECT record_json FROM peer_admissions"):
+                try:
+                    admitted = json.loads(admitted_json)
+                except (ValueError, TypeError) as exc:
+                    raise PolicyDenied("unverifiable prior peer admission history") from exc
+                if not isinstance(admitted, dict):
+                    raise PolicyDenied("unverifiable prior peer admission history")
+                if admitted.get("logical_task_id") == p["task_id"]:
+                    raise PolicyDenied("prior peer admission requires reconciliation")
             row = {
                 "task_id": p["task_id"], "movement_id": p["movement_id"],
                 "origin_id": p["origin_id"], "origin_epoch": p["expected_epoch"],

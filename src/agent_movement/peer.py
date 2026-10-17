@@ -45,6 +45,7 @@ from .core import (
     SCHEMA_VERSION,
     Conflict,
     ContractError,
+    EffectGateway,
     PolicyDenied,
     SQLiteStore,
     _fields,
@@ -483,6 +484,12 @@ class PeerReceiver:
         # together or not at all, and concurrent preflights for the same grant serialize.
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            # Do not issue an authenticated preflight admission for work
+            # already enrolled in the guarded authority lane. This decision
+            # shares the write transaction with peer_admissions insertion and
+            # protected enrollment, so a noncompliant direct client cannot
+            # race around it. Ordinary denied preflight sends NO task text.
+            EffectGateway._deny_guarded(db, task_id)
             check_grant_live(grant, now=now, revoked=self.ledger.is_revoked(db, grant["grant_id"]))
             if self.continuity is not None:
                 epoch = self.continuity.require(db, kind=task["kind"], movement_id=movement_id,
@@ -563,6 +570,14 @@ class PeerReceiver:
         with self.store._connection() as db:
             row = db.execute("SELECT record_json FROM peer_admissions WHERE admission_id=?",
                              (p["admission_id"],)).fetchone()
+            if row is not None:
+                # A preflight that won the race BEFORE later guarded enrollment
+                # does not authorize plaintext decryption or a protected task
+                # after enrollment. This check avoids processing the payload
+                # in the receiver; the sender may already have transmitted it.
+                record_for_gate = json.loads(row[0])
+                db.execute("BEGIN IMMEDIATE")
+                EffectGateway._deny_guarded(db, record_for_gate["logical_task_id"])
         if row is None:
             raise Unauthorized("unknown_admission")
         record = json.loads(row[0])
