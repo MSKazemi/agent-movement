@@ -84,8 +84,8 @@ if "AMV_TEST_PARENT_PID" in os.environ:
 if "AMV_TEST_WRITABLE_DIR" in os.environ:
     scratch = Path(os.environ["AMV_TEST_WRITABLE_DIR"])
     check("scratch_write", lambda: (scratch / "must-not-create.txt").write_text("WRITE-PROBE"))
-    check("scratch_unlink", lambda: (scratch / "owned-target.txt").unlink())
-    check("scratch_mkdir", lambda: (scratch / "must-not-mkdir").mkdir())
+    check("scratch_unlink", (scratch / "owned-target.txt").unlink)
+    check("scratch_mkdir", (scratch / "must-not-mkdir").mkdir)
     check("scratch_rename", lambda: (scratch / "owned-target.txt").rename(scratch / "renamed"))
     check("scratch_chmod", lambda: (scratch / "owned-target.txt").chmod(0o777))
 # Check what the worker inherited independently of the parent's reported args.
