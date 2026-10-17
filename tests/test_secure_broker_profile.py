@@ -125,12 +125,13 @@ def test_inventory_mutation_cannot_silently_activate_legacy(tmp_path):
 
 def test_operator_callback_allowlist_exact_and_fails_before_launch(tmp_path):
     profile = load_operator_profile(manifest(tmp_path / "operator.json"))
+    oracle = SQLiteStore(tmp_path / "operator-oracle.sqlite")
     with pytest.raises(ContractError, match="exactly match"):
-        profile.run(PROBE, {"task-other": lambda: "committed"}, probe_port=1)
+        profile.run(PROBE, {"task-other": lambda: "committed"}, probe_port=1, effect_store=oracle)
     with pytest.raises(ContractError, match="exactly match"):
-        profile.run(PROBE, {}, probe_port=1)
+        profile.run(PROBE, {}, probe_port=1, effect_store=oracle)
     with pytest.raises(ContractError, match="invalid loopback"):
-        profile.run(PROBE, {"task-1": lambda: "committed"}, probe_port=0)
+        profile.run(PROBE, {"task-1": lambda: "committed"}, probe_port=0, effect_store=oracle)
 
 
 @ROOT_ONLY
