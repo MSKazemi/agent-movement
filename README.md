@@ -33,6 +33,8 @@ Four distinct operations must not be conflated:
 
 For the proposed trust model for **device/hardware-bound agents**, attested destinations and risk-tiered authorization, see [hardware binding and mobility safety](docs/device-and-hardware-binding.md).
 
+The [device-binding software experiment](docs/device-binding-experiment.md) demonstrates that copying a synthetic task snapshot does not itself convey protected tool permissions under an explicit key-separation assumption, and documents why stolen software keys defeat that protection.
+
 ## Why this matters
 
 A useful agent might start on a laptop, delegate to a cloud agent, use tools in another organization, pause for approval, and resume after failure. Today the building blocks span multiple layers:
@@ -74,6 +76,7 @@ The core needs Python 3.11+ and only the standard library. Each optional extra a
 ```sh
 python -m pip install -e . pytest                     # core only
 agent-movement demo                                   # handoff, replay, denial, stale-epoch fencing
+python -m agent_movement.device_binding_demo            # two worker subprocesses; synthetic device-bound grant tests
 agent-movement peer-demo                              # authenticated peer handoff (HS256, plaintext: no confidentiality)
 agent-movement bench verify --suite v0.1              # MobilityBench v0.1 fixture digests (v0.2: --suite v0.2)
 agent-movement purge --db FILE --older-than 30d --dry-run   # what a retention purge would delete
