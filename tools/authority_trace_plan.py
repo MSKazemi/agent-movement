@@ -3,7 +3,7 @@
 This module DOES NOT verify a runtime, infer missing states, or call an agent.
 It extracts shortest executable-prefix witnesses from MASM-0.1 and explicitly
 excludes events with no faithful mapping to the opt-in guarded SQLite lane.
-The runtime projector and independent SQL oracle are tested separately.
+The runtime projector and independent SQL oracle are tested separately;\nnew activated-lane tests map resume_destination to a signed transition.
 """
 from __future__ import annotations
 
@@ -31,12 +31,12 @@ EVENTS = frozenset({
     "advance_clock",
     "dispatch_opaque_effect_unknown",
 })
-ABSTRACT_MARKERS = frozenset({"prepare_destination", "resume_destination"})
+ABSTRACT_MARKERS = frozenset({"prepare_destination"})
 UNMAPPED = (
     "origin-side effects (commit_A_*): guarded enrollment forbids early effects",
     "OS crash/restart, gateway partition/reheal: no equivalent fault injection in this runner",
     "operator_claim_done/absent: a claim cannot resolve an actual unknown effect",
-    "physical process liveness and authenticated destination activation",
+    "physical process liveness and OS-level destination identity",
     "external effects, peer/A2A/relocation transports, consensus and independent data stores",
 )
 Predicate = Callable[[State], bool]
