@@ -14,7 +14,6 @@ import ctypes
 import errno
 import os
 import platform
-import resource
 import runpy
 import sys
 from pathlib import Path
@@ -125,6 +124,8 @@ def _drop_worker_privileges() -> None:
     if (os.getresuid() != (uid, uid, uid) or os.getresgid() != (gid, gid, gid)
             or os.getgroups()):
         raise RuntimeError("worker privilege isolation was not established")
+    # Linux-only import: preserve core's stdlib imports on other platforms.
+    import resource
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
     resource.setrlimit(resource.RLIMIT_FSIZE, (65536, 65536))
