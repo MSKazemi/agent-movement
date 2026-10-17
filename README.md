@@ -10,6 +10,8 @@ Agent Movement is a research prototype: an open, evidence-first testbed built to
 
 ## Start here: research mission and current evidence
 
+[Documentation navigator](docs/index.md) — task-oriented links to current experiments, verified evidence, charter and remaining security/benchmark limits.
+
 **Central question:** When can AI-agent work continue on another authorized executor without silent task-state loss, unsafe effects or untraceable ownership changes—and when is staying or restarting better?
 
 **Adopted direction:** [Project charter](docs/project-charter.md) · [Current, evidence-led roadmap](docs/roadmap.md) · [Strategic decision record](docs/strategy-review-2026-10-16.md). The laboratory focuses on task continuity, independently mediated authority and falsifiable comparisons of **stay, restart, delegate and relocate**. Delegation does not transfer task ownership.
