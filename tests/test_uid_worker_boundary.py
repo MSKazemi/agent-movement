@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import threading
 import urllib.request
 from pathlib import Path
@@ -16,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from agent_movement.core import Approval, HandoffReceiver, SQLiteStore
-from agent_movement.egress_lab import run_guarded_agent
+from agent_movement.egress_lab import SandboxTimeout, run_guarded_agent
 from agent_movement.egress_sandbox import supported
 from agent_movement.http import make_server
 from agent_movement.trust import HS256
@@ -26,6 +27,7 @@ from test_sender_gate import client, policy
 
 PROBE = Path(__file__).resolve().parents[1] / "src/agent_movement/uid_worker_probe.py"
 STALL = Path(__file__).resolve().parents[1] / "src/agent_movement/uid_stall_probe.py"
+COMMIT_STALL = Path(__file__).resolve().parents[1] / "src/agent_movement/uid_commit_stall_probe.py"
 ROOT_ONLY = pytest.mark.skipif(
     not supported() or not hasattr(os, "geteuid") or os.geteuid() != 0,
     reason="separate-UID seccomp test requires Linux x86_64 and an independent root supervisor",
@@ -193,3 +195,53 @@ def test_operator_timeout_kills_uncooperative_uid_worker_without_effect(tmp_path
     assert invoked == []
     save_evidence("timeout", {"profile": "uid-seccomp-pipe-v1",
                               "worker_terminated": True, "protected_callback_invocations": len(invoked)})
+
+
+
+@pytest.mark.skipif(not supported(), reason="Linux x86_64 seccomp required")
+def test_child_launch_failure_does_not_leak_broker_pipe_fds(monkeypatch):
+    """Even failed Popen must close all four local broker pipe ends."""
+    original_pipe = os.pipe
+    allocated = []
+
+    def recording_pipe():
+        pair = original_pipe()
+        allocated.extend(pair)
+        return pair
+
+    def fail_popen(*args, **kwargs):
+        raise OSError("synthetic Popen failure")
+
+    monkeypatch.setattr(os, "pipe", recording_pipe)
+    monkeypatch.setattr(subprocess, "Popen", fail_popen)
+    with pytest.raises(OSError, match="synthetic Popen failure"):
+        run_guarded_agent(STALL, {}, probe_port=1)
+    assert len(allocated) == 4
+    for fd in allocated:
+        with pytest.raises(OSError):
+            os.fstat(fd)
+
+
+@ROOT_ONLY
+def test_committed_synthetic_effect_is_reported_after_worker_timeout(tmp_path):
+    """Timeout after an acknowledged broker commit must not look like denial."""
+    world = World(HS256, tmp_path)
+    with pytest.raises(SandboxTimeout, match="requires reconciliation") as result:
+        run_guarded_agent(
+            COMMIT_STALL,
+            {"task-1": lambda: world.handoff(client=client(world))["effect"]},
+            probe_port=1, child_uid=65534, child_gid=65534, timeout=2.0,
+        )
+    assert result.value.broker_status == "committed"
+    assert result.value.request_count == 1
+    # Independent trusted-side evidence survives the child's forced termination.
+    assert len(world.receiver.ledger.effects()) == 1
+    assert world.wire.paths() == ["/v0/agent-card", "/v0/preflight", "/v0/deliveries"]
+    save_evidence("timeout-after-effect", {
+        "profile": "uid-seccomp-pipe-v1",
+        "worker_terminated": True,
+        "broker_status": result.value.broker_status,
+        "broker_request_count": result.value.request_count,
+        "trusted_simulated_effects": len(world.receiver.ledger.effects()),
+        "outcome_requires_reconciliation": True,
+    })
