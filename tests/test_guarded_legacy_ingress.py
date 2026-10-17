@@ -11,6 +11,7 @@ import json
 import subprocess
 import sys
 import threading
+import unittest
 import urllib.error
 import urllib.request
 
@@ -24,6 +25,7 @@ from agent_movement.core import (
     SQLiteStore,
 )
 from agent_movement.http import make_server
+from test_a2a_adapter import HAVE_A2A, SKIP_REASON, _A2AServerCase, envelope
 from test_continuity_runtime import Rig
 from test_core import fixture
 from test_guarded_authority import intent, service
@@ -154,3 +156,32 @@ def test_cannot_retroactively_enroll_after_untrusted_legacy_acceptance(tmp_path)
         service(rig).enroll(intent(rig), rig.grant)
     assert any(x["event_type"] == "handoff.completed" for x in rig.store.audit())
     assert rig.receiver.ledger.effects() == []
+
+
+@unittest.skipUnless(HAVE_A2A, SKIP_REASON)
+class TestGuardedRealA2AIngress(_A2AServerCase):
+    """Official A2A JSON-RPC/HTTP+JSON servers share the same guarded SQLite store."""
+
+    def test_direct_a2a_bindings_cannot_accept_guarded_task(self):
+        rig = Rig(Path(self.tmp.name))
+        rig.install()
+        EffectGateway(rig.store).claim("task-1", "agent-a")
+        guarded = service(rig)
+        guarded.enroll(intent(rig), rig.grant)
+        before = rig.store.audit()
+        for binding, suffix in (("JSONRPC", "rpc"), ("HTTP+JSON", "rest")):
+            with self.subTest(binding=binding):
+                # Calls an actual separately running SDK server; its transport
+                # claims no agent authentication. Sink-side guard must refuse
+                # the same shared logical task even when request syntax is valid.
+                value = envelope(f"movement-denied-{suffix}", f"op-denied-{suffix}")
+                response = self.delegate(value, binding=binding, streaming=False)
+                self.assertEqual(response["final_state"], "TASK_STATE_REJECTED")
+                self.assertEqual(self.completed_movements(value["movement_id"]), [])
+        events = rig.store.audit()
+        self.assertEqual(
+            [r for r in events if r["event_type"] == "handoff.accepted"],
+            [r for r in before if r["event_type"] == "handoff.accepted"],
+        )
+        self.assertEqual(guarded.inspect("task-1")["phase"], "prepared")
+        self.assertEqual(rig.receiver.ledger.effects(), [])
