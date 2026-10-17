@@ -30,6 +30,16 @@ ROOT_ONLY = pytest.mark.skipif(
     not supported() or not hasattr(os, "geteuid") or os.geteuid() != 0,
     reason="separate-UID seccomp test requires Linux x86_64 and an independent root supervisor",
 )
+
+
+def save_evidence(name: str, details: dict) -> None:
+    directory = os.environ.get("AMV_UID_EVIDENCE_DIR")
+    if directory is None:
+        return
+    path = Path(directory) / f"{name}.json"
+    path.write_text(json.dumps(details, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+
+
 DENIED_ROUTES = (
     "legacy_http", "a2a_jsonrpc", "a2a_rest", "peer_preflight", "tool_service",
     "tcp", "udp", "unix", "spawn", "reacquire_root", "protected_file",
@@ -128,6 +138,15 @@ def test_root_owned_legacy_listener_secrets_and_effects_are_inaccessible(tmp_pat
         assert b"ROOT-ONLY-SYNTHETIC-CANARY" not in result.stdout.encode()
         assert TEXT.encode() not in result.stdout.encode()
         assert PROVIDER_CANARY.encode() not in result.stderr.encode()
+        save_evidence("allow", {
+            "profile": "uid-seccomp-pipe-v1", "worker_uid": observations["uid"],
+            "worker_gid": observations["gid"], "groups": observations["supplementary_groups"],
+            "observations": {k: observations[k] for k in DENIED_ROUTES},
+            "private_fd_inherited": observations["protected_fd_inherited"],
+            "broker": result.broker_status, "independent_legacy_unchanged": legacy.audit() == legacy_before,
+            "independent_peer_effects": len(world.receiver.ledger.effects()),
+            "canary_in_worker_output": TEXT.encode() in result.stdout.encode(),
+        })
     finally:
         server.shutdown()
         server.server_close()
@@ -155,6 +174,12 @@ def test_denied_trusted_broker_does_not_disclose_or_commit(tmp_path):
     assert world.receiver.ledger.effects() == []
     assert TEXT.encode() not in result.stdout.encode()
     assert b"SYNTHETIC-SECRET-NOT-AGENT-INPUT" not in result.stdout.encode()
+    save_evidence("deny", {
+        "profile": "uid-seccomp-pipe-v1", "broker": result.broker_status,
+        "wire_requests": world.wire.paths(), "independent_peer_effects": len(world.receiver.ledger.effects()),
+        "observations": {k: observed[k] for k in DENIED_ROUTES if k != "parent_private_fd"},
+        "canary_in_worker_output": TEXT.encode() in result.stdout.encode(),
+    })
 
 
 @ROOT_ONLY
@@ -166,3 +191,5 @@ def test_operator_timeout_kills_uncooperative_uid_worker_without_effect(tmp_path
             probe_port=1, child_uid=65534, child_gid=65534, timeout=0.6,
         )
     assert invoked == []
+    save_evidence("timeout", {"profile": "uid-seccomp-pipe-v1",
+                              "worker_terminated": True, "protected_callback_invocations": len(invoked)})
