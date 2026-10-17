@@ -477,6 +477,11 @@ class SQLiteStore:
         (``HandoffReceiver``, which authenticates nobody). Two senders may therefore use
         the same key. Movement IDs stay unique across all senders.
 
+        Any task enrolled in ``GuardedAuthority`` is denied on this
+        **legacy/core handoff path** (including replays) under the same SQLite
+        write lock as enrollment. This is a bounded store-level ingress fence,
+        not sender authentication or an all-adapter network control.
+
         ``approval_ref`` (``HandoffReceiver``) is the approval that admitted the envelope.
         Inside the same write transaction a runtime revocation of it raises
         ``ApprovalRevoked`` (replays included), and a new delivery binds the task to it, so
@@ -494,6 +499,13 @@ class SQLiteStore:
         sender_id = envelope["origin"]["agent_id"] if sender is None else _id(sender, "sender")
         with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            # An enrolled guarded task must never be accepted through the
+            # unauthenticated legacy/core handoff lane, including idempotent
+            # replays. Enrollment and admission share the same write lock, so
+            # a concurrent enrollment cannot race between this check and
+            # durable receipt insertion. Peer/guarded authority has its own
+            # separately authenticated ingress.
+            EffectGateway._deny_guarded(db, envelope["logical_task_id"])
             if approval_ref is not None and self._approval_revoked(db, approval_ref):
                 raise ApprovalRevoked(approval_ref)
             previous = db.execute("SELECT envelope_digest FROM deliveries "
@@ -616,7 +628,10 @@ class HandoffReceiver:
             raise PolicyDenied("receiver-side approval not found, valid or scoped for this transfer")
         try:
             return self.store.receive(envelope, approval_ref=envelope["authority"]["approval_ref"])
-        except ApprovalRevoked:
+        except PolicyDenied:
+            # The store applies guard enrollment/revocation atomically. Record
+            # a sanitized denied handoff outside the rolled-back transaction
+            # without accidentally returning a successful legacy receipt.
             self.store.denied(envelope)
             raise
 
@@ -672,6 +687,21 @@ class EffectGateway:
     def __init__(self, store: SQLiteStore):
         self.store = store
 
+    @staticmethod
+    def _deny_guarded(db: sqlite3.Connection, task_id: str) -> None:
+        """Guarded tasks cannot fall back to the lower-level legacy authority lane.
+
+        Enrollment and this check share the SQLite write lock. For unguarded
+        tasks the original experimental CAS/commit semantics are unchanged.
+        """
+        exists = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='guarded_tasks'"
+        ).fetchone()
+        if exists and db.execute(
+            "SELECT 1 FROM guarded_tasks WHERE task_id=?", (task_id,)
+        ).fetchone():
+            raise PolicyDenied("guarded task requires GuardedAuthority")
+
     def claim(self, task_id: str, agent_id: str) -> int:
         _id(task_id, "task_id")
         _id(agent_id, "agent_id")
@@ -695,6 +725,7 @@ class EffectGateway:
             raise ContractError("new owner must differ")
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            self._deny_guarded(db, task_id)
             updated = db.execute("UPDATE owners SET agent_id = ?, epoch = epoch + 1 "
                                  "WHERE task_id = ? AND agent_id = ? AND epoch = ?",
                                  (new_owner, task_id, expected_owner, expected_epoch))
@@ -720,6 +751,7 @@ class EffectGateway:
         fingerprint = self.store.keyed_digest(hashlib.sha256(payload_bytes).hexdigest())
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            self._deny_guarded(db, task_id)
             owner = db.execute("SELECT agent_id,epoch FROM owners WHERE task_id=?", (task_id,)).fetchone()
             if owner != (agent_id, epoch):
                 raise PolicyDenied("stale or unauthorized executor")

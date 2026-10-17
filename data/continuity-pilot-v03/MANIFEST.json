@@ -1,0 +1,16 @@
+{
+  "schema_version": "continuity-pilot-v0.3",
+  "research_status": "public-synthetic-protocol-pilot-not-held-out-from-public-model-training",
+  "split_seed": "cpv03-20261017",
+  "hash_algorithm": "sha256",
+  "serialization": "UTF-8 JSONL compact sorted keys newline-terminated",
+  "dataset_sha256": "17980814c05891a86fbc4a2f998592e22334e839d2f0596b52e93e2281a39d85",
+  "holdout_sha256": "41da093cc668145a79ecaff9f53e0199b5ebfd11fb56a2bbd2c9858d7c8bed09",
+  "holdout_ids_sha256": "efa02dcbd8cc3ed3aec03b9db2e443cb8657d17c6d012eda76d7499e2df89ff0",
+  "task_count": 20,
+  "development_count": 12,
+  "holdout_count": 8,
+  "oracle_plan_exposed": false,
+  "heldout_definition": "frozen split withheld from model/prompt tuning; public fixture content is not private",
+  "actual_agent_or_model_results": false
+}

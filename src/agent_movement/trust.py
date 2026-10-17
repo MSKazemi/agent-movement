@@ -51,7 +51,10 @@ SEALED_FIELDS = {"alg", "kid", "payload", "sig"}
 _DOMAIN = b"agent-movement/peer/v0\n"
 _PURPOSES = frozenset({"agent-card", "grant", "revocation", "preflight", "admission",
                        "delivery", "receipt", "continuity-consent", "continuity-revocation",
-                       "continuity-observation", "continuity-ack"})
+                       "continuity-observation", "continuity-ack",
+                       "guarded-transfer-intent", "guarded-cancel", "guarded-unknown",
+                       "guarded-activation", "guarded-effect-invocation",
+                       "tool-effect-request", "tool-operator-event", "tool-effect-receipt"})
 # Loopback or in-process only: a card can never point a sender at an arbitrary host (SSRF).
 _ENDPOINT = re.compile(r"(http://127\.0\.0\.1:[1-9][0-9]{0,4}|local://[A-Za-z0-9._-]{1,64})\Z")
 _B64 = re.compile(r"[A-Za-z0-9_-]*\Z")

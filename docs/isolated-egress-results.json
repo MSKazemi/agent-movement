@@ -1,0 +1,104 @@
+{
+  "cases": [
+    {
+      "case_id": "tcp",
+      "expected": "blocked",
+      "observed": "blocked",
+      "stage": "kernel"
+    },
+    {
+      "case_id": "legacy_http",
+      "expected": "blocked",
+      "observed": "blocked",
+      "stage": "kernel"
+    },
+    {
+      "case_id": "a2a_http",
+      "expected": "blocked",
+      "observed": "blocked",
+      "stage": "kernel"
+    },
+    {
+      "case_id": "udp",
+      "expected": "blocked",
+      "observed": "blocked",
+      "stage": "kernel"
+    },
+    {
+      "case_id": "ipv6",
+      "expected": "blocked",
+      "observed": "blocked",
+      "stage": "kernel"
+    },
+    {
+      "case_id": "unix",
+      "expected": "blocked",
+      "observed": "blocked",
+      "stage": "kernel"
+    },
+    {
+      "case_id": "spawn",
+      "expected": "blocked",
+      "observed": "blocked",
+      "stage": "kernel"
+    },
+    {
+      "case_id": "fork",
+      "expected": "blocked",
+      "observed": "blocked",
+      "stage": "kernel"
+    },
+    {
+      "case_id": "raw_syscall",
+      "expected": "blocked",
+      "observed": "blocked",
+      "stage": "kernel"
+    },
+    {
+      "case_id": "authorized_delegation",
+      "expected": "committed",
+      "observed": "committed",
+      "stage": "trusted_pipe_broker"
+    },
+    {
+      "case_id": "unsupported_clone",
+      "expected": "denied",
+      "observed": "denied",
+      "stage": "trusted_pipe_broker"
+    },
+    {
+      "case_id": "revoked_grant",
+      "expected": "denied",
+      "observed": "denied",
+      "stage": "trusted_pipe_broker"
+    },
+    {
+      "case_id": "unknown_task",
+      "expected": "denied",
+      "observed": "denied",
+      "stage": "trusted_pipe_broker"
+    },
+    {
+      "case_id": "unfenced_loopback_control",
+      "expected": "received",
+      "observed": "received",
+      "stage": "independent_listener"
+    },
+    {
+      "case_id": "isolated_listener_hits",
+      "expected": "0",
+      "observed": "0",
+      "stage": "independent_listener"
+    },
+    {
+      "case_id": "simulated_effect_count",
+      "expected": "1",
+      "observed": "1",
+      "stage": "trusted_process"
+    }
+  ],
+  "model": "seccomp syscall-deny + one-command pipe broker; no filesystem confinement",
+  "platform": "linux-x86_64",
+  "schema": "agent-movement/isolated-egress-v0.1",
+  "unexpected": 0
+}

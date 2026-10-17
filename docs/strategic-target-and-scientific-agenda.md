@@ -1,5 +1,8 @@
 # Strategic target and scientific research agenda (2026-10-15)
 
+> **Dated planning snapshot (updated context 2026-10-16):** This document preserves its original research assessment, including a pre-implementation capability table. The adopted current direction is [the project charter](project-charter.md) and execution gates are in [the roadmap](roadmap.md); current synthetic/local Python components are described in [architecture](architecture.md). Do not interpret the historical “missing implementation” table below as the current `main` status.
+
+
 **Status:** Research recommendation, not an adopted standard or an implemented product.  
 **Repository assessed:** MSKazemi/agent-movement, default branch on 2026-10-15.  
 **Scope:** Software agents and movable **work**, not physical robot motion.  

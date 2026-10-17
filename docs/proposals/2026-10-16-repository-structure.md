@@ -1,7 +1,7 @@
 # Repository architecture: current-state review and incremental structure
 
 **Reviewed:** 2026-10-16 against `main` at `7231c533dc35334030fec545be0ff866bcbaef1d`.  
-**Status:** Draft proposal for maintainer review, **not** an adopted architecture decision or a production assurance statement.  
+**Status:** Historical 2026-10-16 structure proposal, updated with a current-status note on 2026-10-17; **not** an adopted architecture decision or a production assurance statement.  
 **Purpose:** Update the original structure review after many related PRs merged. This review focuses on organization and integration order; the separate mission/90-day charter proposal is in PR #88.
 
 ## Recommended focus
@@ -40,6 +40,14 @@ Read `../architecture.md` for the as-built module inventory (it declares its ver
 - **PR #85, open:** algorithmic/formal foundations; keep experimental and formal claims distinct until checked.
 - **PR #88, open:** mission and 90-day strategy reset. This structure document should **complement**, not independently settle, its project positioning and benchmark-name questions.
 - **PR #17:** the current document/navigation draft. Earlier PR #6 and PR #14 work is already represented on `main`; no remaining merge sequencing around those PRs is needed.
+
+### Verified follow-up, 2026-10-17
+
+The list above remains a **dated review snapshot**, not an assertion that those PRs are still pending. Since then, [PR #85](https://github.com/MSKazemi/agent-movement/pull/85) (formal foundations), [PR #87](https://github.com/MSKazemi/agent-movement/pull/87) (Linux egress experiment) and [PR #88](https://github.com/MSKazemi/agent-movement/pull/88) (adopted [project charter](../project-charter.md) and [roadmap](../roadmap.md)) **merged**. Later, authenticated activation (#107), distinct-UID worker isolation (#113), guarded legacy/A2A admission refusal (#114), a restricted operator-owned broker profile (#118) and signed peer preflight refusal (#120) also merged. The scoped policy-decision sample in PR #16 remains a separate research proposal, not runtime enforcement.
+
+Do not claim all-path security from that progress: [issue #50](https://github.com/MSKazemi/agent-movement/issues/50) and [secure-profile issue #99](https://github.com/MSKazemi/agent-movement/issues/99) remain open. The [16-route inventory](../secure-test-route-inventory.md) is source-linked planning evidence, and the [broker-only lab](../secure-broker-only-profile.md) covers one intentionally restricted worker, not arbitrary existing processes, independently reachable listeners or external tools. The [v0.3 benchmark pilot](../continuity-benchmark-v03-pilot.md) has no real-agent results.
+
+The old priority tables below are retained as *proposals from 2026-10-16*. For live priorities, use the adopted [roadmap](../roadmap.md) and current issue tracker, not the historical PR numbers.
 
 Recheck branch status and main SHA before merging or quoting the snapshot as current.
 

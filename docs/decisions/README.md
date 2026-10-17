@@ -13,9 +13,9 @@ For each independently reviewable decision, create `NNNN-short-topic.md`, with:
 
 ## Recommended first ADRs (not yet accepted)
 
-1. **North-star mission and strict meaning of movement:** resolve via strategic review PR #88; distinguish delegation from ownership relocation.
+1. **Record the adopted north-star research mission:** [project charter](../project-charter.md) (merged PR #88) already distinguishes delegation from strict task-ownership relocation. A future ADR may document architectural implications without reopening the adopted research scope.
 2. **Canonical envelope version and upgrade/downgrade semantics:** runtime `0.1.0-draft` versus proposed `0.2.0-draft` schema; no silent compatibility claims.
-3. **Secure-test complete-mediation scope:** Issue #50, explicitly enabled entry/exit/effect interfaces, trusted issuer/host assumptions and blocked bypass routes.
+3. **Secure-test complete-mediation scope:** Issue #50 remains open. Use the [16-route inventory](../secure-test-route-inventory.md) and [broker-only operator profile](../secure-broker-only-profile.md) as partial inputs; neither currently proves global mediation of other processes or external tools.
 4. **Benchmark evaluation protocol and identity:** deterministic tests versus preregistered held-out model-backed trials; avoid confusion with independently named MobilityBench projects.
 
 When replacing a past decision, keep the earlier ADR for provenance and add `superseded by ADR-NNNN` rather than deleting its rationale. Do not adopt broad runtime changes through a documentation-only proposal.

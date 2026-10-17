@@ -1,5 +1,7 @@
 # Agent Movement vs Copy, Cloning, Replication, and Multiplication
 
+> **Historical snapshot, not current implementation status (2026-10-16).** The matrix below was accurate for commit `487748c` on 2026-10-15, before code merged. Current `main` now includes bounded, synthetic/local delegation and checkpoint-relocation demonstrations, but not general cloning/replication or live process migration. For authoritative current capabilities see [project charter](project-charter.md), [as-built architecture](architecture.md) and [roadmap](roadmap.md). The original audit table is deliberately preserved for provenance.
+
 **Audit date:** 2026-10-15  
 **Scope:** Implementation status of this repository's default branch, plus proposed project vocabulary.  
 **Verdict:** Research/documentation exists; **none** of the execution operations below is implemented here. Do not confuse a technology mentioned in docs with a working integration.

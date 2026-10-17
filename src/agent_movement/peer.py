@@ -45,6 +45,7 @@ from .core import (
     SCHEMA_VERSION,
     Conflict,
     ContractError,
+    EffectGateway,
     PolicyDenied,
     SQLiteStore,
     _fields,
@@ -54,6 +55,7 @@ from .core import (
     parse_json,
     validate_envelope,
 )
+from .sender_gate import OutboundGate
 from .trust import (
     CLASSIFICATIONS,
     HPKE_SUITE,
@@ -299,6 +301,16 @@ class AuthorizedEffectGateway:
         fingerprint = self.ledger.store.keyed_digest(hashlib.sha256(payload.encode("utf-8")).hexdigest())
         with self.ledger.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            # Guarded tasks cannot fall back to the peer effect ledger, even if a
+            # caller instantiates a bare gateway without ContinuityRuntime.
+            # This check shares the SQLite write lock with guarded enrollment.
+            guard_table = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='guarded_tasks'"
+            ).fetchone()
+            if guard_table and db.execute(
+                "SELECT 1 FROM guarded_tasks WHERE task_id=?", (task_id,)
+            ).fetchone():
+                raise Unauthorized("guarded_task_requires_guarded_authority")
             check_grant_live(grant, now=_now(self.clock),
                              revoked=self.ledger.is_revoked(db, grant["grant_id"]))
             if grant["audience"] != agent_id:
@@ -472,6 +484,12 @@ class PeerReceiver:
         # together or not at all, and concurrent preflights for the same grant serialize.
         with self.store._connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            # Do not issue an authenticated preflight admission for work
+            # already enrolled in the guarded authority lane. This decision
+            # shares the write transaction with peer_admissions insertion and
+            # protected enrollment, so a noncompliant direct client cannot
+            # race around it. Ordinary denied preflight sends NO task text.
+            EffectGateway._deny_guarded(db, task_id)
             check_grant_live(grant, now=now, revoked=self.ledger.is_revoked(db, grant["grant_id"]))
             if self.continuity is not None:
                 epoch = self.continuity.require(db, kind=task["kind"], movement_id=movement_id,
@@ -552,6 +570,14 @@ class PeerReceiver:
         with self.store._connection() as db:
             row = db.execute("SELECT record_json FROM peer_admissions WHERE admission_id=?",
                              (p["admission_id"],)).fetchone()
+            if row is not None:
+                # A preflight that won the race BEFORE later guarded enrollment
+                # does not authorize plaintext decryption or a protected task
+                # after enrollment. This check avoids processing the payload
+                # in the receiver; the sender may already have transmitted it.
+                record_for_gate = json.loads(row[0])
+                db.execute("BEGIN IMMEDIATE")
+                EffectGateway._deny_guarded(db, record_for_gate["logical_task_id"])
         if row is None:
             raise Unauthorized("unknown_admission")
         record = json.loads(row[0])
@@ -710,10 +736,16 @@ class PeerClient:
 
     def __init__(self, card: dict[str, Any], key: Any, trust: TrustStore, transport: Transport, *,
                  never_send: Iterable[str | bytes] = (), clock: Callable[[], float] = time.time,
-                 schema_version: str = PEER_SCHEMA_VERSION, require_confidentiality: bool = False):
+                 schema_version: str = PEER_SCHEMA_VERSION, require_confidentiality: bool = False,
+                 outbound_gate: OutboundGate | None = None, secure_test_mode: bool = False):
         self.card, self.key, self.trust, self.transport = card, key, trust, transport
         self.clock, self.schema_version = clock, schema_version
-        self.require_confidentiality = require_confidentiality
+        if secure_test_mode and outbound_gate is None:
+            raise ContractError("secure sender mode requires an outbound gate")
+        self.outbound_gate = outbound_gate
+        self.require_confidentiality = require_confidentiality or (
+            outbound_gate.require_confidentiality if outbound_gate is not None else False
+        )
         forms = [s.encode("utf-8") if isinstance(s, str) else s for s in never_send]
         self._never_send = tuple(x for x in [*forms, *key.secret_forms()] if x)
         self.trace: list[dict[str, Any]] = []
@@ -802,9 +834,29 @@ class PeerClient:
             payload["enc"] = sealed_to.seal(canonical(inner).encode("utf-8"))
         return canonical(seal("delivery", payload, self.key)).encode("utf-8")
 
+    def _require_outbound(self, *, url: str, destination_id: str, task_id: str,
+                          kind: str, classification: str, grant: dict[str, Any],
+                          phase: str) -> None:
+        if self.outbound_gate is None:
+            return
+        try:
+            self.outbound_gate.check(
+                trust=self.trust, origin_card=self.card, origin_key=self.key,
+                destination_id=destination_id, url=url, task_id=task_id,
+                kind=kind, classification=classification, grant=grant, now=_now(self.clock),
+            )
+        except (TrustDenied, ContractError) as exc:
+            reason = exc.reason if isinstance(exc, TrustDenied) else "invalid_outbound_request"
+            raise self._abort("outbound_gate", reason, False) from exc
+        self._event("outbound_gate", "allowed", "verified_before_" + phase, False)
+
     def handoff(self, *, url: str, destination_id: str, movement_id: str, task_id: str, kind: str,
                 text: str, grant: dict[str, Any], idempotency_key: str, trace_id: str,
                 classification: str = "synthetic") -> dict[str, Any]:
+        self._require_outbound(
+            url=url, destination_id=destination_id, task_id=task_id, kind=kind,
+            classification=classification, grant=grant, phase="discovery",
+        )
         card = self.discover(url, destination_id, kind)
         body, secret = self.build_preflight(
             url=url, destination_id=destination_id, movement_id=movement_id, task_id=task_id,
@@ -835,6 +887,13 @@ class PeerClient:
             body = self.build_delivery(admission["admission_id"], secret["task"], secret["salt"], sealed_to)
         except (ContractError, ValueError, TypeError) as exc:
             raise self._abort("delivery", "encryption_failed", False) from exc
+        # Revalidate the trusted revocation source at the last available
+        # sender boundary. This narrows but cannot eliminate the TOCTOU gap;
+        # independent receiver/effect enforcement still decides safely.
+        self._require_outbound(
+            url=url, destination_id=destination_id, task_id=task_id, kind=kind,
+            classification=classification, grant=grant, phase="delivery",
+        )
         self._event("delivery", "sending", "hpke_sealed" if sealed_to else "plaintext_no_confidentiality",
                     False)
         status, raw = self._send(url, DELIVERY_PATH, body)

@@ -6,6 +6,18 @@ Agent Movement is a research prototype: an open, evidence-first testbed built to
 
 **Status:** Research-stage. Alongside the research documents, the repository has an **experimental Python package of synthetic, local prototypes**: loopback task handoff with simulated-effect fencing, an optional A2A v1 adapter on the official SDK, authenticated peer handoff, same-runtime LangGraph checkpoint relocation, signed movement receipts and the MobilityBench harness. None of it is production software. It does **not** provide production security, broad A2A interoperability (one second SDK, a JavaScript client, and the official A2A TCK have been run on loopback, with documented deviations), cross-framework reconstruction or deployment to other devices. Current release: **v0.2.0** (2026-10-16); see the [CHANGELOG](CHANGELOG.md). Last reviewed: 2026-10-16.
 
+[Explicit envelope version compatibility (runtime 0.1 versus proposed 0.2)](docs/handoff-version-compatibility.md)
+
+## Start here: research mission and current evidence
+
+[Documentation navigator](docs/index.md) — task-oriented links to current experiments, verified evidence, charter and remaining security/benchmark limits.
+
+**Central question:** When can AI-agent work continue on another authorized executor without silent task-state loss, unsafe effects or untraceable ownership changes—and when is staying or restarting better?
+
+**Adopted direction:** [Project charter](docs/project-charter.md) · [Current, evidence-led roadmap](docs/roadmap.md) · [Strategic decision record](docs/strategy-review-2026-10-16.md). The laboratory focuses on task continuity, independently mediated authority and falsifiable comparisons of **stay, restart, delegate and relocate**. Delegation does not transfer task ownership.
+
+**Reality check (2026-10-16):** The repository has local/synthetic handoff, A2A, peer authorization, compatible checkpoint relocation, signed receipts, an opt-in [Continuity Runtime](docs/continuity-runtime-enforcement.md), an abstract [state-space explorer](docs/algorithms-and-cs-foundations.md) and deterministic **LLM-free** [MobilityBench v0.2](docs/mobilitybench-v0.2.md). These are separate bounded experiments, **not** a production-secure end-to-end cross-host mobility system. The core runtime still validates envelope `0.1.0-draft` while the proposed canonical schema is `0.2.0-draft`. New research must state what is implemented versus planned, trust assumptions, a fair baseline and how a negative result is observed.
+
 ## What does "agent movement" mean?
 
 *Agent Movement* is the **proposed name and working definition for this project**, not a recognized universal standard. We use it to study how an AI-agent task or execution can move between agents, frameworks, models, machines, and organizations **without losing relevant context, accountability, or safety controls**.
@@ -20,6 +32,10 @@ Four distinct operations must not be conflated:
 4. **Cross-framework reconstruction:** Reconstruct a workflow on a different runtime using an adapter and a portable representation, with explicitly documented loss of features.
 
 **Not claimed:** Live process migration or lossless transfer of arbitrary agent hidden state, model internals, credentials, or in-flight side effects.
+
+For the proposed trust model for **device/hardware-bound agents**, attested destinations and risk-tiered authorization, see [hardware binding and mobility safety](docs/device-and-hardware-binding.md).
+
+The [device-binding software experiment](docs/device-binding-experiment.md) demonstrates that copying a synthetic task snapshot does not itself convey protected tool permissions under an explicit key-separation assumption, and documents why stolen software keys defeat that protection.
 
 ## Why this matters
 
@@ -36,7 +52,7 @@ A useful agent might start on a laptop, delegate to a cloud agent, use tools in 
 
 The *research hypothesis* is that a small **portable handoff envelope**, compatible adapters, strict authorization, and an auditable lifecycle could make these layers work together.
 
-## Proposed flow (illustrative, not implemented)
+## Proposed flow (illustrative; only separate local components are implemented)
 
 ```mermaid
 flowchart LR
@@ -62,6 +78,7 @@ The core needs Python 3.11+ and only the standard library. Each optional extra a
 ```sh
 python -m pip install -e . pytest                     # core only
 agent-movement demo                                   # handoff, replay, denial, stale-epoch fencing
+python -m agent_movement.device_binding_demo            # two worker subprocesses; synthetic device-bound grant tests
 agent-movement peer-demo                              # authenticated peer handoff (HS256, plaintext: no confidentiality)
 agent-movement bench verify --suite v0.1              # MobilityBench v0.1 fixture digests (v0.2: --suite v0.2)
 agent-movement purge --db FILE --older-than 30d --dry-run   # what a retention purge would delete
@@ -97,21 +114,24 @@ Suggested reading order:
 8. [Device compatibility and capability requirements (134 candidate device classes)](docs/device-compatibility-and-capability-matrix.md) · [CSV catalog](data/device-targets.csv)
 9. [Security, privacy, and threat model](docs/security-and-trust.md) · [Prompt injection across agent boundaries (taxonomy, evidence, proposed experiment)](docs/cross-agent-prompt-injection.md)
 10. **[Can agents move unnoticed or cause harm? Defensive threat model](docs/unnoticed-and-unauthorized-agent-movement.md)** — permission boundaries, hidden delegation, lateral movement, independent detection, revocation and kill switches; [15 proposed synthetic defense tests](data/unnoticed-agent-movement-defense-tests.csv)
-11. [Agent communication governance and enforceable policy proposal](docs/agent-communication-and-policy.md) · [28 conformance cases](data/agent-communication-conformance-cases.csv) · [Test registry: documented cases linked to implemented tests](data/test-registry.csv)
+11. [Source-linked secure-test route inventory (16 candidates, NOT a launcher)](docs/secure-test-route-inventory.md) · [CSV](data/secure-route-inventory.csv) · [Agent communication governance and enforceable policy proposal](docs/agent-communication-and-policy.md) · [28 conformance cases](data/agent-communication-conformance-cases.csv) · [Test registry: documented cases linked to implemented tests](data/test-registry.csv)
 12. [Agent fingerprints, movement tracking, and digital forensics](docs/agent-forensics-and-fingerprints.md): identity vs fingerprint, evidence grades, auditable movement receipts
 13. [Open technical and product questions](docs/open-questions.md): ranked questions with falsifiable experiments · [Question ID crosswalk](docs/question-id-crosswalk.md)
-14. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
-15. [Proposed architecture and staged roadmap](docs/roadmap.md)
-16. [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md) · [Economic evaluation methodology (proposed cost model, no results)](docs/economic-evaluation.md) · [Evaluation plan for reference tasks EV-A, EV-B and EV-C (design only, no results)](docs/evaluation-plan.md)
-17. [2031 frontier: 20 visionary research questions and four testable studies](docs/2031-frontier-research-agenda.md)
-18. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
-19. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
-20. [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
-21. [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
-22. [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
-23. [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
+14. **[Algorithms and computer-science foundations](docs/algorithms-and-cs-foundations.md)**: distributed authority, formal invariants, model checking, graph/scheduling algorithms, semantic portability and a bounded state explorer
+15. [Evidence map: which corpus items bear on each open question, and where evidence is missing](docs/evidence-map.md) · [CSV](data/evidence-map.csv)
+16. [Proposed architecture and staged roadmap](docs/roadmap.md)
+17. [Synthetic held-out continuity scorer pilot v0.3 (null controls; no model results)](docs/continuity-benchmark-v03-pilot.md) · [manifest](data/continuity-pilot-v03/MANIFEST.json) · [script](tools/continuity_pilot_v03.py) · [Strategic target and scientific agenda](docs/strategic-target-and-scientific-agenda.md) · [MobilityBench experiment protocol (proposed pre-registration)](docs/mobilitybench-experiment-protocol.md) · [Economic evaluation methodology (proposed cost model, no results)](docs/economic-evaluation.md) · [Evaluation plan for reference tasks EV-A, EV-B and EV-C (design only, no results)](docs/evaluation-plan.md)
+18. [2031 frontier: 20 visionary research questions and four testable studies](docs/2031-frontier-research-agenda.md)
+19. [Primary sources and evidence log](docs/sources.md): index of the references cited in the core research docs, with a spot-check log
+20. [News corpus: 100 dated, verified and coded news items (2024–2026) with summaries, BibTeX and protocol](docs/news-corpus/README.md) ([digest](docs/news-corpus/digest.md))
+21. [Paper corpus: 83 metadata-verified, audited scholarly papers (1980–2026), from mobile agents and process migration to MCP/A2A security](docs/paper-corpus/README.md) ([digest](docs/paper-corpus/digest.md))
+22. [Corpus timeline and coverage analysis (generated)](docs/corpus-analysis/README.md)
+23. [Corpus link health and Wayback availability (2026-10-16): no dead links; 16 cited URLs not yet archived](docs/corpus-qa/README.md)
+24. [How to cite this repository or a corpus item](docs/how-to-cite.md) · [Development and quality gates](docs/development.md) · [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md)
 
 Further research notes:
+
+- **[Algorithmic foundations research handoff (2026-10-16)](docs/algorithmic-research-handoff-2026-10-16.md)** — verified milestones, undecided scientific questions, guarded-runtime dependencies and next reproducible tests
 
 - [Underexplored dimensions and proposed experiments (2026-10-16 gap audit)](docs/missing-dimensions-and-research-gaps.md): multi-principal authority, portable obligations, self-change, quarantine, human control and context freshness
 - [Twenty high-impact research questions for AI agents and human life (reasoned agenda, not a systematic review)](docs/top-20-human-impact-questions-for-agentic-ai.md)
@@ -120,6 +140,16 @@ Experimental code (synthetic, local, not production):
 
 - [Continuity Guard v0.1: multi-principal approval, obligations, configuration drift, quarantine and freshness (research-only)](docs/continuity-guard-v0.md) — deterministic 10-case demo and synthetic unit tests
 - [Continuity Runtime v0.1: signed facts and SQLite effect-side rechecks for one peer receiver](docs/continuity-runtime-enforcement.md) — bounded enforcement with non-covered routes explicitly documented
+- [Independent-process egress experiment (Linux seccomp, research-only)](docs/isolated-egress-lab.md) — socket/spawn bypass tests, pipe-only broker, deterministic 16-case evidence and explicit limits
+- [Distinct-UID Linux worker boundary (synthetic, root-in-container lab)](docs/uid-worker-sandbox.md) — root-supervised UID/GID drop, seccomp, actual legacy listener, root-only FS/proc/FD probes, allowlisted pipe broker, bounded JSON evidence; *not* global movement containment.
+- [Real legacy/A2A listener reachability experiment](docs/real-adapter-egress.md) — unfenced self-declared-origin control plus Linux-fenced direct requests against **actual** adapters; explicitly bounded, not a global policy
+- [Independent localhost synthetic tool-effect service](docs/independent-tool-effect-service.md) — separately provisioned process, signed operator/worker/grant decisions, atomic SQLite effect ledger, receipts and adversarial tests; issue #102, **not** global tool enforcement.
+- [Opt-in pre-disclosure sender authorization](docs/secure-sender-gate.md) — independently verified origin/grant, destination and revocation before discovery and delivery; [focused tests](tests/test_sender_gate.py) and [research checkpoint](docs/algorithmic-research-handoff-2026-10-16.md). **Only the configured synthetic peer path is covered; other transports and real tools are not secured.**
+- **[Movement Authority State Machine MASM-0.1](docs/movement-authority-state-machine.md)** — 10 safety properties spanning epochs, two-principal authorization, grant attenuation, policy freshness, effect deduplication and shared budgets; [executable state explorer](tools/movement_authority_machine.py) and [15 falsification tests](tests/test_movement_authority_machine.py). Research model only, not a runtime guard.
+- [Opt-in guarded authority transfer](docs/guarded-authority-transfer.md) — signed source intent, two-principal consent, atomic PREPARED → FENCED → ACTIVE transition, destination-signed activation and per-effect actor proofs; [implementation](src/agent_movement/guarded_authority.py) and [activation tests](tests/test_guarded_activation.py). Synthetic single-store profile only.
+- [Guarded-task legacy ingress fence](docs/guarded-legacy-ingress-fence.md) — for a task enrolled in the shared guarded SQLite authority, refuses unauthenticated legacy/A2A acceptance and replay under the receiver writer lock; this remains **post-disclosure** and not a globally disabled adapter.
+- [MASM-to-guarded-runtime conformance (bounded research)](docs/guarded-runtime-model-conformance.md) — shortest-witness schedules, independent SQL oracles and signed destination activation, with remaining physical-liveness/other-route limitations.
+- [Abstract protected-relocation model checker](tools/movement_modelcheck.py) · [its six focused tests](tests/test_movement_modelcheck.py) · [assumptions, invariants, counterexample and research agenda](docs/algorithms-and-cs-foundations.md)
 - [Executable local handoff, tests, limits and next implementation milestones](docs/local-implementation.md) · [As-built architecture of the `agent_movement` package (verified against `dac5f62`)](docs/architecture.md)
 - [`agent-movement` CLI reference: every subcommand, flag, optional extra and exit code](docs/cli.md)
 - [Language and SDK strategy (public proposal; Python-first, with what is implemented so far)](docs/language-and-sdk-strategy.md)
@@ -158,3 +188,15 @@ Research corrections, protocol compatibility experiments, concrete failure modes
 
 ---
 Sources were reviewed on **2026-10-15**; upstream protocols and SDKs continue to evolve.
+
+<!-- legal-notice: start -->
+### Legal notice and responsible use
+
+The materials in this repository are made available without warranties to the extent permitted by applicable law. **Read the [Disclaimer and Responsible-Use Notice](DISCLAIMER.md)** before relying on them. It does not change existing software licenses or limit rights that cannot lawfully be waived.
+<!-- legal-notice: end -->
+
+<!-- licensing-status: start -->
+### Licensing status
+
+No root-level software license was established in the rights audit. [Review the licensing and ownership checklist](LICENSING_STATUS.md) before reuse or redistribution. The disclaimer does not grant new intellectual-property permissions; valid existing rights remain unaffected.
+<!-- licensing-status: end -->
