@@ -94,7 +94,7 @@ class BrokerOnlyProfile:
 
     def run(
         self, script: Path, trusted_handlers: Mapping[str, Callable[[], str]], *,
-        probe_port: int, effect_store: SQLiteStore,
+        probe_port: int, effect_store: SQLiteStore | None = None,
         operation: str = "delegate", task_id: str = "task-1",
         timeout: float = 15.0,
     ) -> SandboxResult:
