@@ -218,13 +218,13 @@ def test_uncooperative_subprocess_signed_actor_spoof_is_denied(fenced):
     root = __import__('pathlib').Path(__file__).resolve().parents[1]
     env = {**os.environ, 'PYTHONPATH': str(root / 'src') + os.pathsep + os.environ.get('PYTHONPATH', '')}
     script = (
-        'import json\n'
+        'import json, hashlib\n'
         'from agent_movement.trust import HmacKey, seal\n'
         'key = HmacKey.generate("b")\n'
         'payload = {"type": "guarded-effect-invocation", "task_id": "task-1", '
         '"movement_id": "movement-1", "destination_id": "agent-b", '
         '"owner_epoch": 2, "activation_id": "activation-1", "effect_id": "effect-1", '
-        '"payload_sha256": "f"*64, "nonce": "spoof-1", '
+        '"payload_sha256": hashlib.sha256(b"safe").hexdigest(), "nonce": "spoof-1", '
         '"issued_at": 1800000000, "expires_at": 1800000100}\n'
         'print(json.dumps(seal("guarded-effect-invocation", payload, key)))\n'
     )
