@@ -18,6 +18,7 @@ from agent_movement.core import Approval, ContractError, HandoffReceiver, SQLite
 from agent_movement.egress_sandbox import supported
 from agent_movement.http import make_server
 from agent_movement.secure_profile import (
+    BrokerOnlyProfile,
     _ROOT,
     _source_route_inventory,
     load_operator_profile,
@@ -71,10 +72,19 @@ def test_explicit_operator_profile_loads_exact_only_allowed_routes(tmp_path):
     {"enabled_routes": [*ROUTES, "a2a_jsonrpc"]},
     {"enabled_routes": [*ROUTES, "independent_tool_pilot"]},
     {"enabled_routes": ["egress_child"]},
+    {"enabled_routes": [*ROUTES, {"bad": "shape"}]},
 ])
 def test_operator_cannot_enable_unreviewed_routes(tmp_path, override):
     with pytest.raises(ContractError):
         load_operator_profile(manifest(tmp_path / "operator.json", **override))
+
+
+def test_direct_profile_constructor_cannot_expand_routes_or_reuse_root_uid():
+    with pytest.raises(ContractError, match="unreviewed broker"):
+        BrokerOnlyProfile(65534, 65534, frozenset({"task-1"}),
+                          frozenset({*ROUTES, "legacy_handoff_http"}))
+    with pytest.raises(ContractError, match="unreviewed broker"):
+        BrokerOnlyProfile(0, 0, frozenset({"task-1"}), frozenset(ROUTES))
 
 
 def test_operator_manifest_must_be_private_regular_file_and_not_symlink(tmp_path):
