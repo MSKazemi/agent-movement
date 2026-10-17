@@ -6,7 +6,7 @@
 
 Can an independently operated simulated tool deny an unauthorized agent action even if the agent bypasses its normal client and calls the tool endpoint directly?
 
-The [human-impact research questions](top-20-human-impact-questions-for-agentic-ai.md) most directly concerned are **Q1** (human control), **Q3** (agent identity/authority), **Q6** (accountability), and **Q18** (replication and duplicate effects). This deliberately differs from the existing peer receiver, Continuity Runtime and GuardedAuthority, which enforce their policies on other bounded local paths.
+The [human-impact research questions](top-20-human-impact-questions-for-agentic-ai.md) most directly concerned are **HQ-01** (human control), **HQ-03** (agent identity/authority), **HQ-06** (accountability), and **HQ-18** (replication and duplicate effects). This deliberately differs from the existing peer receiver, Continuity Runtime and GuardedAuthority, which enforce their policies on other bounded local paths.
 
 ## Trust boundary and state
 
@@ -110,4 +110,4 @@ The most promising next experiments are a separately privileged worker [#98](htt
 
 **Related studies:** [peer authentication](peer-authentication.md), [guarded transfer](guarded-authority-transfer.md), [research agenda](human-impact-research-lab.md), [security](security-and-trust.md), [MASM](movement-authority-state-machine.md).
 
-**Standards context:** [NIST AI Agent Standards Initiative](https://www.nist.gov/news-events/news/2026/02/announcing-ai-agent-standards-initiative-interoperable-and-secure) and [RFC 8032 Ed25519](https://www.rfc-editor.org/rfc/rfc8032).
+**Standards context:** NIST's AI Agent Standards Initiative and RFC 8032 (Ed25519), already documented in the [source index](sources.md) and [security research](security-and-trust.md).
