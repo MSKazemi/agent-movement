@@ -106,11 +106,8 @@ def test_inventory_mutation_cannot_silently_activate_legacy(tmp_path):
                     original.replace('"gated_candidate"', '"must_disable"', 1),
                     original.replace('"legacy_handoff_http"', '"unknown_route"', 1)):
         good.write_text(changed, encoding="utf-8")
-        # First mutation is a forbidden-route promotion in a planning-only
-        # field: the source registry static test separately forbids that.
-        # This profile checks every required enabled class and route ID.
-        if '"legacy_handoff_http"' in changed and '"must_disable"' not in changed:
-            continue
+        # Every change to the original reviewed 16-route map, including
+        # a promotion of even one legacy endpoint, must be refused.
         with pytest.raises(ContractError):
             _source_route_inventory(good)
 
