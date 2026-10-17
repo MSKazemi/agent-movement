@@ -51,13 +51,15 @@ python -m pytest -q tests/test_guarded_authority_refinement.py
 make lint typecheck
 ```
 
+**MASM replay update:** the optional activated profile is now exercised by the [bounded generated witness suite](../tests/test_guarded_authority_refinement.py). It verifies signed `resume_destination` and independently reads `guarded_activations` after each mapped step. The remaining projection is still partial: preparation, external effects, partitions, crash schedules and actual process identity are not modeled.
+
 ### Remaining issues / boundaries
 
 - The earlier non-activation `GuardedAuthority` remains explicitly available for legacy synthetic experiments. It still has the documented mismatch to MASM's fenced/resumed distinction. Do **not** describe it as enforcing activated semantics.
 - The test profile does not prove that the destination signing key is confined to a specific OS process or device. Shared signing keys can be cloned; the origin and target may still communicate through other unmanaged routes.
 - No real host-level or independent tool service: [#98](https://github.com/MSKazemi/agent-movement/issues/98), [#99](https://github.com/MSKazemi/agent-movement/issues/99), [#102](https://github.com/MSKazemi/agent-movement/issues/102), [#50](https://github.com/MSKazemi/agent-movement/issues/50) remain separate requirements.
 - Actual two-process activation/revocation *races*, crash-after-fence, liveness and cross-store failure experiments still require dedicated harnesses. The existing cross-process test attempts the core bypass, not an independently provisioned destination activation service.
-- A faithful MASM shortest-witness runtime replay must opt into the activated profile and map `resume_destination` to the real signed activation method instead of a no-op; publish independent SQL state comparison and a red/green control before claiming full refinement.
+- The bounded MASM witness test now opts into this profile and maps `resume_destination` to signed activation. Full MASM refinement, OS identity and crash/partition schedules remain unverified; retain red/green controls before stronger claims.
 - An uncertain external effect must never be cleared by an unsupported operator assertion. The inherited `mark_unknown` remains irreversible in this prototype.
 
 **Claim boundary:** this profile checks signers and state for a synthetic protected effect inside an honest SQLite authority host. It is neither general agent containment nor proof of physical process continuation or exactly-once execution at arbitrary external services.
