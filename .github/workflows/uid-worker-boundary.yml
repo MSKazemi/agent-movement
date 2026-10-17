@@ -63,6 +63,7 @@ jobs:
           test -s "$AMV_UID_EVIDENCE_DIR/allow.json"
           test -s "$AMV_UID_EVIDENCE_DIR/deny.json"
           test -s "$AMV_UID_EVIDENCE_DIR/timeout.json"
+          test -s "$AMV_UID_EVIDENCE_DIR/storage.json"
           test -s "$AMV_PROFILE_EVIDENCE_DIR/profile-allow.json"
           test -s "$AMV_PROFILE_EVIDENCE_DIR/profile-deny.json"
           python -m json.tool "$AMV_UID_EVIDENCE_DIR/allow.json" >/dev/null
