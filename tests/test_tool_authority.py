@@ -191,6 +191,15 @@ def make_fresh(rig, suffix):
     return new_tool, keys, grant, other_path
 
 
+def test_activation_expiry_checked_again_at_effect_commit(rig):
+    fresh = make_fresh(rig, "activation-expiry")
+    ready(fresh)
+    service = fresh[0]
+    service.clock = lambda: NOW + 60  # activation expires at NOW + 50; grant at NOW + 100
+    assert effect(fresh)[1]["reason"] == "activation_expired"
+    assert independent_effects(fresh[3]) == []
+
+
 def test_stale_activation_replay_collision_and_late_notice(rig):
     enroll(rig)
     assert activate(rig)[0] == 403
