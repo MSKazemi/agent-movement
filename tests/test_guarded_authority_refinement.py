@@ -1,11 +1,12 @@
-"""Bounded MASM-to-runtime trace projection, with an independent SQLite oracle.
+"""Bounded MASM-to-activated-runtime trace projection, independent SQLite oracle.
 
-Generated witnesses are shortest paths *in the supported subgraph only*. We
-deliberately do not claim crash, network, cross-runtime or resume conformance.
-No real external actions or sensitive data are used.
+The activation step is independently verified by the opt-in signed profile.
+Generated witnesses are shortest in a limited subgraph, not proof of crashes,
+OS identity, external effects, networks or complete MASM state refinement.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import subprocess
@@ -14,12 +15,14 @@ from pathlib import Path
 
 import pytest
 
+from agent_movement.activated_authority import ActivatedGuardedAuthority
 from agent_movement.core import Conflict, EffectGateway, PolicyDenied
 from agent_movement.trust import Unauthorized
 from authority_trace_plan import ABSTRACT_MARKERS, EVENTS, UNMAPPED, report, witnesses
 from movement_authority_machine import State, apply, authorize_effect, authorize_transfer
 from test_continuity_runtime import NOW, Rig
-from test_guarded_authority import intent, notify, service
+from test_activated_authority import _ack, _effect
+from test_guarded_authority import intent, notify
 
 
 def _clock(tick: int) -> int:
@@ -56,6 +59,9 @@ def _sql_snapshot(path: Path) -> dict[str, object]:
         peer_effects = db.execute(
             "SELECT effect_id FROM authorized_effects WHERE task_id='task-1'"
         ).fetchall()
+        activation = db.execute(
+            "SELECT activation_id,epoch FROM guarded_activations WHERE task_id='task-1'"
+        ).fetchone()
         return {
             "owner": tuple(owner) if owner else None,
             "guard": tuple(guard) if guard else None,
@@ -63,6 +69,7 @@ def _sql_snapshot(path: Path) -> dict[str, object]:
             "policy_epoch": policy[0] if policy else None,
             "consents": tuple(tuple(row) for row in consents),
             "peer_effects": tuple(tuple(row) for row in peer_effects),
+            "activation": tuple(activation) if activation else None,
         }
 
 
@@ -71,7 +78,7 @@ def _model_projection(s: State) -> dict[str, object]:
     guard = None
     if s.destination_granted:
         guard = (
-            "prepared" if s.phase == "prepared" else "transferred",
+            {"prepared": "prepared", "fenced": "fenced", "running": "active"}[s.phase],
             2, len(s.commits), int(s.cancelled), int(s.opaque == "unknown"),
         )
     return {
@@ -82,6 +89,7 @@ def _model_projection(s: State) -> dict[str, object]:
         "consents": (("data-owner", int(not s.data_owner_approved)),
                      ("human", int(not s.user_approved))),
         "peer_effects": (),
+        "activation": ("activate-1", 2) if s.phase == "running" else ((None, None) if s.destination_granted else None),
     }
 
 
@@ -89,7 +97,12 @@ def _new_lab(tmp_path: Path):
     rig = Rig(tmp_path)
     rig.install()
     assert EffectGateway(rig.store).claim("task-1", "agent-a") == 1
-    gateway = service(rig)
+    gateway = ActivatedGuardedAuthority(
+        rig.store, rig.runtime, rig.trust,
+        origin_verifiers={"agent-a": rig.origin_key},
+        cancel_verifier=rig.user, incident_verifier=rig.user,
+        clock=rig.clock,
+    )
     return rig, gateway
 
 
@@ -101,11 +114,15 @@ def _step(rig: Rig, gateway, action: str, state: State) -> None:
     elif action == "fence_and_transfer":
         assert gateway.transfer("task-1", "movement-1") == 2
     elif action == "resume_destination":
-        return  # IMPORTANT: no runtime activation barrier; known unverified gap
+        assert gateway.activate(_ack(rig)) is True
     elif action.startswith("commit_B_"):
         effect_id = action[len("commit_B_"):]
-        assert gateway.commit("task-1", "movement-1", "agent-b", 2,
-                              effect_id, "synthetic:" + effect_id) is True
+        payload = "synthetic:" + effect_id
+        proof = _effect(
+            rig, payload=payload, effect_id=effect_id,
+            payload_sha256=hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+        )
+        assert gateway.commit_signed(proof, payload) is True
     elif action == "revoke_user":
         rig.revoke("human")
     elif action == "revoke_data_owner":
@@ -148,7 +165,7 @@ def test_witness_plan_is_deterministic_and_covers_declared_cases():
     assert len(a) == 20
     assert len(set(a.values())) == len(a)
     assert max(map(len, a.values())) <= 9
-    assert len(ABSTRACT_MARKERS) == 2
+    assert len(ABSTRACT_MARKERS) == 1
     assert "operator_claim_done/absent" in " ".join(UNMAPPED)
     for trace in a.values():
         s = State()
@@ -174,38 +191,29 @@ def test_generated_shortest_witness_replays_against_independent_sql(tmp_path, na
 
     # Probe an effect without changing the durable projection when the model
     # denies it. A same-ID replay may return False, which is also no new effect.
-    if state.destination_granted and state.phase != "fenced":
+    if state.destination_granted:
         decision = authorize_effect(state, "B", "publish-1")
         if not decision.allowed:
             before = _sql_snapshot(rig.store.path)
             try:
-                result = gateway.commit(
-                    "task-1", "movement-1", "agent-b", 2,
-                    "publish-1", "synthetic:publish-1",
-                )
+                result = gateway.commit_signed(_effect(rig), "synthetic:publish-1")
                 assert result is False, (name, decision.reason)
             except (Conflict, PolicyDenied, Unauthorized):
                 pass
             assert _sql_snapshot(rig.store.path) == before
 
 
-def test_abstract_activation_gap_is_observable_and_not_claimed_safe(tmp_path):
-    """MASM requires resume; current guarded effect route has no such barrier.
-
-    This is an intentionally *passing counterexample assertion* to whole-model
-    refinement. If implementation adds real authenticated activation, rewrite
-    this as a positive enforcement test instead of deleting the evidence.
-    """
+def test_activation_boundary_conforms_in_opt_in_runtime(tmp_path):
+    """Before verified activation, model and protected runtime both refuse."""
     events = witnesses()["03_fenced_not_resumed"]
     rig, gateway, state = _replay(tmp_path, events)
     assert state.phase == "fenced"
     assert not authorize_effect(state, "B", "publish-1").allowed
-    # Runtime is less restrictive: it can commit immediately after ownership
-    # transfer. That is why this suite claims PARTIAL, never FULL refinement.
-    assert gateway.commit(
-        "task-1", "movement-1", "agent-b", 2,
-        "publish-1", "synthetic:publish-1",
-    ) is True
+    with pytest.raises(PolicyDenied, match="not authenticated activation"):
+        gateway.commit_signed(_effect(rig), "synthetic:publish-1")
+    assert _sql_snapshot(rig.store.path)["effects"] == ()
+    assert gateway.activate(_ack(rig)) is True
+    assert gateway.commit_signed(_effect(rig), "synthetic:publish-1") is True
     assert _sql_snapshot(rig.store.path)["effects"] == (("publish-1", 2),)
 
 
