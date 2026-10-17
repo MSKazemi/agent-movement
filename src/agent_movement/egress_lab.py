@@ -37,6 +37,19 @@ class SandboxResult:
     request_count: int
 
 
+class SandboxTimeout(RuntimeError):
+    """Worker timed out; broker action may already have committed.
+
+    This is NOT a negative security outcome or a claim that other effects did
+    not happen. Inspect the trusted broker ledger with the stable operation ID.
+    """
+
+    def __init__(self, broker_status: str, request_count: int):
+        self.broker_status = broker_status
+        self.request_count = request_count
+        super().__init__("sandboxed attacker did not exit; broker outcome requires reconciliation")
+
+
 def _interpret_request(raw: bytes, allowed: Mapping[str, Callable[[], str]]) -> str:
     """Strict single-command proxy; never trust the child to supply a grant or tool args."""
     if not raw.endswith(b"\n") or len(raw) > _MAX_REQUEST or raw.count(b"\n") != 1:
@@ -144,6 +157,12 @@ def run_guarded_agent(
             pass_fds=(request_write, response_read), close_fds=True,
             start_new_session=True,
         )
+    except BaseException:
+        # No child owns these ends if Popen failed; otherwise the launcher
+        # leaks broker pipes every time a worker cannot be started.
+        os.close(request_read)
+        os.close(response_write)
+        raise
     finally:
         os.close(request_write)
         os.close(response_read)
@@ -163,14 +182,19 @@ def run_guarded_agent(
 
     thread = threading.Thread(target=broker, daemon=True)
     thread.start()
+    timed_out = False
     try:
         stdout, stderr = child.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
+        timed_out = True
         child.kill()
-        child.communicate()
-        raise RuntimeError("sandboxed attacker did not exit") from None
+        stdout, stderr = child.communicate()
     finally:
+        # Join before reading state: the broker can commit after child timeout
+        # but before the parent processes the timeout exception.
         thread.join(timeout=2.0)
     if thread.is_alive():
-        raise RuntimeError("broker thread failed to finish")
+        raise RuntimeError("broker thread failed to finish; effect outcome unknown")
+    if timed_out:
+        raise SandboxTimeout(state["status"], state["count"])
     return SandboxResult(child.returncode, stdout, stderr, state["status"], state["count"])
