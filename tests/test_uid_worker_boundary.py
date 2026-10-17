@@ -198,6 +198,7 @@ def test_operator_timeout_kills_uncooperative_uid_worker_without_effect(tmp_path
 
 
 
+@pytest.mark.skipif(not supported(), reason="Linux x86_64 seccomp required")
 def test_child_launch_failure_does_not_leak_broker_pipe_fds(monkeypatch):
     """Even failed Popen must close all four local broker pipe ends."""
     original_pipe = os.pipe
