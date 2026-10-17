@@ -75,10 +75,12 @@ class TestBrokerProfileAgainstTwoActualListeners(_A2AServerCase):
             world_dir.mkdir()
             world = World(HS256, world_dir)
             callback = {"task-1": lambda: world.handoff(client=client(world))["effect"]}
-            legacy_probe = profile.run(PROBE, callback, probe_port=legacy_server.server_port)
+            legacy_probe = profile.run(PROBE, callback, probe_port=legacy_server.server_port,
+                                       effect_store=world.store)
             a2a_port = urllib.parse.urlsplit(self.url).port
             self.assertIsNotNone(a2a_port)
-            a2a_probe = profile.run(PROBE, callback, probe_port=a2a_port)
+            a2a_probe = profile.run(PROBE, callback, probe_port=a2a_port,
+                                    effect_store=world.store)
 
             for result in (legacy_probe, a2a_probe):
                 self.assertEqual(result.exit_code, 0, result.stderr)
