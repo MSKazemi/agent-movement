@@ -167,6 +167,8 @@ class ToolEffectService:
         try:
             p = unseal("tool-operator-event", wrapped, self.operator)
             action = p.get("action")
+            if not isinstance(action, str):
+                raise ContractError("invalid operator action")
             schema = {
                 "enroll": _ENROLL_FIELDS, "transfer": _TRANSFER_FIELDS,
                 "revoke": _REVOKE_FIELDS, "policy_rollover": _POLICY_FIELDS,
@@ -263,7 +265,7 @@ class ToolEffectService:
     @staticmethod
     def _owner_matches(row: dict[str, Any], p: dict[str, Any]) -> bool:
         """Deliberate mutation target for the red/green epoch and owner test."""
-        return row["owner_id"] == p["actor_id"] and row["owner_epoch"] == p["owner_epoch"]
+        return bool(row["owner_id"] == p["actor_id"] and row["owner_epoch"] == p["owner_epoch"])
 
     def effect(self, envelope: Any) -> tuple[int, dict[str, Any]]:
         """Verify independently and commit a simulated effect atomically at the sink."""
