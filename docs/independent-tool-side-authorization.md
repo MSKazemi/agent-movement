@@ -74,7 +74,7 @@ Every result has a domain-separated Ed25519 tool receipt. The SQLite effect ledg
 | Conflicting reuse of the same effect ID with different units | 409; no extra row |
 | Received issuer-signed grant revocation before effect | 403, no effect |
 | Operator cancellation, unknown hold or policy epoch change | 403, no effect |
-| Lost response after commit | Retry yields replay and reconciliation can find committed |
+| Lost response **and hard tool-process restart** after a committed local effect | Retried identical request after restart yields a signed replay; local effect row is not duplicated; reconciliation can find committed |
 | Absent local effect | Signed unknown; not proof of global absence |
 | Synthetic canary in a rejected ID | No canary in decision ledger/receipt |
 | **Red mutation:** remove tool-side epoch comparison temporarily in a test | Signed stale-epoch request now commits; detector confirms the unmutated check was actually necessary |
