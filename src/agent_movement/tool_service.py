@@ -305,7 +305,9 @@ class ToolAuthority:
                 "SELECT decision_json FROM tool_effects WHERE task_id=? AND effect_id=?",
                 (p["task_id"], p["effect_id"]),
             ).fetchone()
-        return {"status": "committed" if prior is not None else "absent",
+        # No ledger row *at query time* cannot establish a negative outcome:
+        # a queued or partitioned request may commit later.
+        return {"status": "committed" if prior is not None else "unknown_reconcile",
                 "receipt": json.loads(prior[0]) if prior is not None else None}
 
 
