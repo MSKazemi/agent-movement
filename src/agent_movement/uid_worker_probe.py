@@ -65,7 +65,8 @@ for key, name in (
     ("AMV_TEST_PROTECTED_DB", "protected_db"),
 ):
     if key in os.environ:
-        check(name, lambda file=Path(os.environ[key]): file.read_bytes())
+        protected_path = Path(os.environ[key])
+        check(name, protected_path.read_bytes)
 
 if "AMV_TEST_PARENT_PID" in os.environ:
     pid = os.environ["AMV_TEST_PARENT_PID"]
