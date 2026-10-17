@@ -36,7 +36,7 @@ The independent SQL snapshot reads (1) `owners`, (2) `guarded_tasks`, (3) `effec
 
 ### Named adversarial cases
 
-The deterministic plan covers: grant preparation and transfer, destination running **as an abstract marker**, one and two protected effects, mandatory user/data-owner revocation before transfer or after resume/effect, cancellation before or after transfer, policy epoch rollover before or after transfer, expiry on either side of transfer, and an unknown opaque-effect hold before or after transfer.
+The deterministic plan covers: grant preparation and transfer, destination activation **as a signed synthetic transition**, one and two protected effects, mandatory user/data-owner revocation before transfer or after resume/effect, cancellation before or after transfer, policy epoch rollover before or after transfer, expiry on either side of transfer, and an unknown opaque-effect hold before or after transfer.
 
 On appropriate endpoints the suite also attempts a **denied** second transfer and a denied or idempotently suppressed new effect, confirming no new durable effect appears. These probes must not be mistaken for arbitrary interleaving or network-failure verification.
 
@@ -69,7 +69,7 @@ The new cross-process test reopens the same SQLite file from a separate Python i
 - Real external tool/effect semantics, arbitrary delegated transport routes, device capability compatibility, actual model-state checkpointing, physical destination readiness and independent OS process identity: not covered.
 - Cryptographic strength of symmetric test keys (HS256), trusted time source availability, compromised issuer, full multi-hop grant attenuation and distributed durability: outside the test assumptions.
 
-The unguarded or alternate routes remain tracked in [#50](https://github.com/MSKazemi/agent-movement/issues/50). Trace replay and future activation/refinement remain in [#93](https://github.com/MSKazemi/agent-movement/issues/93).
+The unguarded or alternate routes remain tracked in [#50](https://github.com/MSKazemi/agent-movement/issues/50). Trace replay and further signed-activation refinement remain in [#93](https://github.com/MSKazemi/agent-movement/issues/93).
 
 ## Reproduce and inspect
 
