@@ -1,0 +1,72 @@
+{
+  "keys": [
+    {
+      "alg": "Ed25519",
+      "key_id": "synthetic-agent-a-2026",
+      "not_after": "2027-10-01T00:00:00Z",
+      "not_before": "2026-10-01T00:00:00Z",
+      "principal": "spiffe://synthetic.test/agent/a",
+      "public_key": "db4QOc4iTC26FmQnGViTe00_ASSjhghkpYiG1V_awsU",
+      "revocation_ref": null,
+      "revoked_at": null,
+      "role": "agent"
+    },
+    {
+      "alg": "Ed25519",
+      "key_id": "synthetic-agent-b-2026",
+      "not_after": "2027-10-01T00:00:00Z",
+      "not_before": "2026-10-01T00:00:00Z",
+      "principal": "spiffe://synthetic.test/agent/b",
+      "public_key": "RCnEvvhbQol6r55sODVIGZhh5Yp1BR8czvo6Gmdf020",
+      "revocation_ref": null,
+      "revoked_at": null,
+      "role": "agent"
+    },
+    {
+      "alg": "Ed25519",
+      "key_id": "synthetic-agent-c-2026",
+      "not_after": "2027-10-01T00:00:00Z",
+      "not_before": "2026-10-01T00:00:00Z",
+      "principal": "spiffe://synthetic.test/agent/c",
+      "public_key": "FGoIse2EujCnuHnTP_xgMY-irH5lw7JQY5OoqTlVAiE",
+      "revocation_ref": null,
+      "revoked_at": null,
+      "role": "agent"
+    },
+    {
+      "alg": "Ed25519",
+      "key_id": "synthetic-agent-d-2026",
+      "not_after": "2027-10-01T00:00:00Z",
+      "not_before": "2026-10-01T00:00:00Z",
+      "principal": "spiffe://synthetic.test/agent/d",
+      "public_key": "WvA3fqMFIyh9ZFO_SuKyRa1a2kq8bzkQVhA-nlurtyA",
+      "revocation_ref": null,
+      "revoked_at": null,
+      "role": "agent"
+    },
+    {
+      "alg": "Ed25519",
+      "key_id": "synthetic-agent-r-2026",
+      "not_after": "2027-10-01T00:00:00Z",
+      "not_before": "2026-10-01T00:00:00Z",
+      "principal": "spiffe://synthetic.test/agent/r",
+      "public_key": "f7mnB1xAmWvuih0eMLIoIpcOGyB9Xf307Uh1S8hPZj0",
+      "revocation_ref": "sha256:4243415c9386b4578cac71c820e9dfad168f3d364c8773dd2ac422150ad7fde9",
+      "revoked_at": "2026-10-15T08:30:00Z",
+      "role": "agent"
+    },
+    {
+      "alg": "Ed25519",
+      "key_id": "synthetic-tool-ledger-2026",
+      "not_after": "2027-10-01T00:00:00Z",
+      "not_before": "2026-10-01T00:00:00Z",
+      "principal": "spiffe://synthetic.test/tool/ledger",
+      "public_key": "qAJH22hdvkay3bRSL5JBPxhqnDHa2SJWK900ZaNK_2c",
+      "revocation_ref": null,
+      "revoked_at": null,
+      "role": "tool"
+    }
+  ],
+  "note": "SYNTHETIC test anchors. Private keys derive from public labels in receipt_fixtures.py; never use them for anything real.",
+  "schema": "agent-movement.trust/0.1-draft"
+}

@@ -1,0 +1,17 @@
+{
+  "name": "agent-movement-a2a-js-interop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cross-SDK interop check: an @a2a-js/sdk client performs one agent-movement handoff against the Python a2a-sdk server.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "handoff": "node handoff.mjs"
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "1.3.0"
+  }
+}

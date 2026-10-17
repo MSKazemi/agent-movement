@@ -12,9 +12,14 @@ Usage:
       Validate papers.jsonl only (exit 1 on any error).
   python3 tools/paper_corpus.py apply-audit AUDIT.jsonl [--out DIR]
       Apply an independent audit's corrected_summary / corrected_fields, then `build`.
+  python3 tools/paper_corpus.py append RAW.jsonl [...] --round NAME [--manual screening.json] [--out DIR]
+      Screen a later collection round exactly like `merge`, but deduplicate against the
+      existing papers.jsonl and give the new papers the next free IDs (existing IDs and
+      cite keys never change). Appends to papers.jsonl and excluded.jsonl, records the
+      round's counts in flow.json under "NAME:*", then runs `build`.
 
-Default DIR is docs/paper-corpus. `merge` numbers from AMP-001, so run it on a
-fresh directory for a new collection round and append the results by hand.
+Default DIR is docs/paper-corpus. `merge` numbers from AMP-001 and is only for the
+first round; use `append` for every later round so published IDs stay pinned.
 """
 from __future__ import annotations
 
@@ -26,6 +31,7 @@ import unicodedata
 from collections import Counter
 from difflib import SequenceMatcher
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from news_corpus import OPERATIONS, bib_escape, load_jsonl, md_cell, norm_title, norm_url, write_jsonl
 
@@ -50,6 +56,8 @@ RAW_KEYS = [
     "verification_source", "search_query", "notes",
 ]
 FINAL_KEYS = ["id", "citekey"] + RAW_KEYS
+# Optional fields: absent on most records, set only through an audit entry.
+OPTIONAL_KEYS = ["editors"]
 DATE_RE = re.compile(r"^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$")
 DOI_RE = re.compile(r"^10\.\d{4,9}/\S+$")
 ARXIV_RE = re.compile(r"^(\d{4}\.\d{4,5}|[a-z\-]+(\.[A-Z]{2})?/\d{7})$")
@@ -59,7 +67,7 @@ def validate(r: dict, keys: list[str]) -> list[str]:
     errs = []
     if missing := [k for k in keys if k not in r]:
         errs.append(f"missing keys {missing}")
-    if extra := [k for k in r if k not in keys]:
+    if extra := [k for k in r if k not in keys and k not in OPTIONAL_KEYS]:
         errs.append(f"unexpected keys {extra}")
     if r.get("theme") not in THEMES:
         errs.append(f"bad theme {r.get('theme')!r}")
@@ -105,7 +113,10 @@ def ident(r: dict) -> set[str]:
         ids.add("doi:" + r["doi"].lower())
     if r["arxiv_id"]:
         ids.add("arxiv:" + r["arxiv_id"].lower())
-    ids.add("url:" + norm_url(r["url"]))
+    # norm_url drops the query, but some landing pages (e.g. openreview.net/forum?id=...)
+    # carry the paper's identity there, so keep it.
+    query = urlsplit(r["url"].strip()).query
+    ids.add("url:" + norm_url(r["url"]) + (f"?{query}" if query else ""))
     return ids
 
 
@@ -131,7 +142,8 @@ def citekey(r: dict, used: set[str]) -> str:
     return key
 
 
-def merge(raw_paths: list[Path], manual: Path | None) -> None:
+def screen(raw_paths: list[Path], manual: Path | None) -> tuple[list[dict], list[dict], Counter]:
+    """Schema, verification and manual screening shared by `merge` and `append`."""
     manual_excl = {norm_title(m["title"]): m["reason"] for m in json.loads(manual.read_text())} if manual else {}
     candidates, excluded, flow = [], [], Counter()
     for p in raw_paths:
@@ -149,17 +161,29 @@ def merge(raw_paths: list[Path], manual: Path | None) -> None:
                 flow["excluded_manual_screening"] += 1
             else:
                 candidates.append(r)
+    return candidates, excluded, flow
 
-    kept: list[dict] = []
+
+def dedupe(candidates: list[dict], kept: list[dict], excluded: list[dict], flow: Counter) -> list[dict]:
+    """Return the candidates that duplicate neither `kept` nor each other (DOI, arXiv ID, URL, title)."""
+    new: list[dict] = []
     for r in sorted(candidates, key=rank_key):
         t = norm_title(r["title"])
-        dup = next((k for k in kept if ident(k) & ident(r)
+        dup = next((k for k in kept + new if ident(k) & ident(r)
                     or SequenceMatcher(None, norm_title(k["title"]), t).ratio() >= 0.9), None)
         if dup:
+            if r["arxiv_id"] and not dup["arxiv_id"]:
+                dup["arxiv_id"] = r["arxiv_id"]  # keep the preprint's arXiv ID on the published version
             excluded.append({**r, "exclusion_reason": f"duplicate of '{dup['title']}' ({dup['theme']})"})
             flow["excluded_duplicate"] += 1
         else:
-            kept.append(r)
+            new.append(r)
+    return new
+
+
+def merge(raw_paths: list[Path], manual: Path | None) -> None:
+    candidates, excluded, flow = screen(raw_paths, manual)
+    kept = dedupe(candidates, [], excluded, flow)
 
     kept.sort(key=lambda r: (r["year"], r["date_published"], r["title"].lower()))
     used: set[str] = set()
@@ -174,6 +198,36 @@ def merge(raw_paths: list[Path], manual: Path | None) -> None:
     build()
 
 
+def append(raw_paths: list[Path], manual: Path | None, round_name: str) -> None:
+    rows = load_jsonl(OUT / "papers.jsonl")
+    if errors := check(rows):
+        sys.exit("\n".join(errors))
+    flow_path = OUT / "flow.json"
+    total_flow = json.loads(flow_path.read_text(encoding="utf-8"))
+    if any(k.startswith(round_name + ":") for k in total_flow):
+        sys.exit(f"round {round_name!r} is already recorded in {flow_path}; refusing to append it twice")
+    candidates, excluded, flow = screen(raw_paths, manual)
+    new = dedupe(candidates, rows, excluded, flow)
+    new.sort(key=lambda r: (r["year"], r["date_published"], r["title"].lower()))
+    used = {r["citekey"] for r in rows}
+    start = max((int(r["id"].split("-")[1]) for r in rows), default=0) + 1
+    final = [{"id": f"AMP-{i:03d}", "citekey": citekey(r, used), **{k: r[k] for k in RAW_KEYS}}
+             for i, r in enumerate(new, start)]
+    flow["included"] = len(final)
+    total_flow.update({f"{round_name}:{k}": v for k, v in flow.items()})
+    total_flow["included"] = len(rows) + len(final)
+    all_rows = rows + final
+    if errors := check(all_rows):
+        sys.exit("\n".join(errors))
+    write_jsonl(OUT / "papers.jsonl", all_rows)
+    excl_path = OUT / "excluded.jsonl"
+    write_jsonl(excl_path, (load_jsonl(excl_path) if excl_path.exists() else []) + excluded)
+    flow_path.write_text(json.dumps(dict(sorted(total_flow.items())), indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({f"{round_name}:{k}": v for k, v in sorted(flow.items())}, indent=2))
+    print(f"appended {len(final)} records" + (f": {final[0]['id']}..{final[-1]['id']}" if final else ""))
+    build()
+
+
 def to_bib(r: dict) -> str:
     t = r["publication_type"]
     entry = {"journal": "article", "conference": "inproceedings", "workshop": "inproceedings",
@@ -185,6 +239,8 @@ def to_bib(r: dict) -> str:
         f.append(("journaltitle", bib_escape(r["venue"])))
     elif entry in ("inproceedings", "incollection"):
         f.append(("booktitle", bib_escape(r["venue"])))
+        if r.get("editors"):
+            f.append(("editor", " and ".join(bib_escape(e) for e in r["editors"])))
     elif entry == "report":
         f += [("institution", bib_escape(r["venue"])), ("type", "Technical report" if t == "tech-report" else "White paper")]
     elif entry == "online" and r["venue"].lower() not in ("arxiv", "arxiv preprint"):
@@ -217,7 +273,7 @@ def build() -> None:
     if errors := check(rows):
         sys.exit("\n".join(errors))
     with (OUT / "papers.csv").open("w", newline="", encoding="utf-8") as fh:
-        w = csv.DictWriter(fh, fieldnames=FINAL_KEYS)
+        w = csv.DictWriter(fh, fieldnames=FINAL_KEYS, extrasaction="ignore")  # optional keys stay in JSONL/BibTeX
         w.writeheader()
         for r in rows:
             w.writerow({k: "; ".join(v) if isinstance(v, list) else v for k, v in r.items()})
@@ -236,7 +292,7 @@ def build() -> None:
         "with_doi": sum(bool(r["doi"]) for r in rows),
         "with_arxiv": sum(bool(r["arxiv_id"]) for r in rows),
         "verification_source": dict(Counter(r["verification_source"] for r in rows).most_common()),
-        "year_range": [min(r["year"] for r in rows), max(r["year"] for r in rows)],
+        "year_range": [min(r["year"] for r in rows), max(r["year"] for r in rows)] if rows else [None, None],
     }
     (OUT / "stats.json").write_text(json.dumps(stats, indent=2) + "\n", encoding="utf-8")
     (OUT / "digest.md").write_text(render_digest(rows, stats), encoding="utf-8")
@@ -287,6 +343,8 @@ def check(rows: list[dict] | None = None) -> list[str]:
             errors.append(f"duplicate {field}: {dupes}")
     seen: dict[str, str] = {}
     for r in rows:
+        if not all(k in r for k in ("doi", "arxiv_id", "url")):
+            continue  # already reported as missing keys by validate()
         for i in ident(r):
             if i in seen and not i.startswith("url:"):
                 errors.append(f"duplicate identifier {i}: {seen[i]} and {r['id']}")
@@ -307,7 +365,7 @@ def apply_audit(audit_path: Path) -> None:
             # Cite keys may be rekeyed only by an explicit pre-publication curator entry;
             # once a corpus is published its keys are frozen.
             rekey = k == "citekey" and a.get("audit_pass") == "curator-prepublication"
-            if k == "id" or (k not in RAW_KEYS and not rekey):
+            if k == "id" or (k not in RAW_KEYS + OPTIONAL_KEYS and not rekey):
                 sys.exit(f"{a['id']}: refusing to change field {k!r}")
             r[k] = v
             changed += 1
@@ -327,14 +385,19 @@ def pop_opt(argv: list[str], name: str) -> tuple[list[str], str | None]:
 
 def main(argv: list[str]) -> None:
     global OUT
-    if not argv or argv[0] not in {"merge", "build", "check", "apply-audit"}:
+    if not argv or argv[0] not in {"merge", "append", "build", "check", "apply-audit"}:
         sys.exit(__doc__)
     argv, out = pop_opt(argv, "--out")
     if out:
         OUT = Path(out).resolve()
     argv, manual = pop_opt(argv, "--manual")
+    argv, round_name = pop_opt(argv, "--round")
     if argv[0] == "merge":
         merge([Path(p) for p in argv[1:]], Path(manual) if manual else None)
+    elif argv[0] == "append":
+        if not round_name or not argv[1:]:
+            sys.exit("append needs RAW.jsonl files and --round NAME")
+        append([Path(p) for p in argv[1:]], Path(manual) if manual else None, round_name)
     elif argv[0] == "build":
         build()
     elif argv[0] == "apply-audit":

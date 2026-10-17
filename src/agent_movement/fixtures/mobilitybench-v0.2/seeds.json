@@ -1,0 +1,45 @@
+{
+  "crash_step_assignment": "crash kinds only: steps = the plan's effect steps (effect/reserve ops) in plan order; crash_step = steps[int(sha256('mobilitybench-v0.2:<s>:<task_id>:crash_step'), 16) mod len(steps)]",
+  "executor": "deterministic-interpreter-v0.1",
+  "fault_assignment": "per seed s: order tasks by sha256('mobilitybench-v0.2:<s>:<task_id>'); fault index = (position + s) mod len(fault_kinds)",
+  "fault_kinds": [
+    "none",
+    "origin_preempted",
+    "effect_ack_lost",
+    "duplicate_delivery",
+    "stale_origin_returns",
+    "crash_before_effect_commit",
+    "crash_after_effect_commit",
+    "partition_drop_request",
+    "partition_drop_reply",
+    "partition_delay"
+  ],
+  "model": "none (deterministic scripted interpreter; no LLM or network calls)",
+  "repeats": 2,
+  "seeds": [
+    1103,
+    2207,
+    3301,
+    4409,
+    5501
+  ],
+  "smoke": {
+    "repeats": 1,
+    "seeds": [
+      1103
+    ],
+    "tasks": [
+      "doc-release-notes",
+      "doc-policy-digest",
+      "doc-incident-brief",
+      "code-rename-helper",
+      "code-version-bump",
+      "code-guard-config",
+      "code-test-fixture",
+      "tools-travel-booking",
+      "tools-ticket-triage",
+      "tools-inventory-audit"
+    ]
+  },
+  "suite_version": "mobilitybench-v0.2"
+}

@@ -1,0 +1,42 @@
+name: Independent synthetic tool-effect service
+
+# Bounded localhost, disposable keys and SQLite-only effects. No production trust claim.
+on:
+  pull_request:
+    paths:
+      - "src/agent_movement/tool_effect_service.py"
+      - "src/agent_movement/trust.py"
+      - "tests/test_tool_effect_service.py"
+      - "docs/independent-tool-effect-service.md"
+      - ".github/workflows/tool-effect-service.yml"
+  push:
+    paths:
+      - "src/agent_movement/tool_effect_service.py"
+      - "src/agent_movement/trust.py"
+      - "tests/test_tool_effect_service.py"
+      - ".github/workflows/tool-effect-service.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: separate-process sink and adversarial effect tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -e . "pytest>=9.1"
+      - name: Independent service, real HTTP, concurrency and mutation matrix
+        run: python -m pytest -q tests/test_tool_effect_service.py
+      - name: Tool service command-line entrypoint
+        run: python -m agent_movement.tool_effect_service --help

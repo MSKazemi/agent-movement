@@ -2,6 +2,14 @@
 
 **Status (2026-10-15):** Research proposal plus a small **decision-only, synthetic** Python prototype. This is **not** a production security gateway, an approved standard, a verified protocol, or proof of safe agent movement. We use **Agent Movement Security Protocol (AMSP)** only as a suggested project working name, not as an existing standard.
 
+## Relationship to the actual runtime (reviewed 2026-10-17)
+
+The code in this PR is a **standalone educational policy-decision example**, not an enabled policy enforcement point, imported application authorization module, cryptographic verifier, integration test for an agent execution path, or alternative source of grant truth. A `Decision(allow=True)` produced here **must not** be used to authorize a protected movement or simulated effect by itself. In the synthetic fixture, `facts` is deliberately fabricated; a malicious caller can claim `grant_signature_valid: true`. Only a separately trusted verifier can establish grant validity, and admission/effect enforcement must still occur at the real sink.
+
+Since the original draft, the main branch has added separate *bounded*, independently tested enforcement experiments: [signed guarded authority and destination activation](guarded-authority-transfer.md), [sender-side authorization](secure-sender-gate.md), [authenticated peer preflight fence](guarded-peer-preflight-fence.md), [root-supervised distinct-UID Linux worker](uid-worker-sandbox.md), [broker-only operator test profile](secure-broker-only-profile.md), and a [source-linked inventory of 16 named routes](secure-test-route-inventory.md). Their status does **not** imply a globally secured runtime. [Issue #50](https://github.com/MSKazemi/agent-movement/issues/50) remains the all-path mediation prerequisite; [#99](https://github.com/MSKazemi/agent-movement/issues/99) requires an operator-controlled jointly tested service graph. Neither this PDP nor independent demos can close those tasks.
+
+Use `tools/movement_policy.py` only to discuss **policy predicate design** and falsifiable test outcomes; it is deliberately not wired into `PeerReceiver`, `GuardedAuthority`, `EffectGateway` or `secure_profile.py`. Do not duplicate the production decision source, mint credentials based on user-provided `facts`, or silently add a second grant/policy truth. The longer-term research question is how to map these descriptive policy predicates onto independently verified source facts and a *single* target-owned transaction without bypass routes. No such composition is implemented by this PR.
+
 ## Short answer: where do guarantees come from?
 
 Instructions such as "agent must never clone itself" are **not security boundaries**. A language model can suggest actions, but an **independently controlled policy enforcement point (PEP)** must gate every protected capability. A **policy decision point (PDP)** can answer allow/deny; it does not itself prevent an unmediated network connection, process spawn, database read, or tool invocation. NIST SP 800-207 describes PDP/PEP boundaries, and OPA's documentation explicitly separates the decision engine from the tool-call harness that must enforce the decision [1, 2].
@@ -102,7 +110,8 @@ Missing predicate, verification failure, or unavailable critical service => **DE
 Run from repository root:
 
 ```bash
-python -m unittest discover -s tests -v
+python -m pytest -q tests/test_movement_policy.py
+python -m pytest -q  # full repository checks use CI optional dependencies
 ```
 
 The sample permits one `delegate` transition, to one specific reviewer, for data no more sensitive than `public`, with one requested capability (`artifact.read`), a one-hop limit, **zero** new instances, bounded execution/budget and an independently verified, operation/audience/movement/policy-digest-bound grant. The default policy **does not permit cloning, relocation, replication, forking, or fan-out**.
@@ -144,7 +153,7 @@ Security must be evaluated both as **prevention** (was the forbidden effect bloc
 - **Distributed authority:** Can we formally specify (TLA+/PlusCal/Alloy) no unauthorized double writer, bounded descendants, attenuation of grants and safe fail-closed transitions under partitions?
 - **Semantic safety:** How do we validate that a transferred checkpoint or learned instruction does not quietly introduce a new intent that evades metadata-level policy?
 
-## Immediate implementation sequence
+## Remaining integration sequence (initial draft, partially explored elsewhere)
 
 1. **Write proof obligations and threats** for one *public synthetic* local delegation (this document and the basic checker).
 2. Implement real ingress/egress tool PEPs on an isolated two-worker testbed; block direct network, shell and storage movement paths.

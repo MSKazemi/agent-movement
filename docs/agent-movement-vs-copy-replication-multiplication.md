@@ -1,5 +1,7 @@
 # Agent Movement vs Copy, Cloning, Replication, and Multiplication
 
+> **Historical snapshot, not current implementation status (2026-10-16).** The matrix below was accurate for commit `487748c` on 2026-10-15, before code merged. Current `main` now includes bounded, synthetic/local delegation and checkpoint-relocation demonstrations, but not general cloning/replication or live process migration. For authoritative current capabilities see [project charter](project-charter.md), [as-built architecture](architecture.md) and [roadmap](roadmap.md). The original audit table is deliberately preserved for provenance.
+
 **Audit date:** 2026-10-15  
 **Scope:** Implementation status of this repository's default branch, plus proposed project vocabulary.  
 **Verdict:** Research/documentation exists; **none** of the execution operations below is implemented here. Do not confuse a technology mentioned in docs with a working integration.
@@ -8,12 +10,12 @@
 
 | Capability | Proposed operational meaning | Implemented in this repo? | What's available now |
 | --- | --- | --- | --- |
-| Task delegation / handoff | Agent A asks B to perform bounded work; A can remain active | **No** | A2A-based design and envelope proposal |
+| Task delegation | Agent A asks B to perform bounded work; A can remain active | **No** | A2A-based design and envelope proposal |
 | Agent movement (task-context transfer) | Move responsibility for a task/work package from A to B | **No** | Conceptual lifecycle and threat model |
 | Checkpoint relocation / resume | Restore compatible persisted task state on another worker | **No** | Research-only checkpoint proposal |
 | Live process migration | Transfer a running process, stack, transient state and in-flight effects | **No; out of initial scope** | Explicitly excluded from current claims |
 | Copy agent definition | Instantiate an independent agent using the same config/prompt/tool declarations | **No** | No launcher, package format or CLI |
-| Clone agent from snapshot | Fork a permitted memory/checkpoint snapshot into a **new** identity | **No** | No snapshot import/export |
+| Clone agent from snapshot | Create one **new** identity from a permitted memory/checkpoint snapshot | **No** | No snapshot import/export |
 | Replicate agent service | Maintain N equivalent instances for availability or throughput | **No** | No controller, lease or failover |
 | Multiply / spawn agents | Create N bounded child agents or workers to parallelize tasks | **No** | No fan-out coordinator or budget policy |
 | Fork divergent work | Branch one snapshot into multiple independently evolving branches | **No** | No lineage or merge/reconciliation system |
@@ -28,7 +30,7 @@
 
 A task that started with A is handed over or resumed at B. For a **move**, the project should aim to preserve the *logical task ID*, checkpoint lineage, artifacts, and policy context; the destination has a separate physical execution identity. The origin must not keep executing the same externally-effectful task after ownership transfers.
 
-- **Weak movement / handoff:** Send explicit task context to B; B may begin its own execution. This is *not* a lossless runtime migration.
+- **Weak movement (task-context transfer):** Send explicit task context to B; B may begin its own execution. This is *not* a lossless runtime migration.
 - **Checkpoint relocation:** Serialize a safe, runtime-compatible application checkpoint, restore at B, fence the old executor, and reconcile uncertain external effects.
 - **Strong/live migration:** Transfer live process memory, stacks, connections, in-flight tool operations, model internals. Not generally portable across unrelated frameworks or model providers; explicitly **not promised**.
 - For safe ownership changes, use a durable operation record, bounded leases/fencing, recipient verification, authorization, version checks, and explicit unknown/reconcile outcomes during partitions.
@@ -61,8 +63,8 @@ A controller maintains a desired number of equivalent agent workers/instances fo
 
 ### Related but distinct
 
-- **Delegation:** A asks B to execute a task, normally keeping oversight. This can occur without moving A, copying its identity, or cloning its memory.
-- **Fork:** Clone an approved snapshot into independent branches, preserving parent-child provenance. Result merging is a *separate*, domain-specific operation.
+- **Delegation:** A asks B to execute a task, normally keeping oversight and ownership. It is in the research scope of agent movement but is not a move. This can occur without moving A, copying its identity, or cloning its memory.
+- **Fork:** Branch one approved snapshot into several independently evolving branches, preserving parent-child provenance. A clone creates one new identity; a fork creates several branches. Result merging is a *separate*, domain-specific operation.
 - **Swarm:** Coordination pattern among multiple agents; the agents need not be copies or replicas.
 - **Kubernetes replica / HPA:** Scales Pods. It does not create semantically independent agent tasks or solve application checkpoint transfer.
 
@@ -112,6 +114,8 @@ A feature is **Implemented** only when this repo contains executable code, docum
 
 ## Recommended implementation order
 
+P0–P4 are priority tiers (lower means earlier), not phases; the staged plan is Phase 0–4 in the [roadmap](roadmap.md).
+
 1. **P0: Definitions, schemas and lifecycle tests.** Separate task ID, agent-definition ID, agent-instance ID, run ID, snapshot ID, operation ID and lineage. Keep each operation's invariants explicit.
 2. **P1: Delegation + definition copy.** Implement A2A test handoff with approval, then instantiate two isolated agents from a versioned definition. Both are bounded MVPs.
 3. **P1: Controlled multiplication.** Add child-task spawning, quotas, cancellation, idempotent aggregation, max depth and budget ceilings.
@@ -131,7 +135,7 @@ A feature is **Implemented** only when this repo contains executable code, docum
 - When spawning children, which abilities can be inherited and who approves them? How are cost, depth and duration bounded?
 - Which framework should be the first checkpoint adapter? A2A is a message protocol, not an execution snapshot interface.
 - Does snapshot cloning require source-owner consent, provenance, redaction, and data-deletion propagation?
-- What is the observable fallback when checkpoint migration is impossible: reject, delegate anew, or re-execute with explicit consent?
+- What is the observable fallback when checkpoint relocation is impossible: reject, delegate anew, or re-execute with explicit consent?
 
 ## Primary technical references
 
