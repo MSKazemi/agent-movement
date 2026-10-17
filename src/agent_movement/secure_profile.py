@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .core import ContractError
+from .core import ContractError, SQLiteStore
 from .egress_lab import SandboxResult, run_guarded_agent
 
 _PROFILE_VERSION = "amv-broker-only-secure-test-v1"
@@ -94,7 +94,8 @@ class BrokerOnlyProfile:
 
     def run(
         self, script: Path, trusted_handlers: Mapping[str, Callable[[], str]], *,
-        probe_port: int, operation: str = "delegate", task_id: str = "task-1",
+        probe_port: int, effect_store: SQLiteStore,
+        operation: str = "delegate", task_id: str = "task-1",
         timeout: float = 15.0,
     ) -> SandboxResult:
         """Run only the enumerated, strict single-task synthetic broker/UID worker.
@@ -111,11 +112,39 @@ class BrokerOnlyProfile:
             raise ContractError("invalid loopback probe port")
         if type(timeout) not in (int, float) or not 0 < timeout <= 30:
             raise ContractError("invalid synthetic worker timeout")
-        return run_guarded_agent(
+        if not isinstance(effect_store, SQLiteStore):
+            raise ContractError("independent protected effect store required")
+        if task_id not in self.task_ids:
+            raise ContractError("task ID not admitted by operator")
+
+        def protected_effects() -> tuple[tuple[str, str], ...]:
+            # An independently read target-owned ledger is mandatory, not a
+            # callback return string or attacker-provided client receipt.
+            try:
+                with effect_store._connection() as db:
+                    return tuple(db.execute(
+                        "SELECT task_id,effect_id FROM authorized_effects ORDER BY task_id,effect_id"
+                    ).fetchall())
+            except Exception as exc:
+                raise ContractError("protected effect ledger unavailable") from exc
+
+        before = protected_effects()
+        result = run_guarded_agent(
             script, trusted_handlers, operation=operation, task_id=task_id,
             probe_port=probe_port, timeout=float(timeout),
             child_uid=self.worker_uid, child_gid=self.worker_gid,
         )
+        after = protected_effects()
+        added = set(after) - set(before)
+        removed = set(before) - set(after)
+        if removed:
+            raise ContractError("protected effects removed during broker operation")
+        if result.broker_status == "committed":
+            if result.request_count != 1 or len(added) != 1 or next(iter(added))[0] != task_id:
+                raise ContractError("broker success lacks one independently committed task effect")
+        elif after != before:
+            raise ContractError("broker non-success mutated the protected effect ledger")
+        return result
 
 
 def load_operator_profile(path: Path) -> BrokerOnlyProfile:
