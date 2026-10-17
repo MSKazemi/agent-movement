@@ -153,7 +153,9 @@ class ToolAuthority:
     @staticmethod
     def _row(db: sqlite3.Connection, task_id: str) -> dict[str, Any]:
         row = db.execute(
-            f"SELECT {','.join(_ROW_FIELDS)} FROM tool_authority WHERE task_id=?", (task_id,)
+            "SELECT task_id,movement_id,origin_id,destination_id,kind,classification,"
+            "resource,grant_digest,owner_epoch,policy_epoch,expires_at,budget_limit,"
+            "budget_used,revoked FROM tool_authority WHERE task_id=?", (task_id,)
         ).fetchone()
         if row is None:
             raise Unauthorized("unknown tool authority")
