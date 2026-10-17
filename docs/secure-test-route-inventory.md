@@ -31,7 +31,7 @@ A **pre-disclosure denial**, **metadata-disclosed rejection**, **task-content-di
 
 ## Partial executable follow-up: broker-only operator profile
 
-The [operator-owned broker-only secure-test profile](secure-broker-only-profile.md) now makes **one** previously proposed path executable under a separately privileged Linux worker and an exact owner-only manifest. Its negative tests probe the actual legacy handler, enforce 16-route classification, and independently inspect the accepted synthetic effect. **It is not the complete launcher described below**: it neither terminates arbitrary pre-existing listeners nor provisions the separate A2A and target tool-side service in one independently mediated run. The full #99 gates below remain open.
+The [operator-owned broker-only secure-test profile](secure-broker-only-profile.md) now makes **one** previously proposed path executable under a separately privileged Linux worker and an exact owner-only manifest. A dedicated UID CI experiment also exercises **actual official-SDK A2A JSON-RPC and REST bindings** together with a separate real legacy listener: unfenced success controls establish reachability, and two restricted-worker probes are denied at those actual ports while independent SQLite audit logs stay unchanged. This is not a global listener disablement test. Its negative tests probe the actual legacy handler, enforce 16-route classification, and independently inspect the accepted synthetic effect. **It is not the complete launcher described below**: it neither terminates arbitrary pre-existing listeners nor provisions the separate A2A and target tool-side service in one independently mediated run. The full #99 gates below remain open.
 
 ## Concrete next phase for #99
 
