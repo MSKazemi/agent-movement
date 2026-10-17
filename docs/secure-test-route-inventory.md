@@ -29,6 +29,10 @@ The test [`test_secure_route_inventory.py`](../tests/test_secure_route_inventory
 
 A **pre-disclosure denial**, **metadata-disclosed rejection**, **task-content-disclosed but effect refused**, and **committed protected effect** are distinct observables. Future tests must record those independently and never turn a zero-effect audit into a claim that task bytes did not leave the process.
 
+## Partial executable follow-up: broker-only operator profile
+
+The [operator-owned broker-only secure-test profile](secure-broker-only-profile.md) now makes **one** previously proposed path executable under a separately privileged Linux worker and an exact owner-only manifest. Its negative tests probe the actual legacy handler, enforce 16-route classification, and independently inspect the accepted synthetic effect. **It is not the complete launcher described below**: it neither terminates arbitrary pre-existing listeners nor provisions the separate A2A and target tool-side service in one independently mediated run. The full #99 gates below remain open.
+
 ## Concrete next phase for #99
 
 1. Build one **operator-owned, explicit, versioned launcher configuration** naming enabled process/route identities, pinned issuers/grants/policy, allowed destination/capability and trusted source/sink DBs. It must reject unknown route names.
