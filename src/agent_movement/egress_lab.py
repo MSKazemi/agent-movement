@@ -75,6 +75,7 @@ def run_guarded_agent(
     timeout: float = 15.0, child_uid: int | None = None,
     child_gid: int | None = None, protected_file: Path | None = None,
     protected_db: Path | None = None, protected_parent_fd: int | None = None,
+    unapproved_write_dir: Path | None = None,
 ) -> SandboxResult:
     """Run a separately fenced synthetic worker and a one-task trusted pipe broker.
 
@@ -94,7 +95,8 @@ def run_guarded_agent(
         # Privilege separation is an explicit requirement for this profile.
         # Do not silently fall back to a same-UID seccomp-only child.
         raise RuntimeError("isolated worker requires root supervisor and non-root UID/GID")
-    if any(x is not None for x in (protected_file, protected_db, protected_parent_fd)) and not separated:
+    if any(x is not None for x in (protected_file, protected_db, protected_parent_fd,
+                                   unapproved_write_dir)) and not separated:
         raise ValueError("protected-resource probe requires the distinct-UID profile")
     script = Path(script).resolve(strict=True)
     if not script.is_file():
@@ -125,6 +127,11 @@ def run_guarded_agent(
             env["AMV_TEST_PROTECTED_FILE"] = str(Path(protected_file).resolve(strict=True))
         if protected_db is not None:
             env["AMV_TEST_PROTECTED_DB"] = str(Path(protected_db).resolve(strict=True))
+        if unapproved_write_dir is not None:
+            target_dir = Path(unapproved_write_dir).resolve(strict=True)
+            if not target_dir.is_dir():
+                raise ValueError("unapproved write probe requires an existing directory")
+            env["AMV_TEST_WRITABLE_DIR"] = str(target_dir)
         if protected_parent_fd is not None:
             if type(protected_parent_fd) is not int or protected_parent_fd < 3:
                 raise ValueError("invalid protected parent FD")
