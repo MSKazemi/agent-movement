@@ -341,6 +341,8 @@ class GuardedAuthority:
         self, token: Any, row: dict[str, Any], effect_id: str,
         content_sha256: str, epoch: int, db: sqlite3.Connection, now: int,
     ) -> None:
+        if token is None:
+            raise Unauthorized("guarded_effect_invocation_missing")
         activation = db.execute(
             "SELECT activation_id,destination_id,owner_epoch,expires_at "
             "FROM guarded_activations WHERE task_id=?", (row["task_id"],),
