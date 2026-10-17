@@ -36,6 +36,32 @@ python -m pytest -q tests/test_uid_worker_boundary.py
 
 `AMV_UID_EVIDENCE_DIR` is an **operator-only test output** directory: when set, the tests write sorted, deterministic `allow.json`, `deny.json` and `timeout.json` reports. These include only tested route labels, blocked/allowed outcomes, UID, broker status and independently checked effect counts; they contain **no secrets, task text, root paths, process IDs, signed grants or private keys**. The CI uploads these synthetic JSON records for seven days. A test failure invalidates the results, and a missing kernel feature fails the dedicated job.
 
+## World-writable storage mutation experiment (2026-10-17)
+
+The distinct-UID profile now adds a second kernel seccomp-BPF rule set for
+`open/openat` flags that request write, create, truncate, append or `O_TMPFILE`,
+and a reviewed x86_64 denylist of direct file mutation syscalls
+(create/delete/rename/link/chmod/chown/truncate/mount/openat2/memfd).
+Read-only source and stdlib loads still work; the trusted pipe broker remains
+an explicitly inherited limited output channel. The same-UID legacy egress
+experiment retains its earlier behavior.
+
+A new positive **red control** starts a separate unfenced process as the same
+unprivileged UID 65534 and successfully writes to an operator-provisioned
+world-writable *synthetic* scratch directory. The fenced worker then attempts
+writing a new file, deleting/renaming/chmodding a file owned by that UID, and
+creating a new directory in precisely that scratch location. These operations
+must return kernel `EPERM`; an independent parent checks the directory and
+existing file are unchanged. The dedicated CI job requires a sanitized
+`storage.json` report rather than counting a skipped or unobserved case.
+
+This is **not full filesystem confinement** or a complete Linux syscall
+allowlist. Existing output pipes, inherited writable descriptors (if the
+trusted launcher ever changes), writable mappings, readable world files,
+shared-memory and device channels, unenumerated kernel APIs and compromised
+supervisor/kernel remain excluded. A failure to mutate one path does not prove
+all exfiltration channels are closed. Scope and dependency boundaries of
+issue #98 and umbrella #50 remain explicit.
 ## Evidence and exclusions
 
 | Measured test | Expected | Independent evidence | Limitation |
