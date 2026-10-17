@@ -34,6 +34,11 @@ _REQUIRED_ROUTES = frozenset({
 # through its one-task pipe broker. The child cannot create sockets.
 # This is not evidence that a receiver is safe if run by another process.
 _BROKER_ROUTES = frozenset({"egress_child", "peer_card", "peer_preflight", "peer_delivery"})
+_MUST_DISABLE = frozenset({
+    "legacy_handoff_http", "legacy_revocation_http", "legacy_effect_gateway",
+    "a2a_jsonrpc", "a2a_rest", "relocation_coordinator", "unified_cli",
+})
+_OUT_OF_SCOPE = frozenset({"generic_unmediated_tools"})
 _IDENT = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}\Z")
 _FIELDS = frozenset({"schema", "worker_uid", "worker_gid", "allowed_task_ids", "enabled_routes"})
 _ROOT = Path(__file__).resolve().parents[2]
@@ -56,10 +61,14 @@ def _source_route_inventory(path: Path) -> None:
     if len(ids) != len(_REQUIRED_ROUTES) or set(ids) != _REQUIRED_ROUTES:
         raise ContractError("unknown/duplicated/missing protected route inventory")
     classification = {row["route_id"]: row["proposed_secure_test_policy"] for row in records}
-    if (any(classification[route] != "gated_candidate" for route in _BROKER_ROUTES)
-            or any(classification[route] not in {"must_disable", "gated_candidate", "out_of_scope"}
-                   for route in _REQUIRED_ROUTES)):
-        raise ContractError("operator route profile changed without review")
+    # A planning-registry edit must never silently promote a known unmediated
+    # listener or external plugin into a reachable operator profile.
+    for route in _REQUIRED_ROUTES:
+        expected = ("must_disable" if route in _MUST_DISABLE
+                    else "out_of_scope" if route in _OUT_OF_SCOPE
+                    else "gated_candidate")
+        if classification[route] != expected:
+            raise ContractError("operator route profile changed without review")
 
 
 @dataclass(frozen=True)
