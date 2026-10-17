@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1-research",
+  "policy_id": "local-public-review-v1",
+  "allowed_origins": ["spiffe://lab.example/agent/origin"],
+  "trusted_issuers": ["https://auth.lab.example"],
+  "destinations": {
+    "spiffe://lab.example/agent/reviewer": {
+      "region": "eu-test-1",
+      "operations": ["delegate"],
+      "max_data_classification": "public",
+      "capabilities": ["artifact.read"]
+    }
+  },
+  "max_hops": 1,
+  "max_new_instances": 0,
+  "max_duration_seconds": 120,
+  "max_budget_units": 10,
+  "max_grant_ttl_seconds": 180,
+  "human_approval_operations": ["relocate", "clone", "replicate", "fork", "fan_out"]
+}
