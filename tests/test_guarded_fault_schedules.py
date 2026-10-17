@@ -45,10 +45,17 @@ def _snapshot(path: Path) -> dict[str, object]:
         effects = db.execute(
             "SELECT effect_id,epoch FROM effects WHERE task_id='task-1' ORDER BY effect_id"
         ).fetchall()
+        policy = db.execute("SELECT epoch FROM continuity_control WHERE singleton=1").fetchone()
+        consents = db.execute(
+            "SELECT principal,revoked FROM continuity_consents "
+            "WHERE task_id='task-1' ORDER BY principal"
+        ).fetchall()
         return {
             "owner": tuple(owner) if owner else None,
             "guard": tuple(guard) if guard else None,
             "effects": tuple(tuple(row) for row in effects),
+            "policy_epoch": policy[0] if policy else None,
+            "consents": tuple(tuple(row) for row in consents),
         }
 
 
@@ -97,7 +104,7 @@ def test_real_guarded_effect_refines_each_frozen_fault_schedule(tmp_path, case):
         _execute_step(rig, gate, step)
         after = _snapshot(rig.store.path)
         assert not after["effects"], (case["id"], step)
-        assert before != after or step == "enroll", (case["id"], step)
+        assert before != after or step == "advance_expired_clock", (case["id"], step)
     prior = _snapshot(rig.store.path)
     if case["expected"] == "committed":
         assert authorized_commit(
