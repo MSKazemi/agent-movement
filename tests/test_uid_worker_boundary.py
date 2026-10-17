@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
+import tempfile
 import threading
 import urllib.request
 from pathlib import Path
@@ -154,6 +156,50 @@ def test_root_owned_legacy_listener_secrets_and_effects_are_inaccessible(tmp_pat
         server.server_close()
         listener.join(timeout=5)
 
+
+@ROOT_ONLY
+def test_uid_worker_cannot_mutate_world_writable_synthetic_storage():
+    """A real non-root red control can write; seccomp-fenced UID cannot."""
+    with tempfile.TemporaryDirectory(prefix="amv-uid-write-") as dirname:
+        scratch = Path(dirname)
+        scratch.chmod(0o777)
+        target = scratch / "owned-target.txt"
+        target.write_text("UNCHANGED", encoding="utf-8")
+        os.chown(target, 65534, 65534)
+        target.chmod(0o666)
+        canary = scratch / "must-not-create.txt"
+        # Explicit RED control: the exact UID and path can create/write
+        # files with ordinary DAC, so a denial is caused by worker fencing.
+        red = subprocess.run(
+            [sys.executable, "-c", "from pathlib import Path; import sys; "
+             "Path(sys.argv[1]).write_text('RED-CONTROL')", str(canary)],
+            user=65534, group=65534, extra_groups=(),
+            check=True, capture_output=True, text=True, timeout=10,
+        )
+        assert red.returncode == 0
+        assert canary.read_text(encoding="utf-8") == "RED-CONTROL"
+        canary.unlink()
+        guarded = run_guarded_agent(
+            PROBE, {"task-1": lambda: "committed"}, probe_port=1,
+            child_uid=65534, child_gid=65534, unapproved_write_dir=scratch,
+        )
+        assert guarded.exit_code == 0, guarded.stderr
+        assert guarded.broker_status == 'committed'
+        observations = json.loads(guarded.stdout)
+        attempted = ('scratch_write', 'scratch_unlink', 'scratch_mkdir',
+                     'scratch_rename', 'scratch_chmod')
+        assert all(observations[k] == "blocked" for k in attempted), observations
+        assert target.read_text(encoding="utf-8") == "UNCHANGED"
+        assert not canary.exists()
+        assert not (scratch / "must-not-mkdir").exists()
+        assert not (scratch / "renamed").exists()
+        save_evidence("storage", {
+            "profile": "uid-seccomp-write-deny-v1",
+            "dac_positive_control": True,
+            "kernel_denials": {k: observations[k] for k in attempted},
+            "independent_target_unchanged": True,
+            "worker_uid": observations["uid"],
+        })
 
 @ROOT_ONLY
 def test_denied_trusted_broker_does_not_disclose_or_commit(tmp_path):

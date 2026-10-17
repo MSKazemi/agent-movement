@@ -4,8 +4,8 @@ A trusted launcher installs an irreversible seccomp-BPF rule before running
 untrusted Python source in a distinct OS process. It blocks socket and process
 creation, including raw syscalls, while allowing an inherited pipe broker.
 
-It DOES NOT confine filesystem access, inherited non-pipe FDs, compromised hosts,
-IPC already open, device access, covert channels, or remote participants.
+Distinct-UID mode also denies selected file mutations and write-mode opens.
+It does NOT confine all filesystem reads, inherited IPC or covert channels.
 """
 
 from __future__ import annotations
@@ -28,9 +28,22 @@ _DENY_SYSCALLS = frozenset({
     322, 425, 426, 427, 434, 435, 438,  # execveat/io_uring/pidfd_open/clone3/pidfd_getfd
 })
 
+# Distinct-UID worker only: deny these file mutation syscalls, and deny
+# open/openat if a write, create, append, truncate or O_TMPFILE flag is set.
+# Linux x86_64 syscall numbers; not a complete filesystem isolation claim.
+_FS_MUTATING_SYSCALLS = frozenset({
+    76, 77, 82, 83, 84, 85, 86, 87, 88, 90, 91, 92, 93, 94,
+    132, 133, 165, 235, 258, 259, 260, 261, 263, 264, 265, 266,
+    268, 280, 285, 304, 316, 319, 428, 429, 430, 431, 432, 433,
+    437, 442,
+})
+# O_DIRECTORY alone (0x10000) is a safe read-only directory open.
+_OPEN_MUTATING_MASK = 0x400643
+
 _LD_W_ABS = 0x20
 _JMP_JEQ_K = 0x15
 _JMP_JGE_K = 0x35
+_JMP_JSET_K = 0x45
 _RET_K = 0x06
 _ARCH_X86_64 = 0xC000003E
 _X32_BIT = 0x40000000
@@ -56,7 +69,7 @@ def supported() -> bool:
     return sys.platform == "linux" and platform.machine() == "x86_64"
 
 
-def install_egress_fence() -> None:
+def install_egress_fence(*, deny_file_writes: bool = False) -> None:
     """Trusted-launcher-only installation. Raises instead of running unfenced.
 
     The BPF filter is enforced by the kernel and inherited by every thread and
@@ -84,6 +97,20 @@ def install_egress_fence() -> None:
     for number in sorted(_DENY_SYSCALLS):
         rules.append(jmp(_JMP_JEQ_K, number, 0, 1))
         rules.append(stmt(_RET_K, deny))
+    if deny_file_writes:
+        for number in sorted(_FS_MUTATING_SYSCALLS):
+            rules.append(jmp(_JMP_JEQ_K, number, 0, 1))
+            rules.append(stmt(_RET_K, deny))
+        # Permit read-only loads of Python source and stdlib. When a number
+        # does not match, skip the flag check; restore syscall nr afterward.
+        for number, flags_offset in ((2, 24), (257, 32)):
+            rules.extend((
+                jmp(_JMP_JEQ_K, number, 0, 3),
+                stmt(_LD_W_ABS, flags_offset),
+                jmp(_JMP_JSET_K, _OPEN_MUTATING_MASK, 0, 1),
+                stmt(_RET_K, deny),
+                stmt(_LD_W_ABS, 0),
+            ))
     rules.append(stmt(_RET_K, _RET_ALLOW))
 
     array_type = _SockFilter * len(rules)
@@ -141,7 +168,7 @@ def main() -> int:
     # The trusted launcher has not imported attacker-controlled code yet.
     # Never fall back to same-UID execution when an explicit UID is requested.
     _drop_worker_privileges()
-    install_egress_fence()
+    install_egress_fence(deny_file_writes="AMV_ISOLATION_UID" in os.environ)
     runpy.run_path(str(script), run_name="__main__")
     return 0
 
