@@ -134,7 +134,8 @@ class IndependentTool:
                     max_units INTEGER NOT NULL,
                     used_units INTEGER NOT NULL DEFAULT 0,
                     activation_id TEXT,
-                    activation_digest TEXT);
+                    activation_digest TEXT,
+                    activation_expires_at INTEGER);
                 CREATE TABLE IF NOT EXISTS revocations (grant_id TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS controls (
                     event_id TEXT PRIMARY KEY, event_digest TEXT NOT NULL);
@@ -191,7 +192,8 @@ class IndependentTool:
     def _row(db: sqlite3.Connection, task_id: str) -> tuple[Any, ...]:
         row = db.execute(
             "SELECT movement_id,owner,epoch,phase,policy_epoch,grant_digest,"
-            "max_units,used_units,activation_id,activation_digest FROM tasks WHERE task_id=?",
+            "max_units,used_units,activation_id,activation_digest,activation_expires_at "
+            "FROM tasks WHERE task_id=?",
             (task_id,),
         ).fetchone()
         if row is None:
@@ -317,8 +319,9 @@ class IndependentTool:
             return "replayed"
         if row[3] != "fenced":
             raise ToolDenied(403, "not_fenced")
-        db.execute("UPDATE tasks SET phase='active',activation_id=?,activation_digest=? WHERE task_id=?",
-                   (p["activation_id"], fp, task))
+        db.execute("UPDATE tasks SET phase='active',activation_id=?,activation_digest=?,"
+                   "activation_expires_at=? WHERE task_id=?",
+                   (p["activation_id"], fp, p["expires_at"], task))
         return "activated"
 
     def _effect(self, db: sqlite3.Connection, signed: Any, now: int) -> str:
@@ -336,6 +339,8 @@ class IndependentTool:
         grant = self._check_actor_grant(p, row, db, now)
         if row[3] != "active":
             raise ToolDenied(403, "destination_not_active")
+        if row[10] is None or now >= row[10]:
+            raise ToolDenied(403, "activation_expired")
         if p["action"] != ACTION or p["resource"] != RESOURCE:
             raise ToolDenied(403, "wrong_action_or_resource")
         if units > grant["max_units"]:
