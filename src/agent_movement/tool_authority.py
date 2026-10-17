@@ -107,6 +107,14 @@ class IndependentTool:
                 raise ValueError("asymmetric signing required")
         if not workers:
             raise ValueError("at least one pinned worker key required")
+        for actor in workers:
+            _id(actor, "pinned_worker")
+        public_keys = [operator.public_value(), issuer.public_value(), signer.public_value()]
+        public_keys.extend(key.public_value() for key in workers.values())
+        if len(set(public_keys)) != len(public_keys):
+            raise ValueError("operator, issuer, worker and tool keys must be distinct")
+        if not signer.secret_forms():
+            raise ValueError("tool needs a private signing key")
         self.db_path = str(db_path)
         self.operator = operator.verifier()
         self.issuer = issuer.verifier()
