@@ -89,12 +89,11 @@ def run_guarded_agent(
     if (child_uid is None) != (child_gid is None):
         raise ValueError("UID and GID must be provided together")
     separated = child_uid is not None
-    if separated:
-        if (os.geteuid() != 0 or type(child_uid) is not int or type(child_gid) is not int
-                or not 1 <= child_uid <= 65534 or not 1 <= child_gid <= 65534):
-            # Privilege separation is an explicit requirement for this profile.
-            # Do not silently fall back to a same-UID seccomp-only child.
-            raise RuntimeError("isolated worker requires root supervisor and non-root UID/GID")
+    if separated and (os.geteuid() != 0 or type(child_uid) is not int or type(child_gid) is not int
+                      or not 1 <= child_uid <= 65534 or not 1 <= child_gid <= 65534):
+        # Privilege separation is an explicit requirement for this profile.
+        # Do not silently fall back to a same-UID seccomp-only child.
+        raise RuntimeError("isolated worker requires root supervisor and non-root UID/GID")
     if any(x is not None for x in (protected_file, protected_db, protected_parent_fd)) and not separated:
         raise ValueError("protected-resource probe requires the distinct-UID profile")
     script = Path(script).resolve(strict=True)
