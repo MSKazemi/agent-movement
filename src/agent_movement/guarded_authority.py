@@ -179,6 +179,13 @@ class GuardedAuthority:
                 raise Conflict("stale or absent source owner")
             if db.execute("SELECT 1 FROM effects WHERE task_id=?", (p["task_id"],)).fetchone():
                 raise PolicyDenied("existing effects require separate reconciliation")
+            # A task already completed by the weaker legacy handoff channel
+            # cannot be declared freshly protected after the fact, even if no
+            # simulated effect row exists yet. Audit events survive normal
+            # receiver replay and share this write transaction.
+            if db.execute("SELECT 1 FROM audit_events WHERE task_id=? AND event_type='handoff.completed' "
+                          "LIMIT 1", (p["task_id"],)).fetchone():
+                raise PolicyDenied("prior legacy handoff requires reconciliation")
             row = {
                 "task_id": p["task_id"], "movement_id": p["movement_id"],
                 "origin_id": p["origin_id"], "origin_epoch": p["expected_epoch"],
