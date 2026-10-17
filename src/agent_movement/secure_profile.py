@@ -80,6 +80,18 @@ class BrokerOnlyProfile:
     task_ids: frozenset[str]
     enabled_routes: frozenset[str]
 
+    def __post_init__(self) -> None:
+        # Even construction outside the owner-only loader cannot expand the
+        # allowed routes or silently remove the non-root worker requirement.
+        if (type(self.worker_uid) is not int or type(self.worker_gid) is not int
+                or not 1 <= self.worker_uid <= 65534
+                or not 1 <= self.worker_gid <= 65534
+                or type(self.task_ids) is not frozenset or not self.task_ids
+                or any(not isinstance(t, str) or not _IDENT.fullmatch(t) for t in self.task_ids)
+                or type(self.enabled_routes) is not frozenset
+                or self.enabled_routes != _BROKER_ROUTES):
+            raise ContractError("unreviewed broker-only profile construction")
+
     def run(
         self, script: Path, trusted_handlers: Mapping[str, Callable[[], str]], *,
         probe_port: int, operation: str = "delegate", task_id: str = "task-1",
@@ -143,9 +155,8 @@ def load_operator_profile(path: Path) -> BrokerOnlyProfile:
             or any(not isinstance(t, str) or not _IDENT.fullmatch(t) for t in tasks)
             or len(set(tasks)) != len(tasks)):
         raise ContractError("invalid or duplicate operator task ID")
-    if (not isinstance(routes, list) or len(routes) != len(set(routes))
-            or any(not isinstance(r, str) for r in routes)
-            or frozenset(routes) != _BROKER_ROUTES):
+    if (not isinstance(routes, list) or any(not isinstance(r, str) for r in routes)
+            or len(routes) != len(set(routes)) or frozenset(routes) != _BROKER_ROUTES):
         raise ContractError("profile must allow only reviewed broker+peer route subset")
     _source_route_inventory(_ROOT / "data" / "secure-route-inventory.csv")
     return BrokerOnlyProfile(uid, gid, frozenset(tasks), frozenset(routes))
