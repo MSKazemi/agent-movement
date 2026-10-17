@@ -71,6 +71,32 @@ The new cross-process test reopens the same SQLite file from a separate Python i
 
 The unguarded or alternate routes remain tracked in [#50](https://github.com/MSKazemi/agent-movement/issues/50). Trace replay and further signed-activation refinement remain in [#93](https://github.com/MSKazemi/agent-movement/issues/93).
 
+## Independently observed fault schedules (2026-10-17)
+
+The [versioned fault plan](../data/guarded-fault-schedules-v01.json) freezes
+seven nonsecret synthetic case IDs, ordered actions, expected outcomes and a
+fixed seed. The new [fault replay suite](../tests/test_guarded_fault_schedules.py)
+executes the actions against an actual trusted one-store `GuardedAuthority`
+and reads committed `owners`, `guarded_tasks`, `effects`, continuity-policy
+epoch and independently signed principal revocation flags from a separate
+SQLite connection **after each mapped step**. Denied effects must leave both
+the durable state and shared budget unchanged. A valid signed activation
+permits one expected effect.
+
+Two additional Linux fault cases exercise actual independent OS processes:
+a concurrent SQLite writer holds the authority write lock while a signed
+destination activation waits, and a separately signed data-owner revocation
+races ownership transfer. The matrix accepts either serialized transfer
+winner, but refuses every protected effect once revocation is durably applied.
+A process crash before activation remains FENCED; a temporary DB lock is
+**not** a genuine network partition or distributed consensus simulation.
+
+Run `python -m pytest -q tests/test_guarded_fault_schedules.py`. The
+machine-readable plan contains only case names, synthetic operations and
+unsupported dimensions; no task text, signing keys or private information.
+All reported assertions are bounded to one honest SQLite authority store.
+Independent-UID key custody, cross-store recovery, network partitions,
+external effects and host compromise remain untested under issue #93/#50.
 ## Reproduce and inspect
 
 From the repo root:
