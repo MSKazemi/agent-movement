@@ -38,7 +38,7 @@ The module is src/agent_movement/tool_authority.py. It exposes four localhost-on
 | /v0/tool/effect | Pinned destination worker | Attempt only the synthetic increment effect with tool-side grant, actor, owner, epoch, phase, policy, budget and revocation checks |
 | /v0/tool/reconcile | Pinned worker | Signed committed/unknown result for a specific effect ID |
 
-The grant is signed by the issuer and binds actor, audience independent-tool, task, movement, action increment, resource synthetic-counter, synthetic classification, expiry, policy epoch and budget. The operator enrolls its digest and an independent maximum budget. Even a valid worker signature is insufficient without the issuer grant and current tool-owned authority state.
+The grant is signed by the issuer and binds actor, audience independent-tool, task, movement, action increment, resource synthetic-counter, synthetic classification, expiry, policy epoch and budget. The destination's signed activation has its own shorter expiry, stored by the tool and **rechecked on every simulated effect**; activation never automatically renews. The operator enrolls its digest and an independent maximum budget. Even a valid worker signature is insufficient without the issuer grant and current tool-owned authority state.
 
 ~~~text
 UNENROLLED
