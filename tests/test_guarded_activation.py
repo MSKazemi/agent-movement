@@ -216,7 +216,7 @@ def test_uncooperative_subprocess_signed_actor_spoof_is_denied(fenced):
     # The child receives only public routing identifiers and a synthetic task string.
     # It has no access to the independently pinned destination signing secret.
     root = __import__('pathlib').Path(__file__).resolve().parents[1]
-    env = {**os.environ, 'PYTHONPATH': str(root / 'src') + os.pathsep + os.environ.get('PYTHONPATH', '')}
+    env = {'PATH': os.environ.get('PATH', ''), 'PYTHONPATH': str(root / 'src')}
     script = (
         'import json, hashlib\n'
         'from agent_movement.trust import HmacKey, seal\n'
