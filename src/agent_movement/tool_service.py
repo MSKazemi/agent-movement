@@ -72,7 +72,7 @@ def verify_tool(purpose: str, signed: Any, verifier: Any) -> dict[str, Any]:
         value = _DOMAIN + purpose.encode("ascii") + b"\n" + canonical(s["payload"]).encode("utf-8")
         if not verifier.verify(value, b64d(s["sig"], "tool signature")):
             raise Unauthenticated("invalid tool signature")
-    except (ContractError, ValueError, TypeError, UnicodeError) as exc:
+    except (ValueError, TypeError) as exc:
         raise Unauthenticated("malformed signed tool message") from exc
     payload: dict[str, Any] = s["payload"]
     return payload
@@ -359,7 +359,7 @@ def make_tool_server(authority: ToolAuthority, port: int = 0) -> LocalToolServer
                 self.respond(403, {"error": "forbidden"})
             except Conflict:
                 self.respond(409, {"error": "conflict"})
-            except (ContractError, ValueError):
+            except ValueError:
                 self.respond(400, {"error": "invalid_contract"})
             except Exception:
                 self.respond(500, {"error": "internal_error"})
