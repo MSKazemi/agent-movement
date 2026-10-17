@@ -2,15 +2,15 @@
 
 **Scope:** User request to fix 20 issues in [Agent Movement](../README.md). At the start of this pass, GitHub search returned **8 open issue tickets**: [#50](https://github.com/MSKazemi/agent-movement/issues/50), [#93](https://github.com/MSKazemi/agent-movement/issues/93), [#95](https://github.com/MSKazemi/agent-movement/issues/95), [#96](https://github.com/MSKazemi/agent-movement/issues/96), [#98](https://github.com/MSKazemi/agent-movement/issues/98), [#99](https://github.com/MSKazemi/agent-movement/issues/99), [#102](https://github.com/MSKazemi/agent-movement/issues/102), [#103](https://github.com/MSKazemi/agent-movement/issues/103).
 
-**Count honesty:** the 20 rows below are distinct **remediation work units**, not 20 different open GitHub issues and not 20 claimed issue closures. Items marked `PR IN REVIEW` were committed to review branches, but are not completed until their CI/merge acceptance gates pass. No open ticket should be closed merely because a subset or a synthetic test passed.
+**Count honesty:** the 20 rows below are distinct **remediation work units**, not 20 different open GitHub issues and not 20 claimed issue closures. **Concurrent update:** issue #96 was resolved on main via a separate merged compatibility implementation while PR #104 was under review; PR #104 has therefore been closed **unmerged** to avoid duplicating the API. The issue count below refers to the initial audit, not a claim that #96 remains open. Items marked `PR IN REVIEW` were committed to review branches, but are not completed until their CI/merge acceptance gates pass. No open ticket should be closed merely because a subset or a synthetic test passed.
 
 | Work unit | Parent issue | Concrete defect / deliverable | Evidence & status |
 | --- | --- | --- | --- |
-| R01 | #96 | Advertise implemented 0.1 wire distinctly from canonical 0.2 proposal | [PR #104](https://github.com/MSKazemi/agent-movement/pull/104) — PR in review |
-| R02 | #96 | Refuse unsupported 0.2-only peer negotiation | #104 — PR in review |
-| R03 | #96 | Reject lossy draft→runtime conversion, including unsigned integrity/policy constraints | #104 — PR in review |
-| R04 | #96 | Core and A2A deny unconverted draft envelopes | #104 — PR in review |
-| R05 | #96 | Version ADR, field crosswalk, deterministic offline migration demonstration | #104 — PR in review |
+| R01 | #96 | Advertise implemented 0.1 wire distinctly from canonical 0.2 proposal | [merged 0.1/0.2 compatibility implementation](../src/agent_movement/envelope_compat.py) — #96 closed; PR #104 duplicate closed unmerged |
+| R02 | #96 | Refuse unsupported 0.2-only peer negotiation | [existing compatibility tests](../tests/test_envelope_compat.py) — #96 closed |
+| R03 | #96 | Reject lossy draft→runtime conversion, including unsigned integrity/policy constraints | [existing compatibility tests](../tests/test_envelope_compat.py) — #96 closed |
+| R04 | #96 | Core and A2A deny unconverted draft envelopes | [existing compatibility tests](../tests/test_envelope_compat.py) — #96 closed |
+| R05 | #96 | Version ADR, field crosswalk, deterministic offline migration demonstration | [existing compatibility tests](../tests/test_envelope_compat.py) — #96 closed |
 | R06 | #103 | Distinguish fenced owner from destination-active state | [PR #109](https://github.com/MSKazemi/agent-movement/pull/109) — PR in review |
 | R07 | #103 | Verify pinned destination-signed activation proof with anti-replay/epoch binding | #109 — PR in review |
 | R08 | #103 | Require independently signed per-effect payload/identity proof | #109 — PR in review |
@@ -31,7 +31,7 @@
 
 1. Run every PR's full Python core/optional-extras matrix, strict static checking, corpus and documentation-link CI. Do not treat queued or running checks as successes.
 2. Merge only on green results and after reconciliation with current main. Do not overwrite new CI/doc files that other parallel branches introduced.
-3. After merge, update the parent issue with exact paths, tested fault boundaries, known counterexamples, work-unit IDs and omitted paths. Close **#96** only when its contract-compatibility acceptance is met. Keep **#95**, **#103**, **#93**, **#99**, **#98**, **#102** and **#50** open while their material requirements remain.
+3. After merge, update the parent issue with exact paths, tested fault boundaries, known counterexamples, work-unit IDs and omitted paths. Issue **#96 is closed** after its narrower compatibility code and tests were merged; PR #104 was closed unmerged. Keep **#95**, **#103**, **#93**, **#99**, **#98**, **#102** and **#50** open while their material requirements remain.
 4. Verify completed GitHub issue counts from current API state. **Do not invent 12 extra issues** to make a numerical target or silently mark partial security work complete.
 
 ## Priority after the three review branches
