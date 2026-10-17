@@ -15,8 +15,8 @@ from typing import Any
 
 from movement_authority_machine import State, transitions
 
-# A deliberately *partial* event refinement. Runtime activation is NOT mapped;
-# the resume event below is an abstract marker, not verified execution state.
+# A deliberately partial refinement. Signed destination activation is mapped;
+# physical process liveness and external effects remain outside this profile.
 EVENTS = frozenset({
     "prepare_destination",
     "issue_attenuated_grant_B",
@@ -31,12 +31,13 @@ EVENTS = frozenset({
     "advance_clock",
     "dispatch_opaque_effect_unknown",
 })
-ABSTRACT_MARKERS = frozenset({"prepare_destination", "resume_destination"})
+ABSTRACT_MARKERS = frozenset({"prepare_destination"})
 UNMAPPED = (
     "origin-side effects (commit_A_*): guarded enrollment forbids early effects",
     "OS crash/restart, gateway partition/reheal: no equivalent fault injection in this runner",
     "operator_claim_done/absent: a claim cannot resolve an actual unknown effect",
-    "physical process liveness and authenticated destination activation",
+    "physical process liveness and independently attested runtime identity",
+    "abstract resume after revoked/stale grant, policy or unknown hold: concrete runtime rejects it",
     "external effects, peer/A2A/relocation transports, consensus and independent data stores",
 )
 Predicate = Callable[[State], bool]
@@ -104,6 +105,16 @@ def witnesses(max_depth: int = 9, max_states: int = 20_000) -> dict[str, tuple[s
                 continue
             if edge.name in {"cancel_task", "dispatch_opaque_effect_unknown"} and not state.destination_granted:
                 # Runtime cancel/unknown requires enrollment, unlike abstract MASM.
+                continue
+            if edge.name == "resume_destination" and (
+                not state.user_approved or not state.data_owner_approved
+                or state.policy_epoch != state.child_policy_epoch
+                or state.clock >= 2 or state.opaque == "unknown"
+            ):
+                # The abstract model allows B to resume with stale approvals/policy.
+                # The concrete signed-activation API deliberately refuses to do so.
+                # Explore only traces whose resume step is implemented by the
+                # stricter trusted runtime, not an unsound no-op projection.
                 continue
             if edge.state not in seen:
                 seen.add(edge.state)

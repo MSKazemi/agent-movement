@@ -72,16 +72,30 @@ def _interpret_request(raw: bytes, allowed: Mapping[str, Callable[[], str]]) -> 
 def run_guarded_agent(
     script: Path, allowed: Mapping[str, Callable[[], str]], *,
     operation: str = "delegate", task_id: str = "task-1", probe_port: int,
-    timeout: float = 15.0,
+    timeout: float = 15.0, child_uid: int | None = None,
+    child_gid: int | None = None, protected_file: Path | None = None,
+    protected_db: Path | None = None, protected_parent_fd: int | None = None,
 ) -> SandboxResult:
-    """Run agent source after kernel policy installation in a distinct process.
+    """Run a separately fenced synthetic worker and a one-task trusted pipe broker.
 
-    This deliberately grants no arbitrary network, subprocess, host data access
-    policy or external effect capability. The only modeled authorized effect is
-    a named callback held by the trusted parent and invoked via a pipe broker.
+    With child_uid/child_gid, refuse to start unless the caller is a root-owned
+    trusted supervisor; drop every child real/effective/saved UID/GID and group
+    before installing the syscall fence. Root-only secret paths can then be
+    tested for OS-level denial. No namespace, global egress or arbitrary-file
+    containment is claimed. The non-UID legacy experiment is unchanged.
     """
     if not supported():
         raise RuntimeError("independent egress experiment requires Linux x86_64")
+    if (child_uid is None) != (child_gid is None):
+        raise ValueError("UID and GID must be provided together")
+    separated = child_uid is not None
+    if separated and (os.geteuid() != 0 or type(child_uid) is not int or type(child_gid) is not int
+                      or not 1 <= child_uid <= 65534 or not 1 <= child_gid <= 65534):
+        # Privilege separation is an explicit requirement for this profile.
+        # Do not silently fall back to a same-UID seccomp-only child.
+        raise RuntimeError("isolated worker requires root supervisor and non-root UID/GID")
+    if any(x is not None for x in (protected_file, protected_db, protected_parent_fd)) and not separated:
+        raise ValueError("protected-resource probe requires the distinct-UID profile")
     script = Path(script).resolve(strict=True)
     if not script.is_file():
         raise ValueError("attacker script is not a file")
@@ -97,14 +111,34 @@ def run_guarded_agent(
     # Pytest can add src/ to sys.path without exporting PYTHONPATH. Child cwd is
     # deliberately neutral, so explicitly pass only this package source path.
     package_root = str(Path(__file__).resolve().parents[1])
-    extra_paths = os.environ.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = os.pathsep.join((package_root, extra_paths)) if extra_paths else package_root
+    # The ordinary historical egress experiment keeps its original import behavior.
+    # The root-owned secure lab deliberately disallows caller PYTHONPATH, user-site
+    # imports and a writable current directory on sys.path (-P below).
+    if separated:
+        env["PYTHONPATH"] = package_root
+        env["PYTHONNOUSERSITE"] = "1"
+        env["PYTHONSAFEPATH"] = "1"
+        env["AMV_ISOLATION_UID"] = str(child_uid)
+        env["AMV_ISOLATION_GID"] = str(child_gid)
+        env["AMV_TEST_PARENT_PID"] = str(os.getpid())
+        if protected_file is not None:
+            env["AMV_TEST_PROTECTED_FILE"] = str(Path(protected_file).resolve(strict=True))
+        if protected_db is not None:
+            env["AMV_TEST_PROTECTED_DB"] = str(Path(protected_db).resolve(strict=True))
+        if protected_parent_fd is not None:
+            if type(protected_parent_fd) is not int or protected_parent_fd < 3:
+                raise ValueError("invalid protected parent FD")
+            env["AMV_TEST_PARENT_FD"] = str(protected_parent_fd)
+    else:
+        extra_paths = os.environ.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = os.pathsep.join((package_root, extra_paths)) if extra_paths else package_root
 
     state: dict[str, Any] = {"status": "not_requested", "count": 0}
     child: subprocess.Popen[str]
     try:
         child = subprocess.Popen(
-            [sys.executable, "-m", "agent_movement.egress_sandbox", str(script)],
+            [sys.executable, *(["-P"] if separated else []),
+             "-m", "agent_movement.egress_sandbox", str(script)],
             cwd=workdir, env=env, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             pass_fds=(request_write, response_read), close_fds=True,

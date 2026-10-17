@@ -19,7 +19,7 @@ from agent_movement.trust import Unauthorized
 from authority_trace_plan import ABSTRACT_MARKERS, EVENTS, UNMAPPED, report, witnesses
 from movement_authority_machine import State, apply, authorize_effect, authorize_transfer
 from test_continuity_runtime import NOW, Rig
-from test_guarded_authority import intent, notify, service
+from test_guarded_authority import activation_ack, authorized_commit, intent, notify, service
 
 
 def _clock(tick: int) -> int:
@@ -71,7 +71,7 @@ def _model_projection(s: State) -> dict[str, object]:
     guard = None
     if s.destination_granted:
         guard = (
-            "prepared" if s.phase == "prepared" else "transferred",
+            "prepared" if s.phase == "prepared" else "fenced" if s.phase == "fenced" else "active",
             2, len(s.commits), int(s.cancelled), int(s.opaque == "unknown"),
         )
     return {
@@ -101,11 +101,11 @@ def _step(rig: Rig, gateway, action: str, state: State) -> None:
     elif action == "fence_and_transfer":
         assert gateway.transfer("task-1", "movement-1") == 2
     elif action == "resume_destination":
-        return  # IMPORTANT: no runtime activation barrier; known unverified gap
+        assert gateway.activate(activation_ack(rig))  # independently verified signed receiver proof
     elif action.startswith("commit_B_"):
         effect_id = action[len("commit_B_"):]
-        assert gateway.commit("task-1", "movement-1", "agent-b", 2,
-                              effect_id, "synthetic:" + effect_id) is True
+        assert authorized_commit(rig, gateway, "task-1", "movement-1", "agent-b", 2,
+                                 effect_id, "synthetic:" + effect_id) is True
     elif action == "revoke_user":
         rig.revoke("human")
     elif action == "revoke_data_owner":
@@ -148,7 +148,7 @@ def test_witness_plan_is_deterministic_and_covers_declared_cases():
     assert len(a) == 20
     assert len(set(a.values())) == len(a)
     assert max(map(len, a.values())) <= 9
-    assert len(ABSTRACT_MARKERS) == 2
+    assert len(ABSTRACT_MARKERS) == 1
     assert "operator_claim_done/absent" in " ".join(UNMAPPED)
     for trace in a.values():
         s = State()
@@ -179,8 +179,8 @@ def test_generated_shortest_witness_replays_against_independent_sql(tmp_path, na
         if not decision.allowed:
             before = _sql_snapshot(rig.store.path)
             try:
-                result = gateway.commit(
-                    "task-1", "movement-1", "agent-b", 2,
+                result = authorized_commit(
+                    rig, gateway, "task-1", "movement-1", "agent-b", 2,
                     "publish-1", "synthetic:publish-1",
                 )
                 assert result is False, (name, decision.reason)
@@ -189,21 +189,25 @@ def test_generated_shortest_witness_replays_against_independent_sql(tmp_path, na
             assert _sql_snapshot(rig.store.path) == before
 
 
-def test_abstract_activation_gap_is_observable_and_not_claimed_safe(tmp_path):
-    """MASM requires resume; current guarded effect route has no such barrier.
-
-    This is an intentionally *passing counterexample assertion* to whole-model
-    refinement. If implementation adds real authenticated activation, rewrite
-    this as a positive enforcement test instead of deleting the evidence.
-    """
+def test_signed_activation_closes_fenced_runtime_counterexample(tmp_path):
+    """A fenced destination cannot commit, even when given a signed effect invocation."""
     events = witnesses()["03_fenced_not_resumed"]
     rig, gateway, state = _replay(tmp_path, events)
     assert state.phase == "fenced"
     assert not authorize_effect(state, "B", "publish-1").allowed
-    # Runtime is less restrictive: it can commit immediately after ownership
-    # transfer. That is why this suite claims PARTIAL, never FULL refinement.
-    assert gateway.commit(
-        "task-1", "movement-1", "agent-b", 2,
+    before = _sql_snapshot(rig.store.path)
+    with pytest.raises(PolicyDenied, match="not authenticated and activated"):
+        authorized_commit(
+            rig, gateway, "task-1", "movement-1", "agent-b", 2,
+            "publish-1", "synthetic:publish-1",
+        )
+    assert _sql_snapshot(rig.store.path) == before
+    assert gateway.activate(activation_ack(rig)) is True
+    resumed = apply(state, "resume_destination")
+    assert _sql_snapshot(rig.store.path) == _model_projection(resumed)
+    assert authorize_effect(resumed, "B", "publish-1").allowed
+    assert authorized_commit(
+        rig, gateway, "task-1", "movement-1", "agent-b", 2,
         "publish-1", "synthetic:publish-1",
     ) is True
     assert _sql_snapshot(rig.store.path)["effects"] == (("publish-1", 2),)

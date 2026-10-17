@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ctypes
 import errno
+import os
 import platform
 import runpy
 import sys
@@ -99,6 +100,38 @@ def install_egress_fence() -> None:
         raise OSError(ctypes.get_errno(), "PR_SET_SECCOMP failed")
 
 
+def _drop_worker_privileges() -> None:
+    """Irreversibly drop supplementary, saved, effective and real credentials.
+
+    Only the trusted operator may choose these IDs. The script is run AFTER
+    dropping credentials and installing seccomp; if anything fails, never run it.
+    """
+    uid_text = os.environ.get("AMV_ISOLATION_UID")
+    gid_text = os.environ.get("AMV_ISOLATION_GID")
+    if uid_text is None and gid_text is None:
+        return  # The existing same-UID test profile remains clearly separate.
+    if (uid_text is None or gid_text is None or not uid_text.isdecimal()
+            or not gid_text.isdecimal() or os.geteuid() != 0):
+        raise RuntimeError("privileged worker isolation configuration unavailable")
+    uid, gid = int(uid_text), int(gid_text)
+    if not 1 <= uid <= 65534 or not 1 <= gid <= 65534:
+        raise RuntimeError("invalid non-root worker credentials")
+    # A root supervisor launches only trusted module code here; do not import
+    # attacker-controlled modules between this point and the irreversible drop.
+    os.setgroups([])
+    os.setresgid(gid, gid, gid)
+    os.setresuid(uid, uid, uid)
+    if (os.getresuid() != (uid, uid, uid) or os.getresgid() != (gid, gid, gid)
+            or os.getgroups()):
+        raise RuntimeError("worker privilege isolation was not established")
+    # Linux-only import: preserve core's stdlib imports on other platforms.
+    import resource
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (65536, 65536))
+    resource.setrlimit(resource.RLIMIT_AS, (1024 ** 3, 1024 ** 3))
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         raise SystemExit("usage: python -m agent_movement.egress_sandbox SCRIPT.py")
@@ -106,6 +139,8 @@ def main() -> int:
     if not script.is_file():
         raise SystemExit("not a script")
     # The trusted launcher has not imported attacker-controlled code yet.
+    # Never fall back to same-UID execution when an explicit UID is requested.
+    _drop_worker_privileges()
     install_egress_fence()
     runpy.run_path(str(script), run_name="__main__")
     return 0

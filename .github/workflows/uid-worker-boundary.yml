@@ -1,0 +1,68 @@
+name: Distinct-UID worker sandbox (experimental)
+
+# Executes only inside an ephemeral job container, not as host root.
+# The container's UID 0 supervisor drops the synthetic worker to 65534
+# before executing its attacker-controlled script with a second seccomp fence.
+on:
+  pull_request:
+    paths:
+      - "src/agent_movement/egress_lab.py"
+      - "src/agent_movement/egress_sandbox.py"
+      - "src/agent_movement/uid_*_probe.py"
+      - "tests/test_uid_worker_boundary.py"
+      - "docs/uid-worker-sandbox.md"
+      - ".github/workflows/uid-worker-boundary.yml"
+  push:
+    paths:
+      - "src/agent_movement/egress_lab.py"
+      - "src/agent_movement/egress_sandbox.py"
+      - "src/agent_movement/uid_*_probe.py"
+      - "tests/test_uid_worker_boundary.py"
+      - ".github/workflows/uid-worker-boundary.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-worker:
+    name: Linux container-root supervisor and UID 65534 synthetic worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    container:
+      image: python:3.13-slim
+      options: --security-opt no-new-privileges
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify isolation prerequisites without falling back
+        run: |
+          python - <<'PY'
+          import os, platform, sys
+          assert sys.platform == "linux" and platform.machine() == "x86_64"
+          assert os.geteuid() == 0, "root supervisor inside CI container required"
+          print("Container supervisor root, separate child UID required")
+          PY
+      - run: python -m pip install -e . "pytest>=9.1"
+      - name: Assert kernel UID/proc/file/socket/FD restrictions and broker semantics
+        env:
+          AMV_UID_EVIDENCE_DIR: ${{ runner.temp }}/uid-evidence
+        run: |
+          mkdir -p "$AMV_UID_EVIDENCE_DIR"
+          python -m pytest -q -ra tests/test_uid_worker_boundary.py
+          test -s "$AMV_UID_EVIDENCE_DIR/allow.json"
+          test -s "$AMV_UID_EVIDENCE_DIR/deny.json"
+          test -s "$AMV_UID_EVIDENCE_DIR/timeout.json"
+          python -m json.tool "$AMV_UID_EVIDENCE_DIR/allow.json" >/dev/null
+      - name: Publish sanitized synthetic-only matrix
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: uid-sandbox-evidence
+          path: ${{ runner.temp }}/uid-evidence/*.json
+          if-no-files-found: ignore
+          retention-days: 7
