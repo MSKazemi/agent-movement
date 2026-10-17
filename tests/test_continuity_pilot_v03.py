@@ -121,7 +121,7 @@ def test_no_tokens_prices_or_pretended_agent_results():
         assert record["wall_latency_ms"] is None
         assert "text" not in record
         assert "oracle" not in record
-        assert record["committed_effects"] if False else True  # no effects are emitted at all
+        assert record["committed_effects"] == 0
 
 
 def test_json_cli_is_deterministic_and_synthetic():
