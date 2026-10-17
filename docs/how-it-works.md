@@ -2,6 +2,8 @@
 
 **Current status (2026-10-16):** The ten-step flow is a *target architecture*, not an integrated, production-secure system. Independent synthetic/local demonstrations exist for loopback handoff, authenticated peers, optional A2A, same-runtime relocation and receipts; see [as-built architecture](architecture.md). The **canonical proposed** envelope is `0.2.0-draft` and the existing **runtime** envelope remains `0.1.0-draft`. See [project charter](project-charter.md) and [roadmap](roadmap.md).
 
+**Contract implementation decision (2026-10-17):** The proposed 0.2 envelope is NOT a supported runtime wire version. Runtime core/peer/A2A uses strict 0.1; only explicit minimal-profile, version-tag-only conversion can produce a 0.1 candidate, with **all** expanded 0.2 fields refused. See [version-compatibility decision](handoff-version-compatibility.md).
+
 ## Operational definition
 
 An origin agent transfers a **specific task or resumable boundary** to a destination agent under a bounded authorization grant, and records the resulting artifacts and state transitions. The project should distinguish *delegation* from *checkpoint relocation*. Transfer is an application protocol, not magic migration of a language model.
