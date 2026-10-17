@@ -47,7 +47,8 @@ python -m pytest -q tests/test_uid_worker_boundary.py
 | Process creation and root reacquisition | `EPERM` | Child syscall/credential observations | No exhaustive syscall policy / user-namespace model |
 | Trusted broker positive delegate | One admitted synthetic peer effect | Trusted receiver SQLite effect ledger and captured route trace | Trusted parent remains inside the same Python process as receiver for this test |
 | Trusted broker refused destination | No pre-disclosure task bytes or effect | Trusted wire/receiver inspection and child output scan | Metadata disclosure on other independent paths is not proven absent |
-| Uncooperative worker | Killed by parent wall timeout, no broker commit | Protected callback invocation count remains zero | Arbitrary external side effects/remote timeouts not addressed |
+| Uncooperative worker before requesting a broker action | Killed by parent wall timeout, no broker commit | Protected callback invocation count remains zero | Says nothing about a worker that committed before hanging |
+| Worker stalls **after** the trusted broker commits | Killed by parent; raises `SandboxTimeout` exposing **committed** broker status and request count | Independently read receiver SQLite effect ledger shows one synthetic effect after worker death | A timeout cannot be treated as cancellation or proof that no external effect happened |
 
 ### Remaining threats that prevent closure of #50
 
@@ -59,3 +60,7 @@ python -m pytest -q tests/test_uid_worker_boundary.py
 The [16-route source inventory](secure-test-route-inventory.md) is an accompanying *planning artifact*, not deployment enforcement. Neither this isolated-UID experiment nor that inventory is an all-route safety guarantee.
 
 **Next work:** issue [#99](https://github.com/MSKazemi/agent-movement/issues/99) to compose operator-owned secure-profile process admission and executable real-route negative tests; umbrella [#50](https://github.com/MSKazemi/agent-movement/issues/50) remains open until its enumerated safety acceptance criteria are met together.
+
+## Timeout safety finding (2026-10-17)
+
+A synthetic worker can request one valid broker delegation, receive the successful reply and **then hang**. The previous launcher raised a generic timeout, obscuring the already-committed synthetic effect. It now raises `SandboxTimeout` with `broker_status` and `request_count` captured **after joining the trusted broker thread**, so callers can reconcile against the authoritative effect ledger. This is *not* a guarantee that other effects could not occur. A no-request timeout still has zero protected callback invocations; a post-commit timeout leaves exactly one ledger row. Startup failures now close all broker pipe FDs, verified by a dedicated regression test. The dedicated CI job publishes a sanitized `timeout-after-effect.json` alongside the existing timeout evidence.
