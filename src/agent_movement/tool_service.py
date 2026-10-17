@@ -361,7 +361,7 @@ def make_tool_server(authority: ToolAuthority, port: int = 0) -> LocalToolServer
                 self.respond(409, {"error": "conflict"})
             except ValueError:
                 self.respond(400, {"error": "invalid_contract"})
-            except Exception:
+            except Exception:  # noqa: BLE001 - never leak internal error detail at the HTTP boundary
                 self.respond(500, {"error": "internal_error"})
             else:
                 self.respond(200, outcome)
