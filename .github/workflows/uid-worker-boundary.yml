@@ -11,6 +11,7 @@ on:
       - "src/agent_movement/uid_*_probe.py"
       - "tests/test_uid_worker_boundary.py"
       - "tests/test_secure_broker_profile.py"
+      - "tests/test_secure_profile_a2a_routes.py"
       - "src/agent_movement/secure_profile.py"
       - "docs/uid-worker-sandbox.md"
       - "docs/secure-broker-only-profile.md"
@@ -22,6 +23,7 @@ on:
       - "src/agent_movement/uid_*_probe.py"
       - "tests/test_uid_worker_boundary.py"
       - "tests/test_secure_broker_profile.py"
+      - "tests/test_secure_profile_a2a_routes.py"
       - "src/agent_movement/secure_profile.py"
       - ".github/workflows/uid-worker-boundary.yml"
 
@@ -52,14 +54,15 @@ jobs:
           assert os.geteuid() == 0, "root supervisor inside CI container required"
           print("Container supervisor root, separate child UID required")
           PY
-      - run: python -m pip install -e . "pytest>=9.1"
+      # Real JSON-RPC and REST controls require the pinned optional A2A SDK.
+      - run: python -m pip install -e '.[a2a]' "pytest>=9.1"
       - name: Assert kernel UID/proc/file/socket/FD restrictions and broker semantics
         env:
           AMV_UID_EVIDENCE_DIR: ${{ runner.temp }}/uid-evidence
           AMV_PROFILE_EVIDENCE_DIR: ${{ runner.temp }}/uid-evidence
         run: |
           mkdir -p "$AMV_UID_EVIDENCE_DIR"
-          python -m pytest -q -ra tests/test_uid_worker_boundary.py tests/test_secure_broker_profile.py
+          python -m pytest -q -ra tests/test_uid_worker_boundary.py tests/test_secure_broker_profile.py tests/test_secure_profile_a2a_routes.py
           test -s "$AMV_UID_EVIDENCE_DIR/allow.json"
           test -s "$AMV_UID_EVIDENCE_DIR/deny.json"
           test -s "$AMV_UID_EVIDENCE_DIR/timeout.json"
@@ -67,6 +70,7 @@ jobs:
           test -s "$AMV_UID_EVIDENCE_DIR/storage.json"
           test -s "$AMV_PROFILE_EVIDENCE_DIR/profile-allow.json"
           test -s "$AMV_PROFILE_EVIDENCE_DIR/profile-deny.json"
+          test -s "$AMV_PROFILE_EVIDENCE_DIR/profile-live-a2a.json"
           python -m json.tool "$AMV_UID_EVIDENCE_DIR/allow.json" >/dev/null
           python -m json.tool "$AMV_PROFILE_EVIDENCE_DIR/profile-deny.json" >/dev/null
       - name: Publish sanitized synthetic-only matrix
