@@ -31,16 +31,17 @@ make lint typecheck
 1. a direct low-level `SQLiteStore.receive` call denies a guarded task, including would-be replays;
 2. a direct legacy `HandoffReceiver` call denies and records a sanitized `handoff.denied` event, with no accepted handoff or simulated peer effect;
 3. an **actual loopback legacy HTTP listener** is probed from a **different Python client process**, bypassing official `PeerClient`; it returns 403 and an independent SQLite audit has zero accepted events for that guarded task;
-4. a test-only red mutation disables `_deny_guarded` and demonstrates the same syntactically valid request would produce a successful handoff. No shipped runtime flag can turn off the guard;
-5. unmanaged legacy handoffs remain successful and idempotent;
-6. an already completed legacy handoff prevents later enrollment and unearned retroactive guarantees.
+4. **Actual official A2A SDK** JSON-RPC and HTTP+JSON adapter listeners are separately exercised by an optional-extra test: because both delegate to the same `HandoffReceiver` and SQLite file, a guarded task cannot produce an A2A completed task or `handoff.accepted` event. Core-only environments explicitly skip this case instead of claiming an A2A result;
+5. a test-only red mutation disables `_deny_guarded` and demonstrates the same syntactically valid request would produce a successful handoff. No shipped runtime flag can turn off the guard;
+6. unmanaged legacy handoffs remain successful and idempotent;
+7. an already completed legacy handoff prevents later enrollment and unearned retroactive guarantees.
 
 The tests operate on synthetic/public text, allowlisted IDs and local databases; no real external APIs, credentials or devices are touched.
 
 ## What remains unresolved
 
 - Legacy HTTP is still **reachable and untrusted** for an unenrolled task, and an attacker may send plaintext text to it before it denies. To prevent data disclosure, operator-owned sender/egress controls and secured delivery are required.
-- A2A, checkpoint relocation and independent tool-effect service each have distinct admission/persistence tables; this store-level guard **must not** be extrapolated to them without adapter-specific tests and integration.
+- The **tested official A2A JSON-RPC and HTTP+JSON adapter on the same guarded SQLite file** delegates through `HandoffReceiver` and therefore shares this receiver-admission fence; its test checks rejection and the absence of accepted events. This is still **post-disclosure** and not A2A identity authentication. A separately launched A2A handler with a different SQLite database, checkpoint relocation and the independent tool-effect service have different authority/persistence boundaries and remain outside this result.
 - Operator permissions, human consent, ownership epochs, grant freshness and effects are protected only within their **specifically configured** peer/guarded lanes. The legacy receiver is not made authenticated by this patch.
 - If history was purged or imported without full provenance, the retroactive `handoff.completed` check is not an absolute guarantee that no earlier unrecorded disclosure/effect occurred.
 - [Issue #99](https://github.com/MSKazemi/agent-movement/issues/99) still needs an operator-owned secure-test launcher that disables or independently gates *all enabled actual listeners*. [Issue #98](https://github.com/MSKazemi/agent-movement/issues/98) adds the independent UID/FD/file experiments; broader [issue #50](https://github.com/MSKazemi/agent-movement/issues/50) remains open until its combined conformance criteria are demonstrated.
