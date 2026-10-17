@@ -14,6 +14,7 @@ import socket
 import subprocess
 import sys
 from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -80,10 +81,8 @@ if "AMV_TEST_PARENT_PID" in os.environ:
 try:
     targets = []
     for name in os.listdir("/proc/self/fd"):
-        try:
+        with suppress(OSError):
             targets.append(os.readlink(f"/proc/self/fd/{name}"))
-        except OSError:
-            pass
     results["protected_fd_inherited"] = any(
         p in targets for p in (
             os.environ.get("AMV_TEST_PROTECTED_FILE", "<not-provisioned-file>"),
