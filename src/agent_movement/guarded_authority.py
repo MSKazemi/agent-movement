@@ -207,6 +207,11 @@ class GuardedAuthority:
                 raise Conflict("stale or absent source owner")
             if db.execute("SELECT 1 FROM effects WHERE task_id=?", (p["task_id"],)).fetchone():
                 raise PolicyDenied("existing effects require separate reconciliation")
+            # Deny retroactive protective enrollment after a prior legacy
+            # accepted task, under the same SQLite writer transaction.
+            if db.execute("SELECT 1 FROM audit_events WHERE task_id=? AND event_type='handoff.completed' "
+                          "LIMIT 1", (p["task_id"],)).fetchone():
+                raise PolicyDenied("prior legacy handoff requires reconciliation")
             row = {
                 "task_id": p["task_id"], "movement_id": p["movement_id"],
                 "origin_id": p["origin_id"], "origin_epoch": p["expected_epoch"],

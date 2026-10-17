@@ -477,6 +477,11 @@ class SQLiteStore:
         (``HandoffReceiver``, which authenticates nobody). Two senders may therefore use
         the same key. Movement IDs stay unique across all senders.
 
+        Any task enrolled in ``GuardedAuthority`` is denied on this
+        **legacy/core handoff path** (including replays) under the same SQLite
+        write lock as enrollment. This is a bounded store-level ingress fence,
+        not sender authentication or an all-adapter network control.
+
         ``approval_ref`` (``HandoffReceiver``) is the approval that admitted the envelope.
         Inside the same write transaction a runtime revocation of it raises
         ``ApprovalRevoked`` (replays included), and a new delivery binds the task to it, so
@@ -494,6 +499,13 @@ class SQLiteStore:
         sender_id = envelope["origin"]["agent_id"] if sender is None else _id(sender, "sender")
         with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            # An enrolled guarded task must never be accepted through the
+            # unauthenticated legacy/core handoff lane, including idempotent
+            # replays. Enrollment and admission share the same write lock, so
+            # a concurrent enrollment cannot race between this check and
+            # durable receipt insertion. Peer/guarded authority has its own
+            # separately authenticated ingress.
+            EffectGateway._deny_guarded(db, envelope["logical_task_id"])
             if approval_ref is not None and self._approval_revoked(db, approval_ref):
                 raise ApprovalRevoked(approval_ref)
             previous = db.execute("SELECT envelope_digest FROM deliveries "
@@ -616,7 +628,10 @@ class HandoffReceiver:
             raise PolicyDenied("receiver-side approval not found, valid or scoped for this transfer")
         try:
             return self.store.receive(envelope, approval_ref=envelope["authority"]["approval_ref"])
-        except ApprovalRevoked:
+        except PolicyDenied:
+            # The store applies guard enrollment/revocation atomically. Record
+            # a sanitized denied handoff outside the rolled-back transaction
+            # without accidentally returning a successful legacy receipt.
             self.store.denied(envelope)
             raise
 
