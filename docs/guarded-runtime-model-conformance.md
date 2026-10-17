@@ -4,6 +4,8 @@
 
 **Related:** [MASM-0.1](movement-authority-state-machine.md), [existing guarded transfer profile](guarded-authority-transfer.md), [earlier runtime bridge](runtime-model-refinement.md), [handoff](algorithmic-research-handoff-2026-10-16.md), issues [#93](https://github.com/MSKazemi/agent-movement/issues/93) and [#50](https://github.com/MSKazemi/agent-movement/issues/50).
 
+**Follow-up (2026-10-17, opt-in activated profile):** [Activated Guarded Authority](activated-authority-profile.md) adds a signed `FENCED → ACTIVE` transition and independently signed effect instructions. The updated [20-case runtime projector](../tests/test_guarded_authority_refinement.py) now maps `resume_destination` to an actual signed activation, and separately reads the activation record from SQLite. **The historical counterexample below remains valid for the older, non-activated GuardedAuthority profile**; do not treat the new opt-in profile as a universal fix or proof of process liveness. Only `prepare_destination` remains a pure marker.
+
 ## Goal and research decisions
 
 The previous model counted 59,200 states but did not establish a simulation relation to the live guarded gateway. This study instead asks a smaller, falsifiable question:
