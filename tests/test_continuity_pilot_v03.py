@@ -135,3 +135,56 @@ def test_json_cli_is_deterministic_and_synthetic():
     assert parsed["split"] == "holdout"
     assert len(parsed["records"]) == 8 * len(MODES)
     assert "synthetic case 01" not in a.stdout
+
+
+@pytest.mark.parametrize("unsupported", ["B2_a2a_delegate", "B3_checkpoint_relocate"])
+def test_unimplemented_arm_cannot_claim_completion_or_refusal(unsupported):
+    rows, _ = load_fixtures()
+    allowed = next(r for r in rows if r["policy"] == "allow")
+    from continuity_pilot_v03 import expected_answer
+    for status in ("completed", "refused", "unknown"):
+        with pytest.raises(ValueError, match="unimplemented pilot arm"):
+            score_case(allowed, unsupported, proposed=expected_answer(allowed),
+                       status=status, work_units=1)
+    for illegal in (
+        {"proposed": "fabricated"},
+        {"work_units": 1},
+        {"committed_effects": 1},
+        {"human_interventions": 1},
+    ):
+        kwargs = dict(proposed=None, status="unavailable", work_units=0)
+        kwargs.update(illegal)
+        with pytest.raises(ValueError, match="empty unavailable"):
+            score_case(allowed, unsupported, **kwargs)
+
+
+def test_implemented_arm_cannot_hide_failure_as_unavailable():
+    allowed = next(r for r in load_fixtures()[0] if r["policy"] == "allow")
+    for mode in AVAILABLE:
+        with pytest.raises(ValueError, match="cannot be marked unavailable"):
+            score_case(allowed, mode, proposed=None, status="unavailable", work_units=0)
+
+
+def test_exact_integer_scoring_rejects_boolean_as_int():
+    synthetic_one_word = {
+        "task_id": "synthetic-one-word", "split": "development",
+        "text": "one", "kind": "word_count",
+        "policy": "allow", "classification": "synthetic",
+    }
+    false_positive = score_case(
+        synthetic_one_word, "B5_spec_only_nonagent",
+        proposed=True, status="completed", work_units=1,
+    )
+    correct = score_case(
+        synthetic_one_word, "B5_spec_only_nonagent",
+        proposed=1, status="completed", work_units=1,
+    )
+    assert false_positive["correct"] is False
+    assert correct["correct"] is True
+
+
+def test_refusal_with_proposed_answer_not_justified():
+    denied = next(r for r in load_fixtures()[0] if r["policy"] == "deny")
+    record = score_case(denied, "B0_scripted_single_worker",
+                        proposed="I answered anyway", status="refused", work_units=1)
+    assert not record["correct"]

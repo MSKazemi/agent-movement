@@ -54,7 +54,7 @@ The pilot reports per-mode:
 - unknown/reconcile and human intervention totals;
 - **synthetic work units per correct** (a proxy, *not dollars*, latency or token cost).
 
-The scorer has mutation tests: a fabricated answer fails, a denied action with a committed effect fails, and `unknown` cannot be counted as success. A fixture-edit, split substitution, unapproved new field or invalid JSON changes the byte digest and is refused before execution.
+The scorer has mutation tests: a fabricated answer fails, a denied action with a committed effect fails, and `unknown` cannot be counted as success. It also enforces **versioned arm availability**: B2/B3 are strictly `UNAVAILABLE` in the current pilot with zero answer/work/effects/interventions, while B0/B1/B5 cannot claim `UNAVAILABLE` to suppress a poor result. Exact correctness checks the value **and native answer type**, so Python `True == 1` cannot fraudulently pass word-count scoring; a purported refusal with a proposed answer is not a justified refusal. A fixture-edit, split substitution, unapproved new field or invalid JSON changes the byte digest and is refused before execution.
 
 ## Hypotheses to pre-register **before** any model study
 
