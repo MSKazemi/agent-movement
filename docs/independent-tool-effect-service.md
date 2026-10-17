@@ -21,7 +21,7 @@ flowchart LR
     D -->|sanitized signed receipt| W
 ```
 
-Trust anchors, the service receipt-signing key, worker verifier keys, operator verifier key, own budget and service ID are loaded from an **operator-owned, owner-only file** before the listener starts. No agent HTTP call can install these. The service accepts only the two versioned endpoints; no general network proxy, shell/command, raw text body, arbitrary tool parameters or read/administration endpoints exist. The test runner uses disposable **HS256 keys**. Because HS256 is symmetric and tests run under one Unix UID, this does *not* establish independent organizations, confidential transport or filesystem separation.
+Trust anchors, the service receipt-signing key, worker verifier keys, operator verifier key, own budget and service ID are loaded from an **operator-owned, owner-only file** before the listener starts. No agent HTTP call can install these. The service accepts only the two versioned endpoints; no general network proxy, shell/command, raw text body, arbitrary tool parameters or unauthenticated read/administration endpoints exist. The test runner uses disposable **HS256 keys**. Because HS256 is symmetric and tests run under one Unix UID, this does *not* establish independent organizations, confidential transport or filesystem separation.
 
 ## Contract and data minimization
 
