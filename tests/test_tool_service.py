@@ -126,8 +126,27 @@ def service_lab(request, tmp_path):
             }
             return call("update", sign_tool("update", p, operator))
 
+        def restart():
+            nonlocal child, port
+            old_pid = child.pid
+            child.kill()  # simulate a crash; the ledger remains tool-side and durable
+            child.communicate(timeout=5)
+            child = subprocess.Popen(
+                [sys.executable, "-m", "agent_movement.tool_service", "--config", str(path)],
+                cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            assert child.stdout is not None
+            readable, _, _ = select.select([child.stdout], [], [], 12)
+            assert readable, "tool service failed to restart"
+            line = child.stdout.readline()
+            assert line, "restarted tool service exited before readiness"
+            port = json.loads(line)["port"]
+            assert old_pid != child.pid
+            return child.pid
+
         yield {
             "call": call, "provision": provision, "effect": effect, "update": update,
+            "restart": restart,
             "user": user, "operator": operator, "executor": executor, "rogue": rogue,
             "signer": signer, "grant": grant, "trust": trust, "db": db_path, "pid": child.pid,
         }
@@ -251,4 +270,47 @@ def test_red_green_mutation_removing_tool_epoch_guard_exposes_vulnerability(serv
     with patch.object(ToolAuthority, "_require_epoch", staticmethod(lambda row, request: None)):
         mutated = local.effect(stale)
     assert mutated["status"] == "committed"
+    assert count_effects(lab["db"]) == 1
+
+
+def test_expired_signed_grant_is_denied_at_tool_commit(service_lab):
+    lab = service_lab
+    expired = issue_grant(
+        lab["user"], grant_id="expired-tool-grant", subject="synthetic-user",
+        actor="agent-a", audience="agent-b", task_id="task-tool-1",
+        capabilities=["word_count"], not_before=int(time.time()) - 100,
+        expires_at=int(time.time()) - 1,
+    )
+    assert lab["provision"](grant_value=expired)[0] == 200
+    assert lab["call"]("effects", lab["effect"](signed_grant=expired))[0] == 403
+    assert count_effects(lab["db"]) == 0
+
+
+def test_unknown_query_is_not_falsely_reported_as_absent(service_lab):
+    lab = service_lab
+    assert lab["provision"]()[0] == 200
+    query = sign_tool("query", {
+        "type": "tool-query", "task_id": "task-tool-1",
+        "movement_id": "move-tool-1", "effect_id": "never-sent",
+    }, lab["executor"])
+    code, response = lab["call"]("query", query)
+    assert code == 200 and response["status"] == "unknown_reconcile"
+    assert response["receipt"] is None
+
+
+def test_process_crash_restart_preserves_ledger_and_replay_contract(service_lab):
+    lab = service_lab
+    assert lab["provision"]()[0] == 200
+    signed = lab["effect"]()
+    assert lab["call"]("effects", signed)[0] == 200
+    old_pid = lab["pid"]
+    new_pid = lab["restart"]()
+    assert new_pid != old_pid
+    query = sign_tool("query", {
+        "type": "tool-query", "task_id": "task-tool-1",
+        "movement_id": "move-tool-1", "effect_id": "result-1",
+    }, lab["executor"])
+    code, response = lab["call"]("query", query)
+    assert code == 200 and response["status"] == "committed"
+    assert lab["call"]("effects", signed)[1]["status"] == "replayed"
     assert count_effects(lab["db"]) == 1
