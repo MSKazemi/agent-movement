@@ -51,6 +51,12 @@ def prior(rig: Rig):
     return admissions, effects, accepted
 
 
+def test_unmanaged_signed_peer_delegate_still_commits_one_synthetic_effect(rig):
+    receipt = rig.handoff()
+    assert receipt["effect"] == "committed"
+    assert prior(rig) == (1, 1, 1)
+
+
 def test_guarded_enrollment_denies_before_authenticated_sender_sends_task_text(rig):
     gate = enroll(rig)
     with pytest.raises(HandoffAborted) as exc:
