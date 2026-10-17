@@ -78,6 +78,16 @@ if "AMV_TEST_PARENT_PID" in os.environ:
             os.close(fd)
         check("parent_private_fd", inspect_parent_fd)
 
+# A world-writable synthetic directory is intentionally available to this UID.
+# The host DAC permits these operations, but the installed seccomp file gate
+# must deny every listed mutation (not merely hide an independent observation).
+if "AMV_TEST_WRITABLE_DIR" in os.environ:
+    scratch = Path(os.environ["AMV_TEST_WRITABLE_DIR"])
+    check("scratch_write", lambda: (scratch / "must-not-create.txt").write_text("WRITE-PROBE"))
+    check("scratch_unlink", lambda: (scratch / "owned-target.txt").unlink())
+    check("scratch_mkdir", lambda: (scratch / "must-not-mkdir").mkdir())
+    check("scratch_rename", lambda: (scratch / "owned-target.txt").rename(scratch / "renamed"))
+    check("scratch_chmod", lambda: (scratch / "owned-target.txt").chmod(0o777))
 # Check what the worker inherited independently of the parent's reported args.
 try:
     targets = []
