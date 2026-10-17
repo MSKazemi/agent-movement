@@ -181,3 +181,9 @@ Research corrections, protocol compatibility experiments, concrete failure modes
 
 ---
 Sources were reviewed on **2026-10-15**; upstream protocols and SDKs continue to evolve.
+
+<!-- legal-notice: start -->
+### Legal notice and responsible use
+
+The materials in this repository are made available without warranties to the extent permitted by applicable law. **Read the [Disclaimer and Responsible-Use Notice](DISCLAIMER.md)** before relying on them. It does not change existing software licenses or limit rights that cannot lawfully be waived.
+<!-- legal-notice: end -->
