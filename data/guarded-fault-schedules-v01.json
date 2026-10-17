@@ -1,0 +1,80 @@
+{
+  "schema": "amv-guarded-fault-schedule/v0.1",
+  "seed": "guarded-sqlite-faults-2026-10-17",
+  "kind": "synthetic-single-store",
+  "cases": [
+    {
+      "id": "F01-fenced-denial",
+      "steps": [
+        "enroll",
+        "transfer"
+      ],
+      "expected": "denied"
+    },
+    {
+      "id": "F02-revoked-data-owner",
+      "steps": [
+        "enroll",
+        "transfer",
+        "activate",
+        "revoke_data_owner"
+      ],
+      "expected": "denied"
+    },
+    {
+      "id": "F03-cancelled",
+      "steps": [
+        "enroll",
+        "transfer",
+        "activate",
+        "cancel"
+      ],
+      "expected": "denied"
+    },
+    {
+      "id": "F04-unknown-effect-hold",
+      "steps": [
+        "enroll",
+        "transfer",
+        "activate",
+        "mark_unknown"
+      ],
+      "expected": "denied"
+    },
+    {
+      "id": "F05-policy-rollover",
+      "steps": [
+        "enroll",
+        "transfer",
+        "activate",
+        "bump_policy_epoch"
+      ],
+      "expected": "denied"
+    },
+    {
+      "id": "F06-expired-grant",
+      "steps": [
+        "enroll",
+        "transfer",
+        "activate",
+        "advance_expired_clock"
+      ],
+      "expected": "denied"
+    },
+    {
+      "id": "F07-validated-active",
+      "steps": [
+        "enroll",
+        "transfer",
+        "activate"
+      ],
+      "expected": "committed"
+    }
+  ],
+  "unsupported": [
+    "real network partitions or cross-store consensus",
+    "physical worker liveness or host compromise",
+    "arbitrary third-party tools and opaque external-effect reconciliation",
+    "actual device migration and cross-framework checkpoint reconstruction"
+  ]
+}
