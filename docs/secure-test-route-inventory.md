@@ -10,7 +10,7 @@ The [machine-readable inventory](../data/secure-route-inventory.csv) enumerates 
 
 - `must_disable`: currently unmediated, non-authenticated, or incompatible with the proposed secure-test profile. A future **operator-owned supervisor** must demonstrate this route is NOT listening/callable for the protected task, with an explicit test against the actual endpoint. A Python `if` or imported module list does not disable another OS process.
 - `gated_candidate`: this route has some existing signing/SQLite/kernel boundary for a **specific opt-in test path**, but must pass separate admission, enablement and independently observed effect checks before the proposed secure-profile launcher may allow it.
-- `out_of_scope`: arbitrary independent tools or future optional service, **not** counted as denied, contained or safe. If enabled by a test deployment later, inventory and reclassify before admitting a protected task.
+- `out_of_scope`: arbitrary independent tools or an independent optional service, **not** counted as denied, contained or safe. If enabled by a test deployment later, inventory and reclassify before admitting a protected task.
 
 The test [`test_secure_route_inventory.py`](../tests/test_secure_route_inventory.py) fails on removed/duplicated rows, nonexistent sources/tests, changed source anchors or an attempt to silently promote the known direct legacy HTTP, A2A, low-level effect gateway, relocation or unified CLI routes into the protected profile. This is a **static registry mutation red control**, not the runtime gate-removal control required to close #99.
 
@@ -25,7 +25,7 @@ The test [`test_secure_route_inventory.py`](../tests/test_secure_route_inventory
 | Core + Guarded SQLite effect gates | Correct *local* epoch/policy subsets when explicitly enrolled | All operation categories or arbitrary DB writers; independently privileged host process |
 | Relocation | Separate pinned checkpoint runtime, own coordinator and tool ledger | Safe integration into every guard policy; generic cross-host atomicity |
 | Linux seccomp child | Narrow syscall/socket/spawn fence on a particular Linux/x86_64 process | Distinct UID, filesystem/FD/`/proc` isolation, network namespace, covert channels |
-| Future tool service | Experimental independent authority PRs still in review | Actual integrated operator-owned secure-profile trust, shared-scope revocation delivery |
+| Independent synthetic tool service | Merged [PR #106](https://github.com/MSKazemi/agent-movement/pull/106) added a separate loopback signed effect sink and dedicated SQLite ledger | Integrated enablement/egress restrictions for every protected task; distinct UID and filesystem isolation; guaranteed delivery of revocation to tool |
 
 A **pre-disclosure denial**, **metadata-disclosed rejection**, **task-content-disclosed but effect refused**, and **committed protected effect** are distinct observables. Future tests must record those independently and never turn a zero-effect audit into a claim that task bytes did not leave the process.
 
