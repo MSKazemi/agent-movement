@@ -37,7 +37,8 @@ _FS_MUTATING_SYSCALLS = frozenset({
     268, 280, 285, 304, 316, 319, 428, 429, 430, 431, 432, 433,
     437, 442,
 })
-_OPEN_MUTATING_MASK = 0x410643
+# O_DIRECTORY alone (0x10000) is a safe read-only directory open.
+_OPEN_MUTATING_MASK = 0x400643
 
 _LD_W_ABS = 0x20
 _JMP_JEQ_K = 0x15
