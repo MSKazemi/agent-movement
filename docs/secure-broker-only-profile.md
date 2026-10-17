@@ -42,6 +42,28 @@ Separate negative tests verify operator manifest permissions/symlink/duplicate-k
 
 CI: `.github/workflows/uid-worker-boundary.yml` reuses the ephemeral nonprivileged-worker container-root job from [the distinct-UID experiment](uid-worker-sandbox.md). The job must output `profile-allow.json` and `profile-deny.json` after its root-only tests; a skip or missing kernel feature **fails CI**. Ordinary no-root Python jobs check manifest and profile refusal semantics but skip only the root-specific kernel evidence.
 
+## Independent sink-consistency check (2026-10-17)
+
+The operator-owned `BrokerOnlyProfile.run` now requires the actual trusted
+`SQLiteStore` whose `authorized_effects` table is owned by the peer target.
+It snapshots that ledger independently **before and after** the broker invocation.
+A reported `committed` result without exactly one newly committed effect for
+the allowed task is refused, as is any ledger mutation accompanying `denied`,
+`replayed`, `invalid_request` or `not_requested`. Unexpected removal of
+effects also fails closed. The target ledger must exist; a missing table is
+an error rather than evidence of zero effects.
+
+The red control deliberately supplies a trusted callback that merely returns
+`committed` without writing any target effect: the profile rejects its
+success claim. The real signed peer callback continues to pass, while
+wrong-destination and unsupported operations leave the target ledger unchanged.
+
+**Limit:** this consistency oracle is inside the trusted supervisor using a
+single SQLite store, not a separate host/kernel/service PEP. A compromised
+supervisor/DB can falsify both the callback result and the ledger. A timeout
+or an external effect with an unknown outcome still requires reconciliation
+rather than a success claim. This narrows a false-positive proof path but
+does **not** disable foreign listeners, measure every disclosure or finish #99.
 ## Unsupported / remaining #99 acceptance
 
 - **This profile is NOT global route supervision.** It does not discover or terminate foreign processes, protect arbitrary shared UNIX sockets, close writable storage/FD channels other than the enumerated tested ones, or prevent a separate non-fenced program from making a legacy/A2A request. Requiring `owner_uid == 0` inside a container is a CI test model, not a deployable identity/secrets architecture.

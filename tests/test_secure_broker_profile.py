@@ -17,6 +17,7 @@ import pytest
 from agent_movement.core import Approval, ContractError, HandoffReceiver, SQLiteStore
 from agent_movement.egress_sandbox import supported
 from agent_movement.http import make_server
+from agent_movement.peer import PeerLedger
 from agent_movement.secure_profile import (
     BrokerOnlyProfile,
     _ROOT,
@@ -124,13 +125,38 @@ def test_inventory_mutation_cannot_silently_activate_legacy(tmp_path):
 
 def test_operator_callback_allowlist_exact_and_fails_before_launch(tmp_path):
     profile = load_operator_profile(manifest(tmp_path / "operator.json"))
+    oracle = SQLiteStore(tmp_path / "operator-oracle.sqlite")
     with pytest.raises(ContractError, match="exactly match"):
-        profile.run(PROBE, {"task-other": lambda: "committed"}, probe_port=1)
+        profile.run(PROBE, {"task-other": lambda: "committed"}, probe_port=1, effect_store=oracle)
     with pytest.raises(ContractError, match="exactly match"):
-        profile.run(PROBE, {}, probe_port=1)
+        profile.run(PROBE, {}, probe_port=1, effect_store=oracle)
     with pytest.raises(ContractError, match="invalid loopback"):
-        profile.run(PROBE, {"task-1": lambda: "committed"}, probe_port=0)
+        profile.run(PROBE, {"task-1": lambda: "committed"}, probe_port=0, effect_store=oracle)
 
+
+@ROOT_ONLY
+def test_forged_broker_success_without_real_sink_effect_is_rejected(tmp_path):
+    profile = load_operator_profile(manifest(tmp_path / "operator.json"))
+    store = SQLiteStore(tmp_path / "target.sqlite")
+    PeerLedger(store)  # Make the independently read target table explicit.
+    with pytest.raises(ContractError, match="success lacks one independently committed"):
+        profile.run(
+            PROBE, {"task-1": lambda: "committed"},
+            probe_port=1, effect_store=store,
+        )
+    with store._connection() as db:
+        assert db.execute("SELECT COUNT(*) FROM authorized_effects").fetchone() == (0,)
+
+
+def test_broker_profile_requires_independent_target_effect_observer(tmp_path):
+    profile = load_operator_profile(manifest(tmp_path / "operator.json"))
+    with pytest.raises(ContractError, match="independent protected effect store"):
+        profile.run(PROBE, {"task-1": lambda: "committed"},
+                    probe_port=1, effect_store=None)
+    with pytest.raises(ContractError, match="task ID not admitted"):
+        profile.run(PROBE, {"task-1": lambda: "committed"},
+                    probe_port=1, effect_store=SQLiteStore(tmp_path / "a.sqlite"),
+                    task_id="unknown-task")
 
 @ROOT_ONLY
 def test_operator_only_broker_with_actual_unmediated_listener(tmp_path):
@@ -157,7 +183,7 @@ def test_operator_only_broker_with_actual_unmediated_listener(tmp_path):
 
         result = profile.run(
             PROBE, {"task-1": lambda: world.handoff(client=client(world))["effect"]},
-            probe_port=server.server_port,
+            probe_port=server.server_port, effect_store=world.store,
         )
         assert result.exit_code == 0, result.stderr
         assert result.broker_status == "committed"
@@ -188,7 +214,7 @@ def test_operator_profile_wrong_destination_and_unsupported_operation_fail(tmp_p
     refused = policy(world, destinations={("agent-b", "local://not-approved")})
     denied = profile.run(
         PROBE, {"task-1": lambda: world.handoff(client=client(world, gate=refused))["effect"]},
-        probe_port=1,
+        probe_port=1, effect_store=world.store,
     )
     assert denied.exit_code == 0, denied.stderr
     assert denied.broker_status == "denied"
@@ -196,7 +222,7 @@ def test_operator_profile_wrong_destination_and_unsupported_operation_fail(tmp_p
     assert world.receiver.ledger.effects() == []
     wrong_operation = profile.run(
         PROBE, {"task-1": lambda: world.handoff(client=client(world))["effect"]},
-        probe_port=1, operation="replicate",
+        probe_port=1, operation="replicate", effect_store=world.store,
     )
     assert wrong_operation.exit_code == 0, wrong_operation.stderr
     assert wrong_operation.broker_status == "denied"
