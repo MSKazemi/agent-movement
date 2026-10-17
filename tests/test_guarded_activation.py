@@ -7,6 +7,8 @@ remote processes, host integrity or liveness.
 from __future__ import annotations
 
 import multiprocessing
+import os
+import subprocess
 import sqlite3
 import sys
 
@@ -207,6 +209,33 @@ def test_restarted_gateway_reads_same_signed_activation_and_effect_budget(fenced
                              "effect-1", "safe")
     assert state(rig)["budget"] == 1
 
+
+def test_uncooperative_subprocess_signed_actor_spoof_is_denied(fenced):
+    rig, gate = fenced
+    assert activate(rig, gate)
+    # The child receives only public routing identifiers and a synthetic task string.
+    # It has no access to the independently pinned destination signing secret.
+    root = __import__('pathlib').Path(__file__).resolve().parents[1]
+    env = {**os.environ, 'PYTHONPATH': str(root / 'src') + os.pathsep + os.environ.get('PYTHONPATH', '')}
+    script = (
+        'import json\n'
+        'from agent_movement.trust import HmacKey, seal\n'
+        'key = HmacKey.generate("b")\n'
+        'payload = {"type": "guarded-effect-invocation", "task_id": "task-1", '
+        '"movement_id": "movement-1", "destination_id": "agent-b", '
+        '"owner_epoch": 2, "activation_id": "activation-1", "effect_id": "effect-1", '
+        '"payload_sha256": "f"*64, "nonce": "spoof-1", '
+        '"issued_at": 1800000000, "expires_at": 1800000100}\n'
+        'print(json.dumps(seal("guarded-effect-invocation", payload, key)))\n'
+    )
+    child = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True,
+                           check=True, timeout=15, env=env)
+    forged = json.loads(child.stdout)
+    assert forged['kid'] == rig.dest_key.kid
+    with pytest.raises(PolicyDenied):
+        gate.commit('task-1', 'movement-1', 'agent-b', 2, 'effect-1', 'safe',
+                    signed_execution=forged)
+    assert state(rig)['effects'] == []
 
 def _revoke_child(rig, start, outcome):
     start.wait(5)
