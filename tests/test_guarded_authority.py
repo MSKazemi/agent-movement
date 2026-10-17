@@ -1,6 +1,7 @@
 """Opt-in GuardedAuthority experiment. Synthetic SQLite-only effects; no live tools."""
 
 import concurrent.futures
+import hashlib
 import json
 import os
 import sqlite3
@@ -33,6 +34,7 @@ def service(rig, *, budget=2):
     return GuardedAuthority(
         rig.store, rig.runtime, rig.trust,
         origin_verifiers={"agent-a": rig.origin_key},
+        destination_verifiers={"agent-b": rig.dest_key},
         cancel_verifier=rig.user, incident_verifier=rig.user,
         budget_limit=budget, clock=rig.clock,
     )
@@ -58,6 +60,46 @@ def enroll(rig, gated):
     gated.enroll(intent(rig), rig.grant)
 
 
+
+def activation_ack(rig, *, task="task-1", movement="movement-1",
+                   destination="agent-b", epoch=2, scope="word_count",
+                   activation_id="activation-1", nonce="activation-nonce-1",
+                   grant=None, policy_epoch=4, expires_at=None, signer=None):
+    return seal("guarded-activation", {
+        "type": "guarded-activation", "task_id": task, "movement_id": movement,
+        "destination_id": destination, "owner_epoch": epoch,
+        "kind": "word_count", "scope": scope,
+        "grant_digest": digest(rig.grant if grant is None else grant),
+        "policy_epoch": policy_epoch,
+        "activation_id": activation_id, "nonce": nonce,
+        "issued_at": rig.now, "expires_at": rig.now + 100 if expires_at is None else expires_at,
+    }, signer or rig.dest_key)
+
+
+def activate(rig, gated):
+    return gated.activate(activation_ack(rig))
+
+
+def effect_token(rig, task_id, movement_id, agent_id, epoch, effect_id, payload,
+                 *, activation_id="activation-1", signer=None, expires_at=None):
+    return seal("guarded-effect-invocation", {
+        "type": "guarded-effect-invocation",
+        "task_id": task_id, "movement_id": movement_id,
+        "destination_id": agent_id, "owner_epoch": epoch,
+        "activation_id": activation_id,
+        "effect_id": effect_id, "payload_sha256": hashlib.sha256(payload.encode()).hexdigest(),
+        "nonce": "proof-" + effect_id, "issued_at": rig.now,
+        "expires_at": rig.now + 100 if expires_at is None else expires_at,
+    }, signer or rig.dest_key)
+
+
+def authorized_commit(rig, gated, task_id, movement_id, agent_id, epoch, effect_id, payload):
+    """Test-only destination signs each protected effect. Production caller cannot self-assert."""
+    proof = effect_token(rig, task_id, movement_id, agent_id, epoch, effect_id, payload)
+    return gated.commit(task_id, movement_id, agent_id, epoch, effect_id, payload,
+                        signed_execution=proof)
+
+
 def test_protected_transfer_and_effect_deduplication(lane):
     rig, legacy, gated = lane
     enroll(rig, gated)
@@ -69,12 +111,13 @@ def test_protected_transfer_and_effect_deduplication(lane):
         legacy.commit("task-1", "agent-a", 1, "effect-0", "payload")
     assert gated.transfer("task-1", "movement-1") == 2
     assert gated.inspect("task-1")["owner"] == "agent-b"
-    assert gated.commit("task-1", "movement-1", "agent-b", 2, "effect-1", "safe")
-    assert not gated.commit("task-1", "movement-1", "agent-b", 2, "effect-1", "safe")
+    assert activate(rig, gated)
+    assert authorized_commit(rig, gated, "task-1", "movement-1", "agent-b", 2, "effect-1", "safe")
+    assert not authorized_commit(rig, gated, "task-1", "movement-1", "agent-b", 2, "effect-1", "safe")
     with pytest.raises(Conflict):
-        gated.commit("task-1", "movement-1", "agent-b", 2, "effect-1", "changed")
+        authorized_commit(rig, gated, "task-1", "movement-1", "agent-b", 2, "effect-1", "changed")
     with pytest.raises(PolicyDenied):
-        gated.commit("task-1", "movement-1", "agent-a", 1, "effect-2", "stale")
+        authorized_commit(rig, gated, "task-1", "movement-1", "agent-a", 1, "effect-2", "stale")
     assert gated.inspect("task-1")["used"] == 1
     assert legacy.reconcile("task-1", "effect-1") == "committed"
 
@@ -93,11 +136,12 @@ def test_revocation_after_transfer_prevents_new_and_replayed_effects(lane):
     rig, legacy, gated = lane
     enroll(rig, gated)
     gated.transfer("task-1", "movement-1")
-    assert gated.commit("task-1", "movement-1", "agent-b", 2, "effect-1", "safe")
+    assert activate(rig, gated)
+    assert authorized_commit(rig, gated, "task-1", "movement-1", "agent-b", 2, "effect-1", "safe")
     rig.revoke("human")
     for effect_id in ("effect-1", "effect-2"):
         with pytest.raises(Unauthorized):
-            gated.commit("task-1", "movement-1", "agent-b", 2, effect_id, "safe")
+            authorized_commit(rig, gated, "task-1", "movement-1", "agent-b", 2, effect_id, "safe")
     assert legacy.reconcile("task-1", "effect-1") == "committed"
     assert legacy.reconcile("task-1", "effect-2") == "unknown"
 
@@ -147,9 +191,10 @@ def test_expired_grant_and_freshness_observation_fail_closed(lane):
         gated.transfer("task-1", "movement-1")
     rig.now = NOW
     gated.transfer("task-1", "movement-1")
+    assert activate(rig, gated)
     rig.now = NOW + 1201
     with pytest.raises(Unauthorized):
-        gated.commit("task-1", "movement-1", "agent-b", 2, "effect-1", "safe")
+        authorized_commit(rig, gated, "task-1", "movement-1", "agent-b", 2, "effect-1", "safe")
 
 
 def test_grant_revocation_and_policy_rollover(lane):
@@ -165,9 +210,10 @@ def test_policy_rollover_after_transfer_blocks_effect(lane):
     rig, _, gated = lane
     enroll(rig, gated)
     gated.transfer("task-1", "movement-1")
+    assert activate(rig, gated)
     rig.runtime.advance_epoch(5)
     with pytest.raises(Unauthorized):
-        gated.commit("task-1", "movement-1", "agent-b", 2, "effect-1", "safe")
+        authorized_commit(rig, gated, "task-1", "movement-1", "agent-b", 2, "effect-1", "safe")
 
 
 def test_cancel_signed_notice_is_atomic_with_guarded_effect(lane):
@@ -204,11 +250,12 @@ def test_budget_is_shared_and_replay_does_not_spend_again(lane):
     rig, _, gated = lane
     enroll(rig, gated)
     gated.transfer("task-1", "movement-1")
-    assert gated.commit("task-1", "movement-1", "agent-b", 2, "e-1", "a")
-    assert gated.commit("task-1", "movement-1", "agent-b", 2, "e-2", "b")
+    assert activate(rig, gated)
+    assert authorized_commit(rig, gated, "task-1", "movement-1", "agent-b", 2, "e-1", "a")
+    assert authorized_commit(rig, gated, "task-1", "movement-1", "agent-b", 2, "e-2", "b")
     with pytest.raises(PolicyDenied, match="budget"):
-        gated.commit("task-1", "movement-1", "agent-b", 2, "e-3", "c")
-    assert not gated.commit("task-1", "movement-1", "agent-b", 2, "e-1", "a")
+        authorized_commit(rig, gated, "task-1", "movement-1", "agent-b", 2, "e-3", "c")
+    assert not authorized_commit(rig, gated, "task-1", "movement-1", "agent-b", 2, "e-1", "a")
     assert gated.inspect("task-1")["used"] == 2
 
 
